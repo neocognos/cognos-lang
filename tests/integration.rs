@@ -440,6 +440,88 @@ fn test_for_iterate_non_iterable() {
     assert!(err.contains("cannot iterate"), "for over int: {}", err);
 }
 
+// ─── Indexing tests ───
+
+#[test]
+fn test_list_indexing() {
+    let out = expect_run_ok("flow main():\n    items = [10, 20, 30]\n    emit(items[0])\n    emit(items[2])\n    emit(items[-1])\n");
+    assert_eq!(out.trim(), "10\n30\n30");
+}
+
+#[test]
+fn test_string_indexing() {
+    let out = expect_run_ok("flow main():\n    s = \"hello\"\n    emit(s[0])\n    emit(s[-1])\n");
+    assert_eq!(out.trim(), "h\no");
+}
+
+#[test]
+fn test_map_indexing() {
+    let out = expect_run_ok("flow main():\n    m = {\"x\": 42}\n    emit(m[\"x\"])\n");
+    assert_eq!(out.trim(), "42");
+}
+
+#[test]
+fn test_index_out_of_range() {
+    let err = expect_error("flow main():\n    items = [1, 2]\n    emit(items[5])\n");
+    assert!(err.contains("out of range"), "index oob: {}", err);
+}
+
+// ─── Method tests ───
+
+#[test]
+fn test_string_methods() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    s = \"Hello World\"\n",
+        "    emit(s.upper())\n",
+        "    emit(s.lower())\n",
+        "    emit(s.contains(\"World\"))\n",
+        "    emit(s.starts_with(\"Hello\"))\n",
+        "    emit(s.ends_with(\"World\"))\n",
+        "    emit(s.replace(\"World\", \"Cognos\"))\n",
+        "    emit(s.split(\" \"))\n",
+        "    emit(\"  hi  \".strip())\n",
+    ));
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec![
+        "HELLO WORLD", "hello world", "true", "true", "true",
+        "Hello Cognos", "[Hello, World]", "hi"
+    ]);
+}
+
+#[test]
+fn test_list_methods() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    items = [3, 1, 2]\n",
+        "    emit(items.contains(2))\n",
+        "    emit(items.contains(99))\n",
+        "    emit(items.join(\"-\"))\n",
+        "    emit(items.reversed())\n",
+    ));
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["true", "false", "3-1-2", "[2, 1, 3]"]);
+}
+
+#[test]
+fn test_map_methods() {
+    let out = expect_run_ok("flow main():\n    m = {\"a\": 1, \"b\": 2}\n    emit(m.keys())\n    emit(m.values())\n    emit(m.contains(\"a\"))\n    emit(m.contains(\"z\"))\n    emit(m.length)\n");
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["[a, b]", "[1, 2]", "true", "false", "2"]);
+}
+
+#[test]
+fn test_unknown_method() {
+    let err = expect_error("flow main():\n    s = \"hi\"\n    emit(s.foobar())\n");
+    assert!(err.contains("no method"), "unknown method: {}", err);
+}
+
+#[test]
+fn test_unary_minus() {
+    let out = expect_run_ok("flow main():\n    emit(-5)\n    emit(-3 + 10)\n");
+    assert_eq!(out.trim(), "-5\n7");
+}
+
 // ─── REPL edge case tests ───
 
 #[test]

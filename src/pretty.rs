@@ -128,6 +128,13 @@ fn pretty_expr(expr: &Expr) -> String {
         Expr::Field { object, field } => {
             format!("{}.{}", pretty_expr(object), field)
         }
+        Expr::Index { object, index } => {
+            format!("{}[{}]", pretty_expr(object), pretty_expr(index))
+        }
+        Expr::MethodCall { object, method, args } => {
+            let a: Vec<String> = args.iter().map(|e| pretty_expr(e)).collect();
+            format!("{}.{}({})", pretty_expr(object), method, a.join(", "))
+        }
         Expr::BinOp { left, op, right } => {
             let op_str = match op {
                 BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/",

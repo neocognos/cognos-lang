@@ -82,6 +82,10 @@ pub enum Expr {
     },
     /// Field access: expr.field
     Field { object: Box<Expr>, field: String },
+    /// Index access: expr[expr]
+    Index { object: Box<Expr>, index: Box<Expr> },
+    /// Method call: expr.method(args)
+    MethodCall { object: Box<Expr>, method: String, args: Vec<Expr> },
     /// Binary op: left op right
     BinOp { left: Box<Expr>, op: BinOp, right: Box<Expr> },
     /// Unary op: not expr

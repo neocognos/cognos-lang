@@ -341,6 +341,22 @@ impl Parser {
             let operand = self.parse_unary()?;
             return Ok(Expr::UnaryOp { op: UnaryOp::Not, operand: Box::new(operand) });
         }
+        if self.check(&Token::Minus) {
+            self.advance();
+            let operand = self.parse_unary()?;
+            // Fold constant: -N → IntLit(-N)
+            if let Expr::IntLit(n) = operand {
+                return Ok(Expr::IntLit(-n));
+            }
+            if let Expr::FloatLit(n) = operand {
+                return Ok(Expr::FloatLit(-n));
+            }
+            return Ok(Expr::BinOp {
+                left: Box::new(Expr::IntLit(0)),
+                op: BinOp::Sub,
+                right: Box::new(operand),
+            });
+        }
         self.parse_postfix()
     }
 
@@ -350,9 +366,28 @@ impl Parser {
             if self.check(&Token::Dot) {
                 self.advance();
                 let field = self.expect_ident()?;
-                expr = Expr::Field { object: Box::new(expr), field };
+                // Check if it's a method call: obj.method(args)
+                if self.check(&Token::LParen) {
+                    self.advance(); // consume (
+                    let mut args = Vec::new();
+                    while !self.check(&Token::RParen) {
+                        args.push(self.parse_expr()?);
+                        if !self.check(&Token::RParen) {
+                            self.expect(Token::Comma)?;
+                        }
+                    }
+                    self.expect(Token::RParen)?;
+                    expr = Expr::MethodCall { object: Box::new(expr), method: field, args };
+                } else {
+                    expr = Expr::Field { object: Box::new(expr), field };
+                }
+            } else if self.check(&Token::LBracket) {
+                // Index: expr[index]
+                self.advance();
+                let index = self.parse_expr()?;
+                self.expect(Token::RBracket)?;
+                expr = Expr::Index { object: Box::new(expr), index: Box::new(index) };
             } else if self.check(&Token::LParen) {
-                // Function call on ident
                 if let Expr::Ident(name) = expr {
                     expr = self.parse_call(name)?;
                 } else {

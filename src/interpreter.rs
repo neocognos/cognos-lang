@@ -69,6 +69,16 @@ impl Value {
     }
 }
 
+fn value_eq(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::String(a), Value::String(b)) => a == b,
+        (Value::Int(a), Value::Int(b)) => a == b,
+        (Value::Float(a), Value::Float(b)) => a == b,
+        (Value::Bool(a), Value::Bool(b)) => a == b,
+        _ => false,
+    }
+}
+
 fn type_name(v: &Value) -> &'static str {
     match v {
         Value::String(_) => "String",
@@ -351,6 +361,7 @@ impl Interpreter {
                 match (&val, field.as_str()) {
                     (Value::String(s), "length") => Ok(Value::Int(s.len() as i64)),
                     (Value::List(l), "length") => Ok(Value::Int(l.len() as i64)),
+                    (Value::Map(e), "length") => Ok(Value::Int(e.len() as i64)),
                     (Value::Map(_), _) => {
                         match val.get_field(field) {
                             Some(v) => Ok(v.clone()),
@@ -359,6 +370,39 @@ impl Interpreter {
                     }
                     _ => bail!("cannot access field '{}' on {} (type: {})", field, val, type_name(&val)),
                 }
+            }
+
+            Expr::Index { object, index } => {
+                let val = self.eval(object)?;
+                let idx = self.eval(index)?;
+                match (&val, &idx) {
+                    (Value::List(items), Value::Int(i)) => {
+                        let i = if *i < 0 { items.len() as i64 + i } else { *i } as usize;
+                        items.get(i).cloned()
+                            .ok_or_else(|| anyhow::anyhow!("index {} out of range (list has {} elements)", i, items.len()))
+                    }
+                    (Value::String(s), Value::Int(i)) => {
+                        let chars: Vec<char> = s.chars().collect();
+                        let i = if *i < 0 { chars.len() as i64 + i } else { *i } as usize;
+                        chars.get(i).map(|c| Value::String(c.to_string()))
+                            .ok_or_else(|| anyhow::anyhow!("index {} out of range (string has {} characters)", i, chars.len()))
+                    }
+                    (Value::Map(entries), Value::String(key)) => {
+                        entries.iter().find(|(k, _)| k == key)
+                            .map(|(_, v)| v.clone())
+                            .ok_or_else(|| anyhow::anyhow!("map has no key '{}'", key))
+                    }
+                    _ => bail!("cannot index {} with {} (type: {}[{}])", type_name(&val), idx, type_name(&val), type_name(&idx)),
+                }
+            }
+
+            Expr::MethodCall { object, method, args } => {
+                let val = self.eval(object)?;
+                let mut arg_vals = Vec::new();
+                for a in args {
+                    arg_vals.push(self.eval(a)?);
+                }
+                self.call_method(val, method, arg_vals)
             }
 
             Expr::BinOp { left, op, right } => {
@@ -448,6 +492,83 @@ impl Interpreter {
                 }
                 bail!("unknown function: {}()", name)
             }
+        }
+    }
+
+    fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Result<Value> {
+        match (&obj, method) {
+            // ── String methods ──
+            (Value::String(s), "upper") => Ok(Value::String(s.to_uppercase())),
+            (Value::String(s), "lower") => Ok(Value::String(s.to_lowercase())),
+            (Value::String(s), "strip") => Ok(Value::String(s.trim().to_string())),
+            (Value::String(s), "starts_with") => {
+                let prefix = self.expect_string_arg(method, &args, 0)?;
+                Ok(Value::Bool(s.starts_with(&prefix)))
+            }
+            (Value::String(s), "ends_with") => {
+                let suffix = self.expect_string_arg(method, &args, 0)?;
+                Ok(Value::Bool(s.ends_with(&suffix)))
+            }
+            (Value::String(s), "contains") => {
+                let needle = self.expect_string_arg(method, &args, 0)?;
+                Ok(Value::Bool(s.contains(&needle)))
+            }
+            (Value::String(s), "replace") => {
+                let from = self.expect_string_arg(method, &args, 0)?;
+                let to = self.expect_string_arg(method, &args, 1)?;
+                Ok(Value::String(s.replace(&from, &to)))
+            }
+            (Value::String(s), "split") => {
+                let delim = self.expect_string_arg(method, &args, 0)?;
+                let parts: Vec<Value> = s.split(&delim).map(|p| Value::String(p.to_string())).collect();
+                Ok(Value::List(parts))
+            }
+
+            // ── List methods ──
+            (Value::List(items), "contains") => {
+                if args.is_empty() { bail!(".contains() requires an argument"); }
+                let needle = &args[0];
+                let found = items.iter().any(|item| value_eq(item, needle));
+                Ok(Value::Bool(found))
+            }
+            (Value::List(items), "join") => {
+                let sep = if args.is_empty() { "".to_string() } else { args[0].to_string() };
+                let joined: Vec<std::string::String> = items.iter().map(|v| v.to_string()).collect();
+                Ok(Value::String(joined.join(&sep)))
+            }
+            (Value::List(items), "reversed") => {
+                let mut rev = items.clone();
+                rev.reverse();
+                Ok(Value::List(rev))
+            }
+            (Value::List(_items), "push") => {
+                // push mutates — need to handle specially
+                bail!("push() not yet supported — lists are immutable. Use: new_list = old_list + [item]")
+            }
+
+            // ── Map methods ──
+            (Value::Map(entries), "keys") => {
+                let keys: Vec<Value> = entries.iter().map(|(k, _)| Value::String(k.clone())).collect();
+                Ok(Value::List(keys))
+            }
+            (Value::Map(entries), "values") => {
+                let vals: Vec<Value> = entries.iter().map(|(_, v)| v.clone()).collect();
+                Ok(Value::List(vals))
+            }
+            (Value::Map(entries), "contains") => {
+                let key = self.expect_string_arg(method, &args, 0)?;
+                Ok(Value::Bool(entries.iter().any(|(k, _)| k == &key)))
+            }
+
+            _ => bail!("'{}' has no method '{}' (type: {})", obj, method, type_name(&obj)),
+        }
+    }
+
+    fn expect_string_arg(&self, method: &str, args: &[Value], idx: usize) -> Result<std::string::String> {
+        match args.get(idx) {
+            Some(Value::String(s)) => Ok(s.clone()),
+            Some(other) => bail!(".{}() argument {} must be a String, got {}", method, idx + 1, type_name(other)),
+            None => bail!(".{}() requires at least {} argument(s)", method, idx + 1),
         }
     }
 
