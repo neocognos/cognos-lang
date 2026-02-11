@@ -264,13 +264,26 @@ impl Interpreter {
             }
 
             Stmt::Loop { max, body } => {
-                let limit = max.unwrap_or(1000);
-                for _ in 0..limit {
-                    match self.run_block(body)? {
-                        ControlFlow::Break => break,
-                        ControlFlow::Continue => continue,
-                        ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
-                        ControlFlow::Normal => {}
+                match max {
+                    Some(limit) => {
+                        for _ in 0..*limit {
+                            match self.run_block(body)? {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::Normal => {}
+                            }
+                        }
+                    }
+                    None => {
+                        loop {
+                            match self.run_block(body)? {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::Normal => {}
+                            }
+                        }
                     }
                 }
                 Ok(ControlFlow::Normal)

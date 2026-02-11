@@ -229,9 +229,9 @@ impl Parser {
 
     fn parse_loop(&mut self) -> Result<Stmt> {
         self.expect(Token::Loop)?;
-        // Optional: loop max=N
+        // Optional: loop max=N (omit for infinite loop)
         let max = if self.check_ident("max") {
-            self.advance(); // consume 'max'
+            self.advance();
             self.expect(Token::Eq)?;
             if let Token::IntLit(n) = self.peek_token() {
                 let n = n as u32;
@@ -241,7 +241,7 @@ impl Parser {
                 bail!("line {}: expected integer after max=", self.current_line());
             }
         } else {
-            None
+            None // infinite loop — exits only via break/return
         };
         self.expect(Token::Colon)?;
         self.expect_newline()?;

@@ -376,6 +376,20 @@ fn test_repl_basic() {
     assert!(stdout.contains("3"), "REPL should output 3, got: {}", stdout);
 }
 
+#[test]
+fn test_infinite_loop_with_break() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    i = 0\n",
+        "    loop:\n",
+        "        emit(i)\n",
+        "        i = i + 1\n",
+        "        if i == 3:\n",
+        "            break\n",
+    ));
+    assert_eq!(out.trim(), "0\n1\n2");
+}
+
 // ─── For loop tests ───
 
 #[test]
