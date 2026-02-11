@@ -184,15 +184,32 @@ log("Processing step 3")
 
 ### 3.5 Flow Calls
 
-Flows can call other flows directly:
+Flows can call other flows directly. Parameters are passed by value, each flow gets its own scope:
 ```cognos
 flow summarize(text: String) -> String:
     return think(text, model="claude-sonnet-4-20250514", system="Summarize concisely.")
 
+flow classify(text: String) -> String:
+    return think(text, model="qwen2.5:1.5b", system="Reply SIMPLE or COMPLEX only.")
+
 flow main(input: String):
+    complexity = classify(input)
     summary = summarize(input)
-    emit(summary)
+    emit(f"{complexity}: {summary}")
 ```
+
+### 3.6 String Interpolation (F-strings)
+
+F-strings allow embedding expressions inside string literals:
+```cognos
+name = "Cognos"
+emit(f"Hello, {name}!")              # → Hello, Cognos!
+emit(f"{1 + 2} items")              # → 3 items
+emit(f"{name.length} chars")        # → 6 chars
+emit(f"{name} has {name.length} characters")  # → Cognos has 6 characters
+```
+
+Any valid Cognos expression can appear inside `{}`.
 
 ## 4. Control Flow
 
@@ -286,10 +303,13 @@ if response.has_tool_calls:
     act(response)
 ```
 
-### 6.3 Comparison Operators
+### 6.3 Arithmetic Operators
+`+` (add/concat), `-`, `*`, `/`
+
+### 6.4 Comparison Operators
 `==`, `!=`, `<`, `>`, `<=`, `>=`
 
-### 6.4 Logical Operators
+### 6.5 Logical Operators
 `and`, `or`, `not`
 
 ## 7. Comments
@@ -359,10 +379,11 @@ OrExpr <- AndExpr ("or" AndExpr)*
 AndExpr <- Comparison ("and" Comparison)*
 Comparison <- Addition (CompOp Addition)*
 CompOp <- "==" / "!=" / "<" / ">" / "<=" / ">="
-Addition <- Unary (("+" / "-") Unary)*
+Addition <- Multiplication (("+" / "-") Multiplication)*
+Multiplication <- Unary (("*" / "/") Unary)*
 Unary <- "not" Unary / Postfix
 Postfix <- Primary (("." Identifier) / ("(" ArgumentList? ")"))*
-Primary <- Identifier / StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / MapLiteral / "(" Expression ")"
+Primary <- Identifier / FStringLiteral / StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / MapLiteral / "(" Expression ")"
 
 ArgumentList <- Argument ("," Argument)*
 Argument <- (Identifier "=")? Expression
@@ -377,6 +398,7 @@ Block <- NEWLINE INDENT Statement* DEDENT
 
 Identifier <- [a-zA-Z_] [a-zA-Z0-9_]*
 StringLiteral <- '"' [^"]* '"'
+FStringLiteral <- 'f"' (FStringChar / '{' Expression '}')* '"'
 IntLiteral <- [0-9]+
 FloatLiteral <- [0-9]+ "." [0-9]+
 BoolLiteral <- "true" / "false"
@@ -406,5 +428,5 @@ The kernel doesn't change — Cognos is a better syntax for the same execution m
 |------|---------|-------------|
 | Interpret | `cognos run file.cog` | Tree-walking interpreter, stdin/stdout |
 | Parse | `cognos parse file.cog` | Pretty-print parsed AST |
-| Compile | `cognos compile file.cog` | Emit kernel stages (future) |
+| REPL | `cognos repl` | Interactive read-eval-print loop |
 | Tokens | `cognos tokens file.cog` | Raw token dump |
