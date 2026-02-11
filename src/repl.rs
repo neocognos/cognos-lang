@@ -82,6 +82,17 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
         return;
     }
 
+    // Friendly errors for bare keywords
+    if trimmed == "emit" || trimmed == "emit()" {
+        eprintln!("Usage: emit(value) — e.g. emit(\"hello\") or emit(42)");
+        return;
+    }
+    if trimmed == "think" || trimmed == "act" || trimmed == "run"
+        || trimmed == "log" || trimmed == "remember" || trimmed == "recall" {
+        eprintln!("'{}' is a function — use {}(...)", trimmed, trimmed);
+        return;
+    }
+
     // Detect if this is a statement (starts with keyword or is an assignment)
     let is_statement = trimmed.starts_with("emit(")
         || trimmed.starts_with("if ")
