@@ -1,21 +1,23 @@
 # Agent with tools — flows are tools
 flow get_weather(city: String) -> String:
+    "Get the current weather for a city"
     return f"Weather in {city}: 22°C, sunny"
 
-flow calculate(expression: String) -> String:
-    result = run(f"python3 -c 'print({expression})'")
+flow get_time() -> String:
+    "Get the current date and time"
+    result = run("date")
     return result.strip()
 
 flow main():
-    write(stdout, "Agent with tools. Ask about weather or math.")
+    write(stdout, "Agent with tools. Try: What's the weather in Amsterdam?")
     loop:
         input = read()
         if input == "quit":
             break
-        response = think(input, tools=["get_weather", "calculate"])
+        response = think(input, tools=["get_weather", "get_time"])
         loop max=3:
             if not response.has_tool_calls:
                 break
-            response = act(response, tools=["get_weather", "calculate"])
-            response = think(response.content, tools=["get_weather", "calculate"])
+            response = act(response, tools=["get_weather", "get_time"])
+            response = think(response.content, tools=["get_weather", "get_time"])
         write(stdout, response.content)

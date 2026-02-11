@@ -22,6 +22,7 @@ pub struct TypeField {
 #[derive(Debug, Clone)]
 pub struct FlowDef {
     pub name: String,
+    pub description: Option<String>,
     pub params: Vec<Param>,
     pub return_type: Option<TypeExpr>,
     pub body: Vec<Stmt>,

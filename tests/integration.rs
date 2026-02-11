@@ -544,6 +544,13 @@ fn test_act_executes_tool_flow() {
 }
 
 #[test]
+fn test_flow_docstring() {
+    // Docstring is extracted but doesn't affect execution
+    let out = expect_run_ok("flow main():\n    \"This is a docstring\"\n    write(stdout, \"ok\")\n");
+    assert_eq!(out.trim(), "ok");
+}
+
+#[test]
 fn test_act_no_tool_calls_passthrough() {
     let out = expect_run_ok(concat!(
         "flow main():\n",

@@ -146,7 +146,16 @@ impl Parser {
         self.expect_newline()?;
         let body = self.parse_block()?;
 
-        Ok(FlowDef { name, params, return_type, body })
+        // Extract docstring: first statement being a bare string literal
+        let mut description = None;
+        let body = if let Some(Stmt::Expr(Expr::StringLit(s))) = body.first() {
+            description = Some(s.clone());
+            body[1..].to_vec()
+        } else {
+            body
+        };
+
+        Ok(FlowDef { name, description, params, return_type, body })
     }
 
     // ─── Block (indented) ───

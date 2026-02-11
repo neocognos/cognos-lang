@@ -888,11 +888,13 @@ impl Interpreter {
             }));
             required.push(serde_json::Value::String(param.name.clone()));
         }
+        let desc = flow.description.clone()
+            .unwrap_or_else(|| format!("Flow '{}'", flow.name));
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": flow.name,
-                "description": format!("Flow '{}'", flow.name),
+                "description": desc,
                 "parameters": {
                     "type": "object",
                     "properties": properties,
