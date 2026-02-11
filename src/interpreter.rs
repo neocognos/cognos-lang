@@ -1039,11 +1039,128 @@ impl Interpreter {
     }
 
     fn call_llm(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
-        // Route to correct provider based on model name
+        // Route to correct provider based on model prefix
         if model.starts_with("claude") {
-            return self.call_anthropic(model, system, prompt, tools);
+            // Try CLI first (for Max subscription), fall back to API
+            return self.call_claude_cli(model, system, prompt, tools);
         }
         self.call_ollama(model, system, prompt, tools)
+    }
+
+    fn call_claude_cli(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        log::info!("Calling Claude CLI: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        // Build system prompt with tools embedded
+        let mut full_system = system.to_string();
+        if let Some(ref tool_defs) = tools {
+            full_system.push_str("\n\n## Available Tools\n\nYou have access to these tools. To use a tool, respond with a JSON block:\n```json\n{\"tool_calls\": [{\"name\": \"tool_name\", \"arguments\": {\"arg\": \"value\"}}]}\n```\n\nTools:\n");
+            for t in tool_defs {
+                let name = t["function"]["name"].as_str().unwrap_or("");
+                let desc = t["function"]["description"].as_str().unwrap_or("");
+                let params = serde_json::to_string_pretty(&t["function"]["parameters"]).unwrap_or_default();
+                full_system.push_str(&format!("\n### {}\n{}\nParameters: {}\n", name, desc, params));
+            }
+            full_system.push_str("\nIMPORTANT: If you want to use a tool, respond ONLY with the JSON block above. No other text. If you don't need a tool, respond normally.\n");
+        }
+
+        let output = std::process::Command::new("claude")
+            .args([
+                "-p",
+                "--output-format", "json",
+                "--no-session-persistence",
+                "--model", model,
+                "--system-prompt", &full_system,
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .and_then(|mut child| {
+                use std::io::Write;
+                if let Some(ref mut stdin) = child.stdin {
+                    stdin.write_all(prompt.as_bytes())?;
+                }
+                child.wait_with_output()
+            })
+            .map_err(|e| anyhow::anyhow!("Claude CLI error: {}. Is 'claude' installed?", e))?;
+
+        if !output.status.success() {
+            let err = std::string::String::from_utf8_lossy(&output.stdout);
+            bail!("Claude CLI failed (exit {}): {}", output.status, err);
+        }
+
+        let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+
+        // Parse JSON response from claude CLI
+        let parsed: serde_json::Value = serde_json::from_str(&stdout)
+            .map_err(|e| anyhow::anyhow!("Failed to parse Claude CLI output: {}\nRaw: {}", e, &stdout[..stdout.len().min(500)]))?;
+
+        let raw_text = parsed["result"].as_str().unwrap_or("").to_string();
+
+        if parsed["is_error"] == serde_json::Value::Bool(true) {
+            bail!("Claude CLI error: {}", raw_text);
+        }
+
+        log::info!("Claude CLI response: {} chars", raw_text.len());
+
+        // Parse tool calls from response text
+        if tools.is_some() {
+            if let Some(tool_calls) = self.parse_tool_calls_from_text(&raw_text) {
+                let content = raw_text.split("```json").next().unwrap_or("").trim().to_string();
+                return Ok(Value::Map(vec![
+                    ("content".to_string(), Value::String(content)),
+                    ("tool_calls".to_string(), Value::List(tool_calls)),
+                    ("has_tool_calls".to_string(), Value::Bool(true)),
+                ]));
+            }
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(raw_text)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]));
+        }
+
+        Ok(Value::String(raw_text))
+    }
+
+    fn parse_tool_calls_from_text(&self, text: &str) -> Option<Vec<Value>> {
+        // Look for ```json { "tool_calls": [...] } ```
+        let json_str = if let Some(start) = text.find("```json") {
+            let after = &text[start + 7..];
+            after.find("```").map(|end| after[..end].trim())
+        } else if let Some(start) = text.find("{\"tool_calls\"") {
+            // Raw JSON
+            let after = &text[start..];
+            let mut depth = 0;
+            let mut end = 0;
+            for (i, c) in after.chars().enumerate() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => { depth -= 1; if depth == 0 { end = i + 1; break; } }
+                    _ => {}
+                }
+            }
+            if end > 0 { Some(&after[..end]) } else { None }
+        } else {
+            None
+        }?;
+
+        let parsed: serde_json::Value = serde_json::from_str(json_str).ok()?;
+        let calls = parsed["tool_calls"].as_array()?;
+
+        if calls.is_empty() {
+            return None;
+        }
+
+        let result: Vec<Value> = calls.iter().map(|c| {
+            let name = c["name"].as_str().unwrap_or("").to_string();
+            let arguments = self.json_to_value(c["arguments"].clone());
+            Value::Map(vec![
+                ("name".to_string(), Value::String(name)),
+                ("arguments".to_string(), arguments),
+            ])
+        }).collect();
+
+        Some(result)
     }
 
     fn call_anthropic(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
