@@ -376,6 +376,219 @@ fn test_repl_basic() {
     assert!(stdout.contains("3"), "REPL should output 3, got: {}", stdout);
 }
 
+// ─── REPL edge case tests ───
+
+#[test]
+fn test_repl_all_inputs() {
+    // Test a wide range of REPL inputs — none should crash
+    let inputs = vec![
+        // Bare keywords
+        "emit\n",
+        "emit()\n",
+        "think\n",
+        "run\n",
+        "log\n",
+        "flow\n",
+        "if\n",
+        "loop\n",
+        "break\n",
+        "continue\n",
+        "pass\n",
+        "return\n",
+        "true\n",
+        "false\n",
+        // Valid expressions
+        "1\n",
+        "1 + 2\n",
+        "\"hello\"\n",
+        "true and false\n",
+        "not true\n",
+        "[1, 2, 3]\n",
+        "3 * 4\n",
+        "10 / 2\n",
+        // Valid statements
+        "x = 42\n",
+        "emit(42)\n",
+        "emit(\"hello\")\n",
+        "log(\"test\")\n",
+        // Empty input
+        "\n",
+        // Nonsense
+        "!!!\n",
+        "@#$\n",
+    ];
+
+    let bin = cognos_bin();
+    for input in &inputs {
+        let full = format!("{}exit\n", input);
+        let output = Command::new(&bin)
+            .arg("repl")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                use std::io::Write;
+                child.stdin.take().unwrap().write_all(full.as_bytes()).unwrap();
+                child.wait_with_output()
+            })
+            .unwrap();
+        assert_eq!(output.status.code().unwrap(), 0,
+            "REPL crashed on input: {:?}\nstderr: {}",
+            input, std::string::String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+// ─── Parser edge case tests ───
+
+/// Helper: parse a .cog snippet, expect success
+fn expect_parse_ok(code: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.cog");
+    std::fs::write(&path, code).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("parse").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0,
+        "Parse failed for:\n{}\nstderr: {}", code,
+        std::string::String::from_utf8_lossy(&output.stderr));
+}
+
+/// Helper: run a .cog snippet, expect success, return stdout
+fn expect_run_ok(code: &str) -> std::string::String {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.cog");
+    std::fs::write(&path, code).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0,
+        "Run failed for:\n{}\nstderr: {}", code,
+        std::string::String::from_utf8_lossy(&output.stderr));
+    std::string::String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+#[test]
+fn test_parse_all_statement_types() {
+    // pass
+    expect_parse_ok("flow main():\n    pass\n");
+    // emit
+    expect_parse_ok("flow main():\n    emit(1)\n");
+    // assignment
+    expect_parse_ok("flow main():\n    x = 1\n");
+    // return
+    expect_parse_ok("flow main() -> Int:\n    return 1\n");
+    // break/continue in loop
+    expect_parse_ok("flow main():\n    loop max=1:\n        break\n");
+    expect_parse_ok("flow main():\n    loop max=1:\n        continue\n");
+    // if/elif/else
+    expect_parse_ok("flow main():\n    if true:\n        pass\n    elif false:\n        pass\n    else:\n        pass\n");
+    // loop
+    expect_parse_ok("flow main():\n    loop max=5:\n        pass\n");
+    // bare expression
+    expect_parse_ok("flow main():\n    log(\"hi\")\n");
+}
+
+#[test]
+fn test_parse_all_expression_types() {
+    // Literals
+    expect_parse_ok("flow main():\n    x = 42\n");
+    expect_parse_ok("flow main():\n    x = 3.14\n");
+    expect_parse_ok("flow main():\n    x = \"hello\"\n");
+    expect_parse_ok("flow main():\n    x = true\n");
+    expect_parse_ok("flow main():\n    x = false\n");
+    expect_parse_ok("flow main():\n    x = [1, 2, 3]\n");
+    expect_parse_ok("flow main():\n    x = {\"a\": 1}\n");
+    // F-string
+    expect_parse_ok("flow main():\n    x = f\"hello {1 + 2}\"\n");
+    // Empty list/map
+    expect_parse_ok("flow main():\n    x = []\n");
+    expect_parse_ok("flow main():\n    x = {}\n");
+    // Nested
+    expect_parse_ok("flow main():\n    x = [[1], [2]]\n");
+    // Parenthesized
+    expect_parse_ok("flow main():\n    x = (1 + 2) * 3\n");
+}
+
+#[test]
+fn test_all_operators() {
+    let out = expect_run_ok("flow main():\n    emit(2 + 3)\n    emit(10 - 4)\n    emit(3 * 5)\n    emit(10 / 2)\n    emit(1 == 1)\n    emit(1 != 2)\n    emit(1 < 2)\n    emit(2 > 1)\n    emit(1 <= 1)\n    emit(2 >= 3)\n    emit(true and true)\n    emit(true or false)\n    emit(not false)\n");
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["5", "6", "15", "5", "true", "true", "true", "true", "true", "false", "true", "true", "true"]);
+}
+
+#[test]
+fn test_flow_signatures() {
+    // No params, no return
+    expect_parse_ok("flow a():\n    pass\n");
+    // One param
+    expect_parse_ok("flow a(x: Int):\n    pass\n");
+    // Multiple params
+    expect_parse_ok("flow a(x: Int, y: String, z: Bool):\n    pass\n");
+    // Return type
+    expect_parse_ok("flow a() -> Int:\n    return 1\n");
+    // Params + return
+    expect_parse_ok("flow a(x: Int) -> Int:\n    return x\n");
+    // Generic type
+    expect_parse_ok("flow a(x: List[Int]):\n    pass\n");
+}
+
+#[test]
+fn test_multiple_flows() {
+    let out = expect_run_ok(concat!(
+        "flow add(a: Int, b: Int) -> Int:\n",
+        "    return a + b\n",
+        "\n",
+        "flow mul(a: Int, b: Int) -> Int:\n",
+        "    return a * b\n",
+        "\n",
+        "flow main():\n",
+        "    emit(add(2, 3))\n",
+        "    emit(mul(4, 5))\n",
+        "    emit(add(mul(2, 3), 4))\n",
+    ));
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["5", "20", "10"]);
+}
+
+#[test]
+fn test_fstring_edge_cases() {
+    // Empty f-string
+    let out = expect_run_ok("flow main():\n    emit(f\"\")\n");
+    assert_eq!(out.trim(), "");
+    // Only expression
+    let out = expect_run_ok("flow main():\n    emit(f\"{42}\")\n");
+    assert_eq!(out.trim(), "42");
+    // Multiple expressions
+    let out = expect_run_ok("flow main():\n    x = 1\n    y = 2\n    emit(f\"{x}+{y}={x+y}\")\n");
+    assert_eq!(out.trim(), "1+2=3");
+    // Expression with field access
+    let out = expect_run_ok("flow main():\n    s = \"hello\"\n    emit(f\"len={s.length}\")\n");
+    assert_eq!(out.trim(), "len=5");
+}
+
+#[test]
+fn test_nested_control_flow() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    i = 0\n",
+        "    loop max=3:\n",
+        "        j = 0\n",
+        "        loop max=3:\n",
+        "            if i == j:\n",
+        "                emit(f\"{i},{j}\")\n",
+        "            j = j + 1\n",
+        "        i = i + 1\n",
+    ));
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["0,0", "1,1", "2,2"]);
+}
+
+#[test]
+fn test_kwargs_on_functions() {
+    // think() kwargs are already tested via LLM, test parse only
+    expect_parse_ok("flow main():\n    x = think(\"hi\", model=\"test\", system=\"be nice\")\n");
+    expect_parse_ok("flow main():\n    x = think(\"hi\", tools=[], model=\"test\")\n");
+}
+
 // ─── Type tests: all primitives ───
 
 #[test]
