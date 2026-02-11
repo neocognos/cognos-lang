@@ -83,6 +83,10 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
     }
 
     // Friendly errors for bare keywords
+    if trimmed == "flow" {
+        eprintln!("Usage: flow name(params):\n           body\n\nExample:\n  flow greet(name: String):\n      emit(f\"Hello, {{name}}!\")");
+        return;
+    }
     if trimmed == "emit" || trimmed == "emit()" {
         eprintln!("Usage: emit(value) — e.g. emit(\"hello\") or emit(42)");
         return;
