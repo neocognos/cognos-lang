@@ -30,6 +30,7 @@ fn main() {
     let mut file_path = None;
     let mut allow_shell = false;
     let mut trace_path: Option<String> = None;
+    let mut trace_level = trace::TraceLevel::Metrics;
 
     let mut i = 1;
     while i < args.len() {
@@ -52,6 +53,19 @@ fn main() {
                 } else {
                     eprintln!("--trace requires a file path");
                     std::process::exit(1);
+                }
+            }
+            "--trace-level" => {
+                i += 1;
+                if i < args.len() {
+                    trace_level = match args[i].as_str() {
+                        "metrics" => trace::TraceLevel::Metrics,
+                        "full" => trace::TraceLevel::Full,
+                        other => {
+                            eprintln!("Unknown trace level: {} (use 'metrics' or 'full')", other);
+                            std::process::exit(1);
+                        }
+                    };
                 }
             }
             s if s.starts_with('-') => {
@@ -142,7 +156,7 @@ fn main() {
             };
             log::info!("Parsed {} flow(s)", program.flows.len());
             let tracer = trace_path.as_ref().map(|p| {
-                std::sync::Arc::new(trace::Tracer::new_file(p).unwrap_or_else(|e| {
+                std::sync::Arc::new(trace::Tracer::new_file(p, trace_level).unwrap_or_else(|e| {
                     eprintln!("Failed to open trace file {}: {}", p, e);
                     std::process::exit(1);
                 }))

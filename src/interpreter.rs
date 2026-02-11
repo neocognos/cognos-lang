@@ -159,6 +159,22 @@ impl Interpreter {
         }
     }
 
+    fn is_full_trace(&self) -> bool {
+        self.tracer.as_ref().map(|t| t.level == crate::trace::TraceLevel::Full).unwrap_or(false)
+    }
+
+    fn trace_llm(&self, model: &str, provider: &str, latency_ms: u64, prompt: &str, system: &str, response: &str, has_tool_calls: bool) {
+        let full = self.is_full_trace();
+        self.trace(TraceEvent::LlmCall {
+            model: model.to_string(), provider: provider.to_string(),
+            latency_ms, prompt_chars: prompt.len(), response_chars: response.len(),
+            has_tool_calls, error: None,
+            prompt: if full { Some(prompt.to_string()) } else { None },
+            response: if full { Some(response.to_string()) } else { None },
+            system: if full { Some(system.to_string()) } else { None },
+        });
+    }
+
     pub fn run(&mut self, program: &Program) -> Result<()> {
         // Register all types
         for td in &program.types {
@@ -731,9 +747,10 @@ impl Interpreter {
                     .output()?;
                 let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
                 let exit_code = output.status.code().unwrap_or(-1);
+                let shell_output = if self.is_full_trace() { Some(stdout.clone()) } else { None };
                 self.trace(TraceEvent::ShellExec {
                     command: cmd, latency_ms: shell_start.elapsed().as_millis() as u64,
-                    exit_code, output_chars: stdout.len(),
+                    exit_code, output_chars: stdout.len(), output: shell_output,
                 });
                 Ok(Value::String(stdout.trim_end().to_string()))
             }
@@ -1128,21 +1145,21 @@ impl Interpreter {
         if tools.is_some() {
             if let Some(tool_calls) = self.parse_tool_calls_from_text(&raw_text) {
                 let content = raw_text.split("```json").next().unwrap_or("").trim().to_string();
-                self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: true, error: None });
+                self.trace_llm(model, "claude-cli", latency, prompt, &full_system, &raw_text, true);
                 return Ok(Value::Map(vec![
                     ("content".to_string(), Value::String(content)),
                     ("tool_calls".to_string(), Value::List(tool_calls)),
                     ("has_tool_calls".to_string(), Value::Bool(true)),
                 ]));
             }
-            self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: false, error: None });
+            self.trace_llm(model, "claude-cli", latency, prompt, &full_system, &raw_text, false);
             return Ok(Value::Map(vec![
                 ("content".to_string(), Value::String(raw_text)),
                 ("has_tool_calls".to_string(), Value::Bool(false)),
             ]));
         }
 
-        self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: false, error: None });
+        self.trace_llm(model, "claude-cli", latency, prompt, &full_system, &raw_text, false);
         Ok(Value::String(raw_text))
     }
 
@@ -1347,7 +1364,7 @@ impl Interpreter {
                     }).collect();
 
                     let latency = call_start.elapsed().as_millis() as u64;
-                    self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "ollama".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: content.len(), has_tool_calls: true, error: None });
+                    self.trace_llm(model, "ollama", latency, prompt, system, &content, true);
                     return Ok(Value::Map(vec![
                         ("content".to_string(), Value::String(content)),
                         ("tool_calls".to_string(), Value::List(tc)),
@@ -1358,7 +1375,7 @@ impl Interpreter {
         }
 
         let latency = call_start.elapsed().as_millis() as u64;
-        self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "ollama".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: content.len(), has_tool_calls: false, error: None });
+        self.trace_llm(model, "ollama", latency, prompt, system, &content, false);
         // No tool calls — return simple string or structured map
         if tools.is_some() {
             Ok(Value::Map(vec![
