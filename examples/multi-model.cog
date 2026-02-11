@@ -1,0 +1,13 @@
+# Multi-model: fast model classifies, bigger model answers
+flow main(input: Text):
+    fast = "qwen2.5:1.5b"
+    smart = "qwen2.5:7b"
+
+    classification = think(input, model=fast, system="Reply SIMPLE or COMPLEX only. Nothing else.")
+
+    if classification == "COMPLEX":
+        response = think(input, model=smart, system="Give a thorough answer.")
+    else:
+        response = think(input, model=fast, system="Be concise.")
+
+    emit(response)

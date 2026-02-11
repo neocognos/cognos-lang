@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use crate::ast::*;
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -181,8 +182,8 @@ impl Interpreter {
                 Ok(Value::List(vals?))
             }
 
-            Expr::Call { name, args, kwargs: _ } => {
-                self.call_builtin(name, args)
+            Expr::Call { name, args, kwargs } => {
+                self.call_builtin(name, args, kwargs)
             }
 
             Expr::Field { object, field } => {
@@ -209,18 +210,9 @@ impl Interpreter {
         }
     }
 
-    fn call_builtin(&mut self, name: &str, args: &[Expr]) -> Result<Value> {
+    fn call_builtin(&mut self, name: &str, args: &[Expr], kwargs: &[(String, Expr)]) -> Result<Value> {
         match name {
-            "receive" => {
-                // Read a line from stdin
-                print!("> ");
-                io::stdout().flush()?;
-                let mut line = String::new();
-                io::stdin().lock().read_line(&mut line)?;
-                Ok(Value::Text(line.trim_end().to_string()))
-            }
             "print" | "emit" => {
-                // emit is handled at stmt level, but support as expr too
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 { print!(" "); }
                     let val = self.eval(arg)?;
@@ -230,24 +222,35 @@ impl Interpreter {
                 Ok(Value::None)
             }
             "think" => {
-                // Stub: in interpreter mode, think just returns its first arg
                 if args.is_empty() {
                     bail!("think() requires at least one argument");
                 }
-                let val = self.eval(&args[0])?;
-                eprintln!("⚠ think() stubbed in interpreter mode — returning input as-is");
-                Ok(val)
+                let context = self.eval(&args[0])?;
+
+                // Resolve kwargs
+                let mut model = "qwen2.5:1.5b".to_string();
+                let mut system = String::new();
+                for (k, v) in kwargs {
+                    let val = self.eval(v)?;
+                    match k.as_str() {
+                        "model" => model = val.to_string(),
+                        "system" => system = val.to_string(),
+                        "tools" | "output" => {} // TODO
+                        _ => bail!("think(): unknown kwarg '{}'", k),
+                    }
+                }
+
+                self.call_ollama(&model, &system, &context.to_string())
             }
             "act" => {
                 if args.is_empty() {
                     bail!("act() requires at least one argument");
                 }
                 let val = self.eval(&args[0])?;
-                eprintln!("⚠ act() stubbed in interpreter mode — returning input as-is");
+                eprintln!("⚠ act() stubbed in interpreter mode");
                 Ok(val)
             }
             "run" => {
-                // Execute a shell command
                 if args.is_empty() {
                     bail!("run() requires a command string");
                 }
@@ -259,8 +262,50 @@ impl Interpreter {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 Ok(Value::Text(stdout.trim_end().to_string()))
             }
+            "log" => {
+                for arg in args {
+                    let val = self.eval(arg)?;
+                    eprintln!("[log] {}", val);
+                }
+                Ok(Value::None)
+            }
             _ => bail!("unknown function: {}()", name),
         }
+    }
+
+    fn call_ollama(&self, model: &str, system: &str, prompt: &str) -> Result<Value> {
+        #[derive(Serialize)]
+        struct OllamaRequest {
+            model: String,
+            prompt: String,
+            #[serde(skip_serializing_if = "String::is_empty")]
+            system: String,
+            stream: bool,
+        }
+
+        #[derive(Deserialize)]
+        struct OllamaResponse {
+            response: String,
+        }
+
+        eprint!("🧠 thinking ({})... ", model);
+        io::stderr().flush()?;
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .post("http://localhost:11434/api/generate")
+            .json(&OllamaRequest {
+                model: model.to_string(),
+                prompt: prompt.to_string(),
+                system: system.to_string(),
+                stream: false,
+            })
+            .send()?
+            .error_for_status()?
+            .json::<OllamaResponse>()?;
+
+        eprintln!("done");
+        Ok(Value::Text(resp.response.trim().to_string()))
     }
 
     fn eval_binop(&self, left: &Value, op: &BinOp, right: &Value) -> Result<Value> {
