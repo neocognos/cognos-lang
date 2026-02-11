@@ -90,6 +90,11 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
                 for s in else_body { pretty_stmt(out, s, level + 1); }
             }
         }
+        Stmt::For { var, iterable, body } => {
+            indent(out, level);
+            out.push_str(&format!("for {} in {}:\n", var, pretty_expr(iterable)));
+            for s in body { pretty_stmt(out, s, level + 1); }
+        }
         Stmt::Loop { max, body } => {
             indent(out, level);
             if let Some(n) = max {

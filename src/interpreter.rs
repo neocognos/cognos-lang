@@ -239,6 +239,30 @@ impl Interpreter {
                 Ok(ControlFlow::Normal)
             }
 
+            Stmt::For { var, iterable, body } => {
+                let collection = self.eval(iterable)?;
+                let items = match collection {
+                    Value::List(items) => items,
+                    Value::Map(entries) => entries.into_iter()
+                        .map(|(k, _)| Value::String(k))
+                        .collect(),
+                    Value::String(s) => s.chars()
+                        .map(|c| Value::String(c.to_string()))
+                        .collect(),
+                    other => bail!("cannot iterate over {} (type: {})", other, type_name(&other)),
+                };
+                for item in items {
+                    self.vars.insert(var.clone(), item);
+                    match self.run_block(body)? {
+                        ControlFlow::Break => break,
+                        ControlFlow::Continue => continue,
+                        ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                        ControlFlow::Normal => {}
+                    }
+                }
+                Ok(ControlFlow::Normal)
+            }
+
             Stmt::Loop { max, body } => {
                 let limit = max.unwrap_or(1000);
                 for _ in 0..limit {

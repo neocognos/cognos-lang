@@ -376,6 +376,56 @@ fn test_repl_basic() {
     assert!(stdout.contains("3"), "REPL should output 3, got: {}", stdout);
 }
 
+// ─── For loop tests ───
+
+#[test]
+fn test_for_over_list() {
+    let out = expect_run_ok("flow main():\n    for x in [10, 20, 30]:\n        emit(x)\n");
+    assert_eq!(out.trim(), "10\n20\n30");
+}
+
+#[test]
+fn test_for_over_string() {
+    let out = expect_run_ok("flow main():\n    for ch in \"abc\":\n        emit(ch)\n");
+    assert_eq!(out.trim(), "a\nb\nc");
+}
+
+#[test]
+fn test_for_over_map_keys() {
+    let out = expect_run_ok("flow main():\n    for k in {\"x\": 1, \"y\": 2}:\n        emit(k)\n");
+    assert_eq!(out.trim(), "x\ny");
+}
+
+#[test]
+fn test_for_with_break() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    for x in [1, 2, 3, 4, 5]:\n",
+        "        if x == 3:\n",
+        "            break\n",
+        "        emit(x)\n",
+    ));
+    assert_eq!(out.trim(), "1\n2");
+}
+
+#[test]
+fn test_for_with_continue() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    for x in [1, 2, 3, 4]:\n",
+        "        if x == 2:\n",
+        "            continue\n",
+        "        emit(x)\n",
+    ));
+    assert_eq!(out.trim(), "1\n3\n4");
+}
+
+#[test]
+fn test_for_iterate_non_iterable() {
+    let err = expect_error("flow main():\n    for x in 42:\n        emit(x)\n");
+    assert!(err.contains("cannot iterate"), "for over int: {}", err);
+}
+
 // ─── REPL edge case tests ───
 
 #[test]

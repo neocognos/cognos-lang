@@ -138,6 +138,7 @@ impl Parser {
         match self.peek_token() {
             Token::If => return self.parse_if(),
             Token::Loop => return self.parse_loop(),
+            Token::For => return self.parse_for(),
             Token::Emit => return self.parse_emit(),
             Token::Return => return self.parse_return(),
             Token::Break => { self.advance(); self.skip_newlines(); return Ok(Stmt::Break); }
@@ -246,6 +247,17 @@ impl Parser {
         self.expect_newline()?;
         let body = self.parse_block()?;
         Ok(Stmt::Loop { max, body })
+    }
+
+    fn parse_for(&mut self) -> Result<Stmt> {
+        self.expect(Token::For)?;
+        let var = self.expect_ident()?;
+        self.expect(Token::In)?;
+        let iterable = self.parse_expr()?;
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+        let body = self.parse_block()?;
+        Ok(Stmt::For { var, iterable, body })
     }
 
     // ─── Expressions ───

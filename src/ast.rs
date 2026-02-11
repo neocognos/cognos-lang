@@ -52,6 +52,12 @@ pub enum Stmt {
         max: Option<u32>,
         body: Vec<Stmt>,
     },
+    /// `for item in collection: body`
+    For {
+        var: String,
+        iterable: Expr,
+        body: Vec<Stmt>,
+    },
     /// Bare expression (function call as statement)
     Expr(Expr),
 }

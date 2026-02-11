@@ -116,7 +116,7 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
     let is_statement = trimmed.starts_with("emit(")
         || trimmed.starts_with("if ")
         || trimmed.starts_with("loop ")
-        || trimmed.starts_with("for ")
+        || (trimmed.starts_with("for ") && trimmed.ends_with(':'))
         || trimmed.starts_with("log(")
         || trimmed.starts_with("pass")
         || trimmed.starts_with("break")
