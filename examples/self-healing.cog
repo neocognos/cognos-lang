@@ -1,0 +1,18 @@
+flow self_healing_deploy(service: Text):
+    task = receive(Text)
+    
+    loop max=3:
+        try:
+            result = run("kubectl rollout status " + service)
+            if result.success:
+                emit("Deployment successful: " + service)
+                return
+        catch error:
+            diagnosis = think(error,
+                system="Diagnose this Kubernetes deployment failure.")
+            fix = think(diagnosis,
+                system="Suggest a fix command.",
+                output=Text)
+            run(fix)
+    
+    emit("Deployment failed after 3 attempts for: " + service)

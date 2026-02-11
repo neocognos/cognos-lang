@@ -1,0 +1,7 @@
+flow read_and_memorize(path: Text) -> Text:
+    content = read_file(path)
+    facts = think(content,
+        system="Extract 3-5 key facts. Be specific and self-contained.",
+        output=List[Text])
+    remember(facts)
+    return facts

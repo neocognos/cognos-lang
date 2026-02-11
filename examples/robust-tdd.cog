@@ -1,0 +1,28 @@
+type TestResult = {
+    success: Bool,
+    output: Text
+}
+
+flow robust_tdd:
+    task = receive(Text)
+    
+    plan = think(task,
+        system="You are a Senior Architect. Plan only, no code.",
+        tools=[])
+    
+    errors = ""
+    loop max=10:
+        code = think(plan + errors,
+            system="Implement. Use write_file. Never describe, always write.",
+            tools=[read_file, write_file])
+        if code.has_tool_calls:
+            act(code)
+        
+        test = run("cargo test") -> TestResult
+        if test.success:
+            break
+        errors = test.output
+    
+    summary = think(task + plan,
+        system="Summarize all changes made.")
+    emit(summary)

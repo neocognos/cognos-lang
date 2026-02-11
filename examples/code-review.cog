@@ -1,0 +1,26 @@
+type Issue = {
+    severity: Text,  # "critical", "warning", "info"
+    line: Int,
+    message: Text
+}
+
+type ReviewResult = {
+    approved: Bool,
+    issues: List[Issue]
+}
+
+flow code_review(diff: Text) -> ReviewResult:
+    issues = think(diff,
+        system="Find bugs, security issues, and style problems.",
+        output=List[Issue])
+    
+    critical = issues.filter(i => i.severity == "critical")
+    
+    if critical.count > 0:
+        return ReviewResult(
+            approved=false,
+            issues=critical)
+    
+    return ReviewResult(
+        approved=true,
+        issues=issues)

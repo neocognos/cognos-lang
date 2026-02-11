@@ -1,0 +1,11 @@
+flow parallel_research:
+    question = receive(Text)
+    
+    tech, biz = parallel:
+        think(question, system="Analyze technical aspects.", tools=[])
+        think(question, system="Analyze business implications.", tools=[])
+    
+    synthesis = think(tech + biz,
+        system="Synthesize both perspectives into actionable insights.",
+        tools=[])
+    emit(synthesis)

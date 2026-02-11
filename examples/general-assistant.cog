@@ -1,0 +1,15 @@
+# General-purpose assistant with agentic loop
+
+flow general_assistant:
+    input = receive(Text)
+    
+    response = input
+    loop max=30:
+        response = think(response)
+        if response.has_tool_calls:
+            result = act(response)
+            response = result
+        else:
+            break
+    
+    emit(response)
