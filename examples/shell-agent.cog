@@ -1,0 +1,26 @@
+# Shell agent with sandboxed shell access
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command"
+    allowed = ["ls", "cat", "grep", "date", "echo", "wc"]
+    cmd = command.split(" ")[0]
+    if not allowed.contains(cmd):
+        return f"Error: '{cmd}' is not allowed"
+    return __exec_shell__(command)
+
+flow main():
+    history = []
+    write(stdout, "Shell agent ready. Type 'quit' to exit.")
+    loop:
+        input = read()
+        if input == "quit":
+            break
+        history = history + [f"User: {input}"]
+        context = history.join("\n")
+        response = think(context, model="qwen2.5:7b", tools=["shell"], system="You are a helpful assistant with shell access. Use the shell tool when asked. Be concise.")
+        loop max=5:
+            if not response.has_tool_calls:
+                break
+            response = exec(response, tools=["shell"])
+            response = think(response.content, model="qwen2.5:7b", tools=["shell"], system="You are a helpful assistant with shell access. Be concise.")
+        history = history + [f"Assistant: {response.content}"]
+        write(stdout, response.content)

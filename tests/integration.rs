@@ -546,6 +546,42 @@ fn test_list_concat_empty() {
     assert_eq!(out.trim(), "[1]");
 }
 
+// ─── All examples parse test ───
+
+#[test]
+fn test_all_examples_parse() {
+    let bin = cognos_bin();
+    let examples_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+    for entry in std::fs::read_dir(&examples_dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().map(|e| e == "cog").unwrap_or(false) {
+            let output = Command::new(&bin).arg("parse").arg(&path).output().unwrap();
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(output.status.success(), "Failed to parse {}: {}", path.display(), stderr);
+        }
+    }
+}
+
+// ─── Unicode tests ───
+
+#[test]
+fn test_unicode_in_comments() {
+    let out = expect_run_ok("# This is a comment with em dash \u{2014} and emoji \u{1f600}\nflow main():\n    write(stdout, \"ok\")\n");
+    assert_eq!(out.trim(), "ok");
+}
+
+#[test]
+fn test_unicode_in_strings() {
+    let out = expect_run_ok("flow main():\n    write(stdout, \"hello \u{1f30d}\")\n    write(stdout, \"caf\u{e9}\")\n");
+    assert_eq!(out.trim(), "hello \u{1f30d}\ncaf\u{e9}");
+}
+
+#[test]
+fn test_unicode_in_fstrings() {
+    let out = expect_run_ok("flow main():\n    name = \"world \u{1f30d}\"\n    write(stdout, f\"hello {name}\")\n");
+    assert_eq!(out.trim(), "hello world \u{1f30d}");
+}
+
 // ─── Native module tests ───
 
 #[test]
