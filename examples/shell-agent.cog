@@ -1,11 +1,11 @@
 # Shell agent with sandboxed shell access
 flow shell(command: String) -> String:
-    "Execute a sandboxed shell command"
-    allowed = ["ls", "cat", "grep", "date", "echo", "wc"]
+    "Execute a sandboxed shell command. Output is limited to 50 lines."
+    allowed = ["ls", "cat", "grep", "date", "echo", "wc", "pwd", "whoami", "head", "tail"]
     cmd = command.split(" ")[0]
     if not allowed.contains(cmd):
         return f"Error: '{cmd}' is not allowed"
-    return __exec_shell__(command)
+    return __exec_shell__(command + " | head -50")
 
 flow main():
     history = []
