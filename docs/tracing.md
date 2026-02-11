@@ -10,6 +10,35 @@ cognos run --trace trace.jsonl file.cog
 
 Every runtime event is written as one JSON line to the trace file.
 
+## Trace Levels
+
+| Field | Metrics (default) | Full |
+|-------|:-:|:-:|
+| `event`, `ts`, `elapsed_ms`, `turn` | ✅ | ✅ |
+| **llm_call** | | |
+| `model`, `provider`, `latency_ms` | ✅ | ✅ |
+| `prompt_chars`, `response_chars` | ✅ | ✅ |
+| `has_tool_calls`, `error` | ✅ | ✅ |
+| `prompt`, `response`, `system` | ❌ | ✅ |
+| **shell_exec** | | |
+| `command`, `latency_ms`, `exit_code` | ✅ | ✅ |
+| `output_chars` | ✅ | ✅ |
+| `output` | ❌ | ✅ |
+| **io** | | |
+| `op`, `handle`, `path`, `bytes` | ✅ | ✅ |
+| `content` | ❌ | ✅ |
+| **tool_exec** | | |
+| `tool`, `args`, `latency_ms` | ✅ | ✅ |
+| `result_chars`, `success`, `error` | ✅ | ✅ |
+| **context** | | |
+| `history_len`, `context_chars` | ✅ | ✅ |
+| **error** | | |
+| `category`, `message`, `flow` | ✅ | ✅ |
+
+**Metrics** is safe for production — no sensitive data leaked. Use it for performance monitoring and alerting.
+
+**Full** includes all content — prompts, responses, user input, file contents, shell output. Use it for debugging and session reconstruction. File reads are capped at 1000 chars.
+
 ## Trace Events
 
 ### llm_call
