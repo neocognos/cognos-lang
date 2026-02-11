@@ -71,6 +71,10 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
             indent(out, level);
             out.push_str("continue\n");
         }
+        Stmt::Pass => {
+            indent(out, level);
+            out.push_str("pass\n");
+        }
         Stmt::If { condition, body, elifs, else_body } => {
             indent(out, level);
             out.push_str(&format!("if {}:\n", pretty_expr(condition)));

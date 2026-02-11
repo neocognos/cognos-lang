@@ -1,0 +1,3 @@
+# The simplest Cognos program — does nothing.
+flow main:
+    pass

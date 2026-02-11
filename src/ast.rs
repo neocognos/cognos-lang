@@ -38,6 +38,8 @@ pub enum Stmt {
     Break,
     /// `continue`
     Continue,
+    /// `pass` (no-op)
+    Pass,
     /// `if cond: body elif cond: body else: body`
     If {
         condition: Expr,

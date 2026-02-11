@@ -91,6 +91,7 @@ impl Parser {
             Token::Return => return self.parse_return(),
             Token::Break => { self.advance(); self.skip_newlines(); return Ok(Stmt::Break); }
             Token::Continue => { self.advance(); self.skip_newlines(); return Ok(Stmt::Continue); }
+            Token::Pass => { self.advance(); self.skip_newlines(); return Ok(Stmt::Pass); }
             _ => {}
         }
 

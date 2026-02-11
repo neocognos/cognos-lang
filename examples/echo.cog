@@ -1,0 +1,4 @@
+# Read input, echo it back
+flow main:
+    input = receive(Text)
+    emit(input)

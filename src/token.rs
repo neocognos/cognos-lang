@@ -24,6 +24,7 @@ pub enum Token {
     Not,
     True,
     False,
+    Pass,
 
     // Identifiers and literals
     Ident(String),

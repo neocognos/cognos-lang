@@ -248,6 +248,7 @@ impl Lexer {
             "not" => Token::Not,
             "true" => Token::True,
             "false" => Token::False,
+            "pass" => Token::Pass,
             _ => Token::Ident(s),
         };
         Spanned { token, line, col }
