@@ -221,7 +221,15 @@ fn test_string_comparison() {
 fn test_exec_shell_with_flag() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("shell.cog");
-    std::fs::write(&path, "flow main():\n    result = exec(shell(\"echo hello from shell\"))\n    emit(result)\n").unwrap();
+    std::fs::write(&path, concat!(
+        "flow shell(command: String) -> String:\n",
+        "    \"Execute a shell command\"\n",
+        "    return __exec_shell__(command)\n",
+        "\n",
+        "flow main():\n",
+        "    result = shell(\"echo hello from shell\")\n",
+        "    emit(result)\n",
+    )).unwrap();
 
     let bin = cognos_bin();
     // Without --allow-shell: should fail

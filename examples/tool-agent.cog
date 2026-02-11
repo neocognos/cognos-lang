@@ -1,12 +1,21 @@
 # Agent with tools — flows are tools
+
+# Shell with sandbox rules — only allowed commands
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command"
+    allowed = ["ls", "date", "cat", "grep", "echo", "wc"]
+    cmd = command.split(" ")[0]
+    if not allowed.contains(cmd):
+        return f"Error: '{cmd}' is not allowed"
+    return __exec_shell__(command)
+
 flow get_weather(city: String) -> String:
     "Get the current weather for a city"
     return f"Weather in {city}: 22°C, sunny"
 
 flow get_time() -> String:
     "Get the current date and time"
-    result = exec(shell("date"))
-    return result.strip()
+    return shell("date")
 
 flow main():
     write(stdout, "Agent with tools. Try: What's the weather in Amsterdam?")

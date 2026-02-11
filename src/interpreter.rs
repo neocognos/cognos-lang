@@ -25,7 +25,6 @@ pub enum Handle {
     Stdin,
     Stdout,
     File(std::string::String),
-    Shell(std::string::String),
 }
 
 impl std::fmt::Display for Value {
@@ -54,7 +53,6 @@ impl std::fmt::Display for Value {
             Value::Module(name) => write!(f, "<module '{}'>", name),
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
-            Value::Handle(Handle::Shell(cmd)) => write!(f, "shell(\"{}\")", cmd),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
             Value::None => write!(f, ""),
         }
@@ -355,7 +353,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "exec", "emit", "log", "print", "remember", "recall", "read", "write", "file", "shell"];
+                        let builtins = ["think", "exec", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -578,7 +576,6 @@ impl Interpreter {
                         Ok(Value::String(line.trim_end().to_string()))
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
-                    Handle::Shell(_) => bail!("cannot read from shell — use exec(shell(\"cmd\"))"),
                     Handle::File(path) => {
                         let content = std::fs::read_to_string(&path)
                             .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
@@ -595,7 +592,6 @@ impl Interpreter {
                 let content = self.eval(&args[1])?.to_string();
                 match handle {
                     Handle::Stdin => bail!("cannot write to stdin"),
-                    Handle::Shell(_) => bail!("cannot write to shell — use exec(shell(\"cmd\"))"),
                     Handle::Stdout => {
                         println!("{}", content);
                         Ok(Value::None)
@@ -614,22 +610,6 @@ impl Interpreter {
                     bail!("exec() requires an argument: exec(shell(\"cmd\")) or exec(response, tools=[...])");
                 }
                 let target = self.eval(&args[0])?;
-
-                // Shell execution
-                if let Value::Handle(Handle::Shell(cmd)) = &target {
-                    if !self.allow_shell {
-                        bail!("shell execution is disabled — use: cognos run --allow-shell file.cog");
-                    }
-                    log::info!("exec(shell) → {:?}", cmd);
-                    let output = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(cmd)
-                        .output()?;
-                    let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
-                    let code = output.status.code().unwrap_or(-1);
-                    log::debug!("exec(shell) exit={} stdout={} chars", code, stdout.len());
-                    return Ok(Value::String(stdout.trim_end().to_string()));
-                }
 
                 let response = target;
 
@@ -724,10 +704,19 @@ impl Interpreter {
                     _ => Ok(response),
                 }
             }
-            "shell" => {
-                if args.is_empty() { bail!("shell() requires a command string"); }
+            "__exec_shell__" => {
+                if !self.allow_shell {
+                    bail!("shell execution is disabled — use: cognos run --allow-shell file.cog");
+                }
+                if args.is_empty() { bail!("__exec_shell__() requires a command string"); }
                 let cmd = self.eval(&args[0])?.to_string();
-                Ok(Value::Handle(Handle::Shell(cmd)))
+                log::info!("__exec_shell__ → {:?}", cmd);
+                let output = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(&cmd)
+                    .output()?;
+                let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(Value::String(stdout.trim_end().to_string()))
             }
             "log" => {
                 for arg in args {
