@@ -176,6 +176,38 @@ impl Interpreter {
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
+        self.run_with_base(program, None)
+    }
+
+    pub fn run_with_base(&mut self, program: &Program, base_path: Option<&std::path::Path>) -> Result<()> {
+        // Resolve imports
+        for import_path in &program.imports {
+            let resolved = if let Some(base) = base_path {
+                base.parent().unwrap_or(base).join(import_path)
+            } else {
+                std::path::PathBuf::from(import_path)
+            };
+            log::info!("Importing {:?}", resolved);
+            let source = std::fs::read_to_string(&resolved)
+                .map_err(|e| anyhow::anyhow!("cannot import '{}': {}", import_path, e))?;
+            let mut lexer = crate::lexer::Lexer::new(&source);
+            let tokens = lexer.tokenize();
+            let mut parser = crate::parser::Parser::new(tokens);
+            let imported = parser.parse_program()
+                .map_err(|e| anyhow::anyhow!("error in '{}': {}", import_path, e))?;
+            // Recursively resolve imports in the imported file
+            self.run_with_base(&Program {
+                imports: imported.imports,
+                types: imported.types,
+                flows: vec![], // don't run flows from imports
+            }, Some(&resolved))?;
+            // Register imported flows
+            for flow in &imported.flows {
+                log::info!("Imported flow '{}'", flow.name);
+                self.flows.insert(flow.name.clone(), flow.clone());
+            }
+        }
+
         // Register all types
         for td in &program.types {
             log::info!("Registered type '{}'", td.name);
@@ -317,6 +349,18 @@ impl Interpreter {
                     return self.run_block(else_body);
                 }
                 Ok(ControlFlow::Normal)
+            }
+
+            Stmt::TryCatch { body, error_var, catch_body } => {
+                match self.run_block(body) {
+                    Ok(cf) => Ok(cf),
+                    Err(e) => {
+                        if let Some(var) = error_var {
+                            self.vars.insert(var.clone(), Value::String(format!("{}", e)));
+                        }
+                        self.run_block(catch_body)
+                    }
+                }
             }
 
             Stmt::For { var, iterable, body } => {
@@ -783,6 +827,28 @@ impl Interpreter {
                 });
                 Ok(Value::String(stdout.trim_end().to_string()))
             }
+            "save" => {
+                // save(path, value) — persist a value as JSON
+                if args.len() < 2 { bail!("save(path, value)"); }
+                let path = self.eval(&args[0])?.to_string();
+                let value = self.eval(&args[1])?;
+                let json = self.value_to_json(&value);
+                std::fs::write(&path, serde_json::to_string_pretty(&json)?)
+                    .map_err(|e| anyhow::anyhow!("save error: {}", e))?;
+                log::info!("Saved to {}", path);
+                Ok(Value::None)
+            }
+            "load" => {
+                // load(path) — load a JSON file back to a Value
+                if args.is_empty() { bail!("load(path)"); }
+                let path = self.eval(&args[0])?.to_string();
+                let content = std::fs::read_to_string(&path)
+                    .map_err(|e| anyhow::anyhow!("load error: {}", e))?;
+                let json: serde_json::Value = serde_json::from_str(&content)
+                    .map_err(|e| anyhow::anyhow!("load JSON error: {}", e))?;
+                log::info!("Loaded from {}", path);
+                Ok(self.json_to_value(json))
+            }
             "log" => {
                 for arg in args {
                     let val = self.eval(arg)?;
@@ -1041,6 +1107,24 @@ impl Interpreter {
             .map_err(|e| anyhow::anyhow!("LLM returned invalid JSON: {}\nResponse was: {}", e, json_str))?;
 
         Ok(self.json_to_value(parsed))
+    }
+
+    fn value_to_json(&self, value: &Value) -> serde_json::Value {
+        match value {
+            Value::String(s) => serde_json::Value::String(s.clone()),
+            Value::Int(n) => serde_json::json!(*n),
+            Value::Float(f) => serde_json::json!(*f),
+            Value::Bool(b) => serde_json::Value::Bool(*b),
+            Value::None => serde_json::Value::Null,
+            Value::List(items) => serde_json::Value::Array(items.iter().map(|v| self.value_to_json(v)).collect()),
+            Value::Map(pairs) => {
+                let mut map = serde_json::Map::new();
+                for (k, v) in pairs { map.insert(k.clone(), self.value_to_json(v)); }
+                serde_json::Value::Object(map)
+            }
+            Value::Handle(_) => serde_json::Value::String("<handle>".into()),
+            Value::Module(name) => serde_json::Value::String(format!("<module:{}>", name)),
+        }
     }
 
     fn json_to_value(&self, v: serde_json::Value) -> Value {

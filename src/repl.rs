@@ -12,7 +12,7 @@ pub fn run_repl() -> Result<()> {
     eprintln!("Type expressions or statements. Use 'exit' or Ctrl-D to quit.\n");
 
     let mut interp = Interpreter::new();
-    let empty = Program { types: vec![], flows: vec![] };
+    let empty = Program { imports: vec![], types: vec![], flows: vec![] };
     let _ = interp.run(&empty);
 
     let stdin = io::stdin();

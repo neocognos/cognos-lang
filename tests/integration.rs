@@ -13,6 +13,31 @@ fn cognos_bin() -> PathBuf {
     path
 }
 
+fn run_inline(src: &str, stdin: &str) -> (String, String, i32) {
+    use std::io::Write as _;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("test.cog");
+    std::fs::write(&file, src).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .arg("run")
+        .arg(&file)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            if !stdin.is_empty() {
+                child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
+            }
+            child.wait_with_output()
+        })
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    (stdout, stderr, output.status.code().unwrap_or(-1))
+}
+
 fn run_cog(file: &str, stdin: &str) -> (String, String, i32) {
     let bin = cognos_bin();
     let output = Command::new(&bin)
@@ -1200,4 +1225,79 @@ fn test_truthiness_all_types() {
         "non-empty list is truthy",
         "non-empty map is truthy",
     ]);
+}
+
+// ─── Import ───
+
+#[test]
+fn test_import() {
+    let (out, _, code) = run_cog("import-test.cog", "");
+    assert_eq!(code, 0);
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+// ─── Try/Catch ───
+
+#[test]
+fn test_try_catch_file_error() {
+    let (out, _, code) = run_cog("try-catch.cog", "");
+    assert_eq!(code, 0);
+    assert!(out.contains("Caught: cannot read 'nonexistent.txt'"));
+    assert!(out.contains("x = 42"));
+}
+
+#[test]
+fn test_try_catch_inline() {
+    let src = r#"
+flow main():
+    try:
+        x = 1 / 0
+    catch err:
+        write(stdout, f"Error: {err}")
+"#;
+    let (out, _, code) = run_inline(src, "");
+    assert_eq!(code, 0);
+    assert!(out.contains("Error:"), "got: {}", out);
+}
+
+#[test]
+fn test_try_catch_no_error() {
+    let src = r#"
+flow main():
+    try:
+        x = 42
+    catch err:
+        write(stdout, "should not print")
+    write(stdout, f"x={x}")
+"#;
+    let (out, _, code) = run_inline(src, "");
+    assert_eq!(code, 0);
+    assert_eq!(out.trim(), "x=42");
+}
+
+// ─── Save/Load ───
+
+#[test]
+fn test_save_load() {
+    let (out, _, code) = run_cog("session-save.cog", "");
+    assert_eq!(code, 0);
+    assert!(out.contains("name=test"));
+    assert!(out.contains("count=42"));
+    // Clean up
+    let _ = std::fs::remove_file("session.json");
+}
+
+#[test]
+fn test_load_missing_file_with_try() {
+    let src = r#"
+flow main():
+    try:
+        data = load("nonexistent_session.json")
+    catch:
+        data = []
+    write(stdout, f"data={data}")
+"#;
+    let (out, _, code) = run_inline(src, "");
+    assert_eq!(code, 0);
+    assert_eq!(out.trim(), "data=[]");
 }

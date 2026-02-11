@@ -3,6 +3,7 @@
 
 #[derive(Debug, Clone)]
 pub struct Program {
+    pub imports: Vec<String>,
     pub types: Vec<TypeDef>,
     pub flows: Vec<FlowDef>,
 }
@@ -72,6 +73,12 @@ pub enum Stmt {
         var: String,
         iterable: Expr,
         body: Vec<Stmt>,
+    },
+    /// `try: body catch err: handler`
+    TryCatch {
+        body: Vec<Stmt>,
+        error_var: Option<String>,
+        catch_body: Vec<Stmt>,
     },
     /// Bare expression (function call as statement)
     Expr(Expr),

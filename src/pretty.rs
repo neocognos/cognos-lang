@@ -97,6 +97,18 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
                 for s in else_body { pretty_stmt(out, s, level + 1); }
             }
         }
+        Stmt::TryCatch { body, error_var, catch_body } => {
+            indent(out, level);
+            out.push_str("try:\n");
+            for s in body { pretty_stmt(out, s, level + 1); }
+            indent(out, level);
+            if let Some(var) = error_var {
+                out.push_str(&format!("catch {}:\n", var));
+            } else {
+                out.push_str("catch:\n");
+            }
+            for s in catch_body { pretty_stmt(out, s, level + 1); }
+        }
         Stmt::For { var, iterable, body } => {
             indent(out, level);
             out.push_str(&format!("for {} in {}:\n", var, pretty_expr(iterable)));

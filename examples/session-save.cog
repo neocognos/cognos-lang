@@ -1,0 +1,6 @@
+flow main():
+    data = {"name": "test", "count": 42, "items": [1, 2, 3]}
+    save("session.json", data)
+    loaded = load("session.json")
+    write(stdout, f"name={loaded[\"name\"]}, count={loaded[\"count\"]}")
+    write(stdout, f"items={loaded[\"items\"]}")

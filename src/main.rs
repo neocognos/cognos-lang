@@ -162,7 +162,7 @@ fn main() {
                 }))
             });
             let mut interp = interpreter::Interpreter::with_full_options(allow_shell, tracer);
-            if let Err(e) = interp.run(&program) {
+            if let Err(e) = interp.run_with_base(&program, Some(std::path::Path::new(file_path))) {
                 eprintln!("Runtime error: {}", e);
                 std::process::exit(1);
             }

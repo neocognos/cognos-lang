@@ -1,0 +1,2 @@
+flow greet(name: String) -> String:
+    return f"Hello, {name}!"

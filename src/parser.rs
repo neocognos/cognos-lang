@@ -67,9 +67,21 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
+        let mut imports = Vec::new();
         let mut types = Vec::new();
         let mut flows = Vec::new();
         self.skip_newlines();
+        // Parse imports first
+        while self.check_ident("import") {
+            self.advance();
+            if let Token::StringLit(path) = self.peek_token().clone() {
+                self.advance();
+                imports.push(path);
+            } else {
+                bail!("import requires a string path: import \"file.cog\"");
+            }
+            self.skip_newlines();
+        }
         while !self.is_at_end() {
             if self.check(&Token::Type) {
                 types.push(self.parse_type_def()?);
@@ -78,7 +90,7 @@ impl Parser {
             }
             self.skip_newlines();
         }
-        Ok(Program { types, flows })
+        Ok(Program { imports, types, flows })
     }
 
     // ─── Type Definition ───
@@ -184,6 +196,7 @@ impl Parser {
             Token::If => return self.parse_if(),
             Token::Loop => return self.parse_loop(),
             Token::For => return self.parse_for(),
+            Token::Try => return self.parse_try_catch(),
             Token::Emit => return self.parse_emit(),
             Token::Return => return self.parse_return(),
             Token::Break => { self.advance(); self.skip_newlines(); return Ok(Stmt::Break); }
@@ -303,6 +316,24 @@ impl Parser {
         self.expect_newline()?;
         let body = self.parse_block()?;
         Ok(Stmt::For { var, iterable, body })
+    }
+
+    fn parse_try_catch(&mut self) -> Result<Stmt> {
+        self.expect(Token::Try)?;
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+        let body = self.parse_block()?;
+        self.skip_newlines();
+        self.expect(Token::Catch)?;
+        let error_var = if !self.check(&Token::Colon) {
+            Some(self.expect_ident()?)
+        } else {
+            None
+        };
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+        let catch_body = self.parse_block()?;
+        Ok(Stmt::TryCatch { body, error_var, catch_body })
     }
 
     // ─── Expressions ───

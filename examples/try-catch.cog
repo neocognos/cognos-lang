@@ -1,0 +1,12 @@
+flow main():
+    try:
+        content = read(file("nonexistent.txt"))
+        write(stdout, content)
+    catch err:
+        write(stdout, f"Caught: {err}")
+
+    try:
+        x = 42
+    catch:
+        pass
+    write(stdout, f"x = {x}")

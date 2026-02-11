@@ -1,0 +1,5 @@
+import "lib/greet.cog"
+
+flow main():
+    msg = greet("World")
+    write(stdout, msg)
