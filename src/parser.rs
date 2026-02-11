@@ -67,13 +67,49 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
+        let mut types = Vec::new();
         let mut flows = Vec::new();
         self.skip_newlines();
         while !self.is_at_end() {
-            flows.push(self.parse_flow()?);
+            if self.check(&Token::Type) {
+                types.push(self.parse_type_def()?);
+            } else {
+                flows.push(self.parse_flow()?);
+            }
             self.skip_newlines();
         }
-        Ok(Program { flows })
+        Ok(Program { types, flows })
+    }
+
+    // ─── Type Definition ───
+
+    fn parse_type_def(&mut self) -> Result<TypeDef> {
+        self.expect(Token::Type)?;
+        let name = self.expect_ident()?;
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+
+        let mut fields = Vec::new();
+        self.expect(Token::Indent)?;
+        loop {
+            self.skip_newlines();
+            if self.check(&Token::Dedent) || self.is_at_end() {
+                break;
+            }
+            let fname = self.expect_ident()?;
+            self.expect(Token::Colon)?;
+            let ty = self.parse_type()?;
+            fields.push(TypeField { name: fname, ty });
+        }
+        if self.check(&Token::Dedent) {
+            self.advance();
+        }
+
+        if fields.is_empty() {
+            bail!("type '{}' must have at least one field", name);
+        }
+
+        Ok(TypeDef { name, fields })
     }
 
     // ─── Flow ───

@@ -3,7 +3,20 @@
 
 #[derive(Debug, Clone)]
 pub struct Program {
+    pub types: Vec<TypeDef>,
     pub flows: Vec<FlowDef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeDef {
+    pub name: String,
+    pub fields: Vec<TypeField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeField {
+    pub name: String,
+    pub ty: TypeExpr,
 }
 
 #[derive(Debug, Clone)]

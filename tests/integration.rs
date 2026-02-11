@@ -522,6 +522,41 @@ fn test_unary_minus() {
     assert_eq!(out.trim(), "-5\n7");
 }
 
+// ─── Type definition tests ───
+
+#[test]
+fn test_type_definition_parses() {
+    let out = expect_run_ok(concat!(
+        "type Person:\n",
+        "    name: String\n",
+        "    age: Int\n",
+        "\n",
+        "flow main():\n",
+        "    emit(\"types work\")\n",
+    ));
+    assert_eq!(out.trim(), "types work");
+}
+
+#[test]
+fn test_type_with_nested_types() {
+    // Just test it parses — no runtime execution of types without LLM
+    let src = concat!(
+        "type Address:\n",
+        "    street: String\n",
+        "    city: String\n",
+        "\n",
+        "type Person:\n",
+        "    name: String\n",
+        "    address: Address\n",
+        "    tags: List[String]\n",
+        "\n",
+        "flow main():\n",
+        "    emit(\"nested types parse\")\n",
+    );
+    let out = expect_run_ok(src);
+    assert_eq!(out.trim(), "nested types parse");
+}
+
 // ─── REPL edge case tests ───
 
 #[test]

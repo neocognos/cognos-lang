@@ -4,8 +4,15 @@ use crate::ast::*;
 
 pub fn pretty_program(prog: &Program) -> String {
     let mut out = String::new();
+    for td in &prog.types {
+        out.push_str(&format!("type {}:\n", td.name));
+        for f in &td.fields {
+            out.push_str(&format!("    {}: {}\n", f.name, pretty_type(&f.ty)));
+        }
+        out.push('\n');
+    }
     for (i, flow) in prog.flows.iter().enumerate() {
-        if i > 0 { out.push('\n'); }
+        if i > 0 || !prog.types.is_empty() { out.push('\n'); }
         pretty_flow(&mut out, flow, 0);
     }
     out

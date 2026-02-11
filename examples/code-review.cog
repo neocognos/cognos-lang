@@ -1,0 +1,17 @@
+# Code review with structured output
+# STATUS: needs lambda/filter (i => expr), type constructors
+
+type Issue:
+    severity: String
+    line: Int
+    message: String
+
+type ReviewResult:
+    approved: Bool
+    issues: List[String]
+
+flow code_review(diff: String):
+    review = think(diff, format="ReviewResult", system="Find bugs, security issues, and style problems.")
+    emit(f"Approved: {review.approved}")
+    for issue in review.issues:
+        emit(f"- {issue}")

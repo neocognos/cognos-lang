@@ -12,7 +12,7 @@ pub fn run_repl() -> Result<()> {
     eprintln!("Type expressions or statements. Use 'exit' or Ctrl-D to quit.\n");
 
     let mut interp = Interpreter::new();
-    let empty = Program { flows: vec![] };
+    let empty = Program { types: vec![], flows: vec![] };
     let _ = interp.run(&empty);
 
     let stdin = io::stdin();
@@ -70,6 +70,15 @@ pub fn run_repl() -> Result<()> {
 fn eval_repl_input(interp: &mut Interpreter, input: &str) {
     let trimmed = input.trim();
     if trimmed.is_empty() {
+        return;
+    }
+
+    // Type definition
+    if trimmed.starts_with("type ") && trimmed.ends_with(':') || (trimmed.starts_with("type ") && input.contains('\n')) {
+        match parse_and_register_type(interp, input) {
+            Ok(name) => eprintln!("✓ Defined type '{}'", name),
+            Err(e) => eprintln!("Error: {}", e),
+        }
         return;
     }
 
@@ -191,6 +200,21 @@ fn indent_block(s: &str) -> String {
             format!("    {}", line)
         }
     }).collect::<Vec<_>>().join("\n")
+}
+
+fn parse_and_register_type(interp: &mut Interpreter, input: &str) -> Result<String> {
+    let mut lexer = Lexer::new(input);
+    let tokens = lexer.tokenize();
+    let mut parser = Parser::new(tokens);
+    let program = parser.parse_program()?;
+
+    if let Some(td) = program.types.first() {
+        let name = td.name.clone();
+        interp.register_type(td.clone());
+        Ok(name)
+    } else {
+        anyhow::bail!("no type found")
+    }
 }
 
 fn parse_and_register_flow(interp: &mut Interpreter, input: &str) -> Result<String> {

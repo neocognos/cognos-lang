@@ -110,14 +110,21 @@ enum ControlFlow {
 pub struct Interpreter {
     vars: HashMap<std::string::String, Value>,
     flows: HashMap<std::string::String, crate::ast::FlowDef>,
+    types: HashMap<std::string::String, crate::ast::TypeDef>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { vars: HashMap::new(), flows: HashMap::new() }
+        Self { vars: HashMap::new(), flows: HashMap::new(), types: HashMap::new() }
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
+        // Register all types
+        for td in &program.types {
+            log::info!("Registered type '{}'", td.name);
+            self.types.insert(td.name.clone(), td.clone());
+        }
+
         // Register all flows
         for flow in &program.flows {
             self.flows.insert(flow.name.clone(), flow.clone());
@@ -148,6 +155,11 @@ impl Interpreter {
             }
             None => Ok(()),
         }
+    }
+
+    /// Register a type (for REPL use)
+    pub fn register_type(&mut self, td: crate::ast::TypeDef) {
+        self.types.insert(td.name.clone(), td);
     }
 
     /// Register a flow (for REPL use)
@@ -439,17 +451,43 @@ impl Interpreter {
 
                 let mut model = "qwen2.5:1.5b".to_string();
                 let mut system = std::string::String::new();
+                let mut format_type: Option<std::string::String> = None;
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
                         "model" => model = val.to_string(),
                         "system" => system = val.to_string(),
-                        "tools" | "output" => {} // TODO
+                        "format" => format_type = Some(val.to_string()),
+                        "tools" => {} // TODO
                         _ => bail!("think(): unknown kwarg '{}'", k),
                     }
                 }
 
-                self.call_ollama(&model, &system, &context.to_string())
+                // If format= is a type name, inject schema into system prompt
+                if let Some(ref type_name) = format_type {
+                    let schema_instruction = if type_name == "json" {
+                        "Respond ONLY with valid JSON. No markdown, no explanation.".to_string()
+                    } else if let Some(td) = self.types.get(type_name).cloned() {
+                        let schema = self.type_to_schema(&td);
+                        format!("Respond ONLY with valid JSON matching this exact schema:\n{}\nNo markdown, no explanation, just the JSON object.", schema)
+                    } else {
+                        bail!("think(): unknown format type '{}' — define it with: type {}: ...", type_name, type_name)
+                    };
+                    if system.is_empty() {
+                        system = schema_instruction;
+                    } else {
+                        system = format!("{}\n\n{}", system, schema_instruction);
+                    }
+                }
+
+                let result = self.call_ollama(&model, &system, &context.to_string())?;
+
+                // If format= specified, parse JSON response into a Map
+                if format_type.is_some() {
+                    self.parse_json_response(&result)
+                } else {
+                    Ok(result)
+                }
             }
             "act" => {
                 if args.is_empty() {
@@ -569,6 +607,83 @@ impl Interpreter {
             Some(Value::String(s)) => Ok(s.clone()),
             Some(other) => bail!(".{}() argument {} must be a String, got {}", method, idx + 1, type_name(other)),
             None => bail!(".{}() requires at least {} argument(s)", method, idx + 1),
+        }
+    }
+
+    fn type_to_schema(&self, td: &TypeDef) -> std::string::String {
+        let fields: Vec<std::string::String> = td.fields.iter().map(|f| {
+            let ty_str = self.type_expr_to_json_type(&f.ty);
+            format!("  \"{}\": {}", f.name, ty_str)
+        }).collect();
+        format!("{{\n{}\n}}", fields.join(",\n"))
+    }
+
+    fn type_expr_to_json_type(&self, ty: &TypeExpr) -> std::string::String {
+        match ty {
+            TypeExpr::Named(n) => match n.as_str() {
+                "String" => "<string>".to_string(),
+                "Int" => "<integer>".to_string(),
+                "Float" => "<number>".to_string(),
+                "Bool" => "<boolean>".to_string(),
+                other => {
+                    // Check if it's a nested type
+                    if let Some(td) = self.types.get(other) {
+                        self.type_to_schema(td)
+                    } else {
+                        format!("<{}>", other)
+                    }
+                }
+            }
+            TypeExpr::Generic(name, args) => match name.as_str() {
+                "List" => {
+                    let inner = args.first().map(|a| self.type_expr_to_json_type(a)).unwrap_or("<any>".to_string());
+                    format!("[{}, ...]", inner)
+                }
+                "Map" => "<object>".to_string(),
+                _ => format!("<{}>", name),
+            }
+            TypeExpr::Struct(_) => "<object>".to_string(),
+        }
+    }
+
+    fn parse_json_response(&self, val: &Value) -> Result<Value> {
+        let s = val.to_string();
+        // Strip markdown code fences if present
+        let json_str = s.trim();
+        let json_str = if json_str.starts_with("```") {
+            let inner = json_str.trim_start_matches("```json").trim_start_matches("```");
+            inner.trim_end_matches("```").trim()
+        } else {
+            json_str
+        };
+
+        let parsed: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| anyhow::anyhow!("LLM returned invalid JSON: {}\nResponse was: {}", e, json_str))?;
+
+        Ok(self.json_to_value(parsed))
+    }
+
+    fn json_to_value(&self, v: serde_json::Value) -> Value {
+        match v {
+            serde_json::Value::Null => Value::None,
+            serde_json::Value::Bool(b) => Value::Bool(b),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Value::Int(i)
+                } else {
+                    Value::Float(n.as_f64().unwrap_or(0.0))
+                }
+            }
+            serde_json::Value::String(s) => Value::String(s),
+            serde_json::Value::Array(arr) => {
+                Value::List(arr.into_iter().map(|v| self.json_to_value(v)).collect())
+            }
+            serde_json::Value::Object(map) => {
+                let entries: Vec<(std::string::String, Value)> = map.into_iter()
+                    .map(|(k, v)| (k, self.json_to_value(v)))
+                    .collect();
+                Value::Map(entries)
+            }
         }
     }
 
