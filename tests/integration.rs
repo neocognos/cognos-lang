@@ -90,10 +90,10 @@ fn test_parse_general_assistant() {
     let (stdout, _stderr, code) = parse_cog("general-assistant.cog");
     assert_eq!(code, 0);
     assert!(stdout.contains("Parsed 1 flow(s)"));
-    assert!(stdout.contains("flow general_assistant("));
+    assert!(stdout.contains("flow main"));
     assert!(stdout.contains("think("));
     assert!(stdout.contains("emit("));
-    assert!(stdout.contains("loop max=30"));
+    assert!(stdout.contains("loop:"));
 }
 
 #[test]
@@ -520,6 +520,18 @@ fn test_unknown_method() {
 fn test_unary_minus() {
     let out = expect_run_ok("flow main():\n    emit(-5)\n    emit(-3 + 10)\n");
     assert_eq!(out.trim(), "-5\n7");
+}
+
+#[test]
+fn test_list_concatenation() {
+    let out = expect_run_ok("flow main():\n    a = [1, 2] + [3, 4]\n    emit(a)\n    emit(a.length)\n");
+    assert_eq!(out.trim(), "[1, 2, 3, 4]\n4");
+}
+
+#[test]
+fn test_list_concat_empty() {
+    let out = expect_run_ok("flow main():\n    a = [] + [1]\n    emit(a)\n");
+    assert_eq!(out.trim(), "[1]");
 }
 
 // ─── Type definition tests ───

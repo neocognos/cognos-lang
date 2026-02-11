@@ -324,7 +324,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall"];
+                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall", "ask"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -488,6 +488,24 @@ impl Interpreter {
                 } else {
                     Ok(result)
                 }
+            }
+            "ask" => {
+                // ask(prompt) — read a line from stdin with optional prompt
+                let prompt = if args.is_empty() { "".to_string() } else { self.eval(&args[0])?.to_string() };
+                if !prompt.is_empty() {
+                    print!("{}: ", prompt);
+                } else {
+                    print!("> ");
+                }
+                io::stdout().flush()?;
+                let mut line = std::string::String::new();
+                io::stdin().lock().read_line(&mut line)?;
+                let input = line.trim_end().to_string();
+                if input.is_empty() && line.is_empty() {
+                    // EOF
+                    bail!("end of input");
+                }
+                Ok(Value::String(input))
             }
             "act" => {
                 if args.is_empty() {
@@ -736,6 +754,13 @@ impl Interpreter {
         match (left, op, right) {
             // String concat
             (Value::String(a), BinOp::Add, Value::String(b)) => Ok(Value::String(format!("{}{}", a, b))),
+
+            // List concatenation
+            (Value::List(a), BinOp::Add, Value::List(b)) => {
+                let mut result = a.clone();
+                result.extend(b.clone());
+                Ok(Value::List(result))
+            }
 
             // Int arithmetic
             (Value::Int(a), BinOp::Add, Value::Int(b)) => Ok(Value::Int(a + b)),
