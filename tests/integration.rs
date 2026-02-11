@@ -284,6 +284,98 @@ fn test_map_truthy() {
     assert_eq!(stdout.trim(), "empty falsy\nfull truthy");
 }
 
+// ─── Multi-flow tests ───
+
+#[test]
+fn test_flow_calling_flow() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("multiflow.cog");
+    std::fs::write(&path, concat!(
+        "flow double(x: String) -> String:\n",
+        "    return x + x\n",
+        "\n",
+        "flow main():\n",
+        "    result = double(\"ha\")\n",
+        "    emit(result)\n",
+    )).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "haha");
+}
+
+#[test]
+fn test_flow_with_return_value() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("retflow.cog");
+    std::fs::write(&path, concat!(
+        "flow add(a: Int, b: Int) -> Int:\n",
+        "    return a + b\n",
+        "\n",
+        "flow main():\n",
+        "    x = add(10, 20)\n",
+        "    emit(x)\n",
+    )).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "30");
+}
+
+// ─── F-string tests ───
+
+#[test]
+fn test_fstring_basic() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fstr.cog");
+    std::fs::write(&path, "flow main():\n    name = \"Cognos\"\n    emit(f\"Hello, {name}!\")\n").unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "Hello, Cognos!");
+}
+
+#[test]
+fn test_fstring_with_expressions() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fstrexpr.cog");
+    std::fs::write(&path, "flow main():\n    x = 10\n    y = 20\n    emit(f\"{x} + {y} = {x + y}\")\n").unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "10 + 20 = 30");
+}
+
+// ─── REPL tests ───
+
+#[test]
+fn test_repl_basic() {
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .arg("repl")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            child.stdin.take().unwrap().write_all(b"1 + 2\nexit\n").unwrap();
+            child.wait_with_output()
+        })
+        .unwrap();
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("3"), "REPL should output 3, got: {}", stdout);
+}
+
 // ─── Type tests: all primitives ───
 
 #[test]

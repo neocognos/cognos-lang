@@ -84,6 +84,15 @@ pub enum Expr {
     List(Vec<Expr>),
     /// Map literal: {"key": value, ...}
     Map(Vec<(String, Expr)>),
+    /// F-string: f"hello {name}, you have {count} items"
+    /// Parts alternate between literal strings and expressions
+    FString(Vec<FStringPart>),
+}
+
+#[derive(Debug, Clone)]
+pub enum FStringPart {
+    Literal(String),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq)]

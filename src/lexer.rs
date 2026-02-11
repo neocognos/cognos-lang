@@ -88,6 +88,12 @@ impl Lexer {
                 continue;
             }
 
+            // F-string: f"..."
+            if ch == 'f' && self.pos + 1 < self.source.len() && self.source[self.pos + 1] == '"' {
+                tokens.push(self.read_fstring());
+                continue;
+            }
+
             // Identifiers and keywords
             if ch.is_alphabetic() || ch == '_' {
                 tokens.push(self.read_ident());
@@ -196,6 +202,35 @@ impl Lexer {
             self.advance(); // skip closing "
         }
         Spanned { token: Token::StringLit(s), line, col }
+    }
+
+    fn read_fstring(&mut self) -> Spanned {
+        let line = self.line;
+        let col = self.col;
+        self.advance(); // skip 'f'
+        self.advance(); // skip opening '"'
+        let mut s = String::new();
+        while self.pos < self.source.len() && self.source[self.pos] != '"' {
+            if self.source[self.pos] == '\\' && self.pos + 1 < self.source.len() {
+                self.advance();
+                match self.source[self.pos] {
+                    'n' => s.push('\n'),
+                    't' => s.push('\t'),
+                    '"' => s.push('"'),
+                    '\\' => s.push('\\'),
+                    '{' => s.push('{'),
+                    '}' => s.push('}'),
+                    c => { s.push('\\'); s.push(c); }
+                }
+            } else {
+                s.push(self.source[self.pos]);
+            }
+            self.advance();
+        }
+        if self.pos < self.source.len() {
+            self.advance(); // skip closing '"'
+        }
+        Spanned { token: Token::FStringLit(s), line, col }
     }
 
     fn read_number(&mut self) -> Spanned {

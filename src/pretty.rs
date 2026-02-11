@@ -140,6 +140,21 @@ fn pretty_expr(expr: &Expr) -> String {
             let parts: Vec<String> = items.iter().map(|i| pretty_expr(i)).collect();
             format!("[{}]", parts.join(", "))
         }
+        Expr::FString(parts) => {
+            let mut s = String::from("f\"");
+            for part in parts {
+                match part {
+                    crate::ast::FStringPart::Literal(lit) => s.push_str(lit),
+                    crate::ast::FStringPart::Expr(e) => {
+                        s.push('{');
+                        s.push_str(&pretty_expr(e));
+                        s.push('}');
+                    }
+                }
+            }
+            s.push('"');
+            s
+        }
         Expr::Map(entries) => {
             let parts: Vec<String> = entries.iter()
                 .map(|(k, v)| format!("\"{}\": {}", k, pretty_expr(v)))

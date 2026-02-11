@@ -99,18 +99,25 @@ enum ControlFlow {
 
 pub struct Interpreter {
     vars: HashMap<std::string::String, Value>,
+    flows: HashMap<std::string::String, crate::ast::FlowDef>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { vars: HashMap::new() }
+        Self { vars: HashMap::new(), flows: HashMap::new() }
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
+        // Register all flows
+        for flow in &program.flows {
+            self.flows.insert(flow.name.clone(), flow.clone());
+        }
+
         // Find "main" flow, or use the first one
         let flow = program.flows.iter()
             .find(|f| f.name == "main")
-            .or_else(|| program.flows.first());
+            .or_else(|| program.flows.first())
+            .cloned();
 
         match flow {
             Some(f) => {
@@ -129,10 +136,50 @@ impl Interpreter {
                 self.run_block(&f.body)?;
                 Ok(())
             }
-            None => {
-                // Empty program — do nothing
-                Ok(())
-            }
+            None => Ok(()),
+        }
+    }
+
+    /// Register a flow (for REPL use)
+    pub fn register_flow(&mut self, flow: crate::ast::FlowDef) {
+        self.flows.insert(flow.name.clone(), flow);
+    }
+
+    /// Call a flow with no args, keeping current vars (for REPL use)
+    pub fn call_flow_entry(&mut self, name: &str) -> Result<()> {
+        let flow = self.flows.get(name).cloned()
+            .ok_or_else(|| anyhow::anyhow!("unknown flow: {}", name))?;
+        self.run_block(&flow.body)?;
+        Ok(())
+    }
+
+    /// Call a user-defined flow with arguments
+    fn call_flow(&mut self, name: &str, args: Vec<Value>) -> Result<Value> {
+        let flow = self.flows.get(name).cloned()
+            .ok_or_else(|| anyhow::anyhow!("unknown flow: {}", name))?;
+
+        if args.len() != flow.params.len() {
+            bail!("{}() expects {} args, got {}", name, flow.params.len(), args.len());
+        }
+
+        // Save current vars, set up new scope
+        let saved_vars = self.vars.clone();
+        self.vars.clear();
+
+        // Bind parameters
+        for (param, val) in flow.params.iter().zip(args) {
+            self.vars.insert(param.name.clone(), val);
+        }
+
+        log::info!("Calling flow '{}'", name);
+        let result = self.run_block(&flow.body)?;
+
+        // Restore vars
+        self.vars = saved_vars;
+
+        match result {
+            ControlFlow::Return(v) => Ok(v),
+            _ => Ok(Value::None),
         }
     }
 
@@ -235,6 +282,20 @@ impl Interpreter {
                 Ok(Value::Map(result))
             }
 
+            Expr::FString(parts) => {
+                let mut result = std::string::String::new();
+                for part in parts {
+                    match part {
+                        crate::ast::FStringPart::Literal(s) => result.push_str(s),
+                        crate::ast::FStringPart::Expr(e) => {
+                            let val = self.eval(e)?;
+                            result.push_str(&val.to_string());
+                        }
+                    }
+                }
+                Ok(Value::String(result))
+            }
+
             Expr::Call { name, args, kwargs } => {
                 self.call_builtin(name, args, kwargs)
             }
@@ -330,7 +391,17 @@ impl Interpreter {
                 }
                 Ok(Value::None)
             }
-            _ => bail!("unknown function: {}()", name),
+            _ => {
+                // Try user-defined flow
+                if self.flows.contains_key(name) {
+                    let mut arg_vals = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.eval(arg)?);
+                    }
+                    return self.call_flow(name, arg_vals);
+                }
+                bail!("unknown function: {}()", name)
+            }
         }
     }
 

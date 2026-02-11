@@ -4,6 +4,7 @@ mod ast;
 mod parser;
 mod pretty;
 mod interpreter;
+mod repl;
 
 use std::env;
 use std::fs;
@@ -16,6 +17,7 @@ fn main() {
         eprintln!("       cognos run [-v|-vv|-vvv] <file> # run with verbosity");
         eprintln!("       cognos parse <file.cog>         # parse and pretty-print");
         eprintln!("       cognos tokens <file.cog>        # show raw tokens");
+        eprintln!("       cognos repl                     # interactive REPL");
         eprintln!("\nEnv: COGNOS_LOG=info|debug|trace");
         std::process::exit(1);
     }
@@ -28,10 +30,11 @@ fn main() {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "run" | "parse" | "tokens" => command = match args[i].as_str() {
+            "run" | "parse" | "tokens" | "repl" => command = match args[i].as_str() {
                 "run" => "run",
                 "parse" => "parse",
                 "tokens" => "tokens",
+                "repl" => "repl",
                 _ => unreachable!(),
             },
             "-v" => verbosity = verbosity.max(1),
@@ -45,15 +48,6 @@ fn main() {
         }
         i += 1;
     }
-
-    // If no explicit command and the arg looks like a file, treat as "run"
-    let file_path = match file_path {
-        Some(p) => p,
-        None => {
-            eprintln!("No input file specified");
-            std::process::exit(1);
-        }
-    };
 
     // Initialize logging: CLI flag overrides env var
     if verbosity > 0 || env::var("COGNOS_LOG").is_ok() {
@@ -78,6 +72,23 @@ fn main() {
         .format_timestamp(None)
         .format_target(false)
         .init();
+
+    // REPL mode — no file needed
+    if command == "repl" {
+        if let Err(e) = repl::run_repl() {
+            eprintln!("REPL error: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    let file_path = match file_path {
+        Some(p) => p,
+        None => {
+            eprintln!("No input file specified");
+            std::process::exit(1);
+        }
+    };
 
     let source = match fs::read_to_string(file_path) {
         Ok(s) => s,

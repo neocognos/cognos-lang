@@ -1,0 +1,6 @@
+flow summarize(text: String) -> String:
+    return think(text, system="Summarize.")
+
+flow main(input: String):
+    summary = summarize(input)
+    emit(summary)

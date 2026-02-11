@@ -5,6 +5,56 @@ use crate::ast::*;
 use crate::token::{Token, Spanned};
 use anyhow::{bail, Result};
 
+/// Parse f-string content into parts: literal text and {expr} interpolations
+fn parse_fstring_parts(raw: &str) -> Result<Vec<FStringPart>> {
+    let mut parts = Vec::new();
+    let mut literal = String::new();
+    let chars: Vec<char> = raw.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '{' {
+            // Save accumulated literal
+            if !literal.is_empty() {
+                parts.push(FStringPart::Literal(literal.clone()));
+                literal.clear();
+            }
+            // Find matching }
+            i += 1;
+            let mut expr_str = String::new();
+            let mut depth = 1;
+            while i < chars.len() && depth > 0 {
+                if chars[i] == '{' { depth += 1; }
+                if chars[i] == '}' { depth -= 1; }
+                if depth > 0 { expr_str.push(chars[i]); }
+                i += 1;
+            }
+            // Parse the expression
+            let mut lexer = crate::lexer::Lexer::new(&expr_str);
+            let tokens = lexer.tokenize();
+            // Remove EOF
+            let tokens: Vec<_> = tokens.into_iter()
+                .filter(|t| !matches!(t.token, Token::Eof | Token::Newline))
+                .collect();
+            if tokens.is_empty() {
+                bail!("empty expression in f-string");
+            }
+            let mut parser = Parser::new(tokens);
+            let expr = parser.parse_expr()?;
+            parts.push(FStringPart::Expr(expr));
+        } else {
+            literal.push(chars[i]);
+            i += 1;
+        }
+    }
+
+    if !literal.is_empty() {
+        parts.push(FStringPart::Literal(literal));
+    }
+
+    Ok(parts)
+}
+
 pub struct Parser {
     tokens: Vec<Spanned>,
     pos: usize,
@@ -343,6 +393,11 @@ impl Parser {
                 let s = s.clone();
                 self.advance();
                 Ok(Expr::StringLit(s))
+            }
+            Token::FStringLit(raw) => {
+                let raw = raw.clone();
+                self.advance();
+                Ok(Expr::FString(parse_fstring_parts(&raw)?))
             }
             Token::IntLit(n) => {
                 let n = n;

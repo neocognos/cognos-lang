@@ -29,6 +29,7 @@ pub enum Token {
     // Identifiers and literals
     Ident(String),
     StringLit(String),
+    FStringLit(String),  // f"..." — raw content, parsed later
     IntLit(i64),
     FloatLit(f64),
 
