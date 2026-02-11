@@ -544,7 +544,7 @@ impl Interpreter {
                     None
                 };
 
-                let result = self.call_ollama_with_tools(&model, &system, &context.to_string(), tool_defs)?;
+                let result = self.call_llm(&model, &system, &context.to_string(), tool_defs)?;
                 
                 // If format= specified, parse JSON response into a Map
                 if format_type.is_some() {
@@ -1038,7 +1038,128 @@ impl Interpreter {
         })
     }
 
-    fn call_ollama_with_tools(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+    fn call_llm(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        // Route to correct provider based on model name
+        if model.starts_with("claude") {
+            return self.call_anthropic(model, system, prompt, tools);
+        }
+        self.call_ollama(model, system, prompt, tools)
+    }
+
+    fn call_anthropic(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .or_else(|_| {
+                // Try .env file
+                let env_path = std::path::Path::new(".env");
+                if env_path.exists() {
+                    std::fs::read_to_string(env_path).ok().and_then(|content| {
+                        content.lines().find_map(|line| {
+                            let line = line.trim();
+                            line.strip_prefix("ANTHROPIC_API_KEY=")
+                                .map(|val| val.trim_matches('"').trim_matches('\'').to_string())
+                        })
+                    }).ok_or_else(|| std::env::VarError::NotPresent)
+                } else { Err(std::env::VarError::NotPresent) }
+            })
+            .map_err(|_| anyhow::anyhow!("ANTHROPIC_API_KEY not set. Set it in env or .env file."))?;
+
+        log::info!("Calling Anthropic: model={}, system={:?}, tools={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        let messages = vec![serde_json::json!({"role": "user", "content": prompt})];
+
+        let mut body = serde_json::json!({
+            "model": model,
+            "max_tokens": 4096,
+            "messages": messages,
+            "stream": false
+        });
+
+        if !system.is_empty() {
+            body["system"] = serde_json::Value::String(system.to_string());
+        }
+
+        if let Some(ref tool_defs) = tools {
+            // Convert from OpenAI format to Anthropic format
+            let anthropic_tools: Vec<serde_json::Value> = tool_defs.iter().map(|t| {
+                serde_json::json!({
+                    "name": t["function"]["name"],
+                    "description": t["function"]["description"],
+                    "input_schema": t["function"]["parameters"]
+                })
+            }).collect();
+            body["tools"] = serde_json::json!(anthropic_tools);
+        }
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()?;
+
+        let is_oauth = api_key.starts_with("sk-ant-oat");
+        let mut req = client.post("https://api.anthropic.com/v1/messages")
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json");
+
+        if is_oauth {
+            req = req.header("Authorization", format!("Bearer {}", api_key))
+                .header("anthropic-beta", "claude-code-20250219,oauth-2025-04-20");
+        } else {
+            req = req.header("x-api-key", &api_key);
+        }
+
+        let resp = req.json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Anthropic error: {}", e))?;
+
+        let json: serde_json::Value = resp.json()
+            .map_err(|e| anyhow::anyhow!("Anthropic JSON error: {}", e))?;
+
+        if let Some(err) = json.get("error") {
+            bail!("Anthropic API error: {}", err);
+        }
+
+        // Parse response
+        let content_blocks = json["content"].as_array()
+            .ok_or_else(|| anyhow::anyhow!("Anthropic: no content in response"))?;
+
+        let mut text_content = std::string::String::new();
+        let mut tool_calls = Vec::new();
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    text_content.push_str(block["text"].as_str().unwrap_or(""));
+                }
+                Some("tool_use") => {
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = self.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        if !tool_calls.is_empty() {
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(text_content)),
+                ("tool_calls".to_string(), Value::List(tool_calls)),
+                ("has_tool_calls".to_string(), Value::Bool(true)),
+            ]));
+        }
+
+        if tools.is_some() {
+            Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(text_content)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]))
+        } else {
+            Ok(Value::String(text_content))
+        }
+    }
+
+    fn call_ollama(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         log::info!("Calling Ollama: model={}, system={:?}, tools={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0));
 
         let mut messages = Vec::new();
