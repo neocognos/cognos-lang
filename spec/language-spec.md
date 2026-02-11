@@ -224,18 +224,25 @@ else:
     # statements
 ```
 
-### 4.2 Bounded Loops
+### 4.2 Loops
 
 ```cognos
-loop max=N:
-    # statements
-    if condition:
+# Infinite loop — exits only via break or return
+loop:
+    input = receive()
+    if input == "quit":
         break
-    if other_condition:
-        continue
+    emit(think(input))
+
+# Bounded loop — runs at most N times
+loop max=10:
+    response = think(response)
+    if not response.has_tool_calls:
+        break
+    response = act(response)
 ```
 
-The `max` parameter prevents infinite loops and is required.
+Use `loop:` for event loops and chatbots. Use `loop max=N:` for agentic loops where you want a safety bound.
 
 ### 4.3 Iteration
 
@@ -389,7 +396,7 @@ ArgumentList <- Argument ("," Argument)*
 Argument <- (Identifier "=")? Expression
 
 IfStatement <- "if" Expression ":" Block ("elif" Expression ":" Block)* ("else" ":" Block)?
-LoopStatement <- "loop" ("max=" IntLiteral)? ":" Block
+LoopStatement <- "loop" ("max=" IntLiteral)? ":" Block   # omit max= for infinite loop
 ForStatement <- "for" Identifier "in" Expression ":" Block
 TryStatement <- "try" ":" Block "catch" Identifier ":" Block
 ParallelStatement <- Identifier ("," Identifier)* "=" "parallel" ":" Block
