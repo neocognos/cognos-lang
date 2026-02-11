@@ -3,6 +3,7 @@
 
 use crate::ast::*;
 use crate::token::{Token, Spanned};
+use crate::error::{CognosError, unexpected_token};
 use anyhow::{bail, Result};
 
 /// Parse f-string content into parts: literal text and {expr} interpolations
@@ -450,7 +451,7 @@ impl Parser {
                 self.expect(Token::RBrace)?;
                 Ok(Expr::Map(entries))
             }
-            other => bail!("line {}: unexpected {}", self.current_line(), other),
+            other => return Err(unexpected_token(self.current_line(), &other, "").into()),
         }
     }
 
@@ -511,7 +512,10 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            bail!("line {}: expected {}, got {}", self.current_line(), expected, got)
+            Err(CognosError::parse(
+                self.current_line(),
+                format!("expected {}, got {}", expected, got),
+            ).into())
         }
     }
 
@@ -520,7 +524,10 @@ impl Parser {
             self.advance();
             Ok(name)
         } else {
-            bail!("line {}: expected identifier, got {}", self.current_line(), self.peek_token())
+            Err(CognosError::parse(
+                self.current_line(),
+                format!("expected a name, got {}", self.peek_token()),
+            ).into())
         }
     }
 

@@ -145,10 +145,12 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
             }
         }
         Err(e) => {
-            // Clean up internal parse errors for REPL context
-            let msg = format!("{}", e);
-            if msg.contains("unexpected") || msg.contains("expected") {
-                eprintln!("Error: invalid syntax — {}", trimmed);
+            // Try to extract our CognosError for better messages
+            if let Some(ce) = e.downcast_ref::<crate::error::CognosError>() {
+                eprintln!("Error: {}", ce.message);
+                if let Some(hint) = &ce.hint {
+                    eprintln!("  hint: {}", hint);
+                }
             } else {
                 eprintln!("Error: {}", e);
             }

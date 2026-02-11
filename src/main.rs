@@ -5,6 +5,7 @@ mod parser;
 mod pretty;
 mod interpreter;
 mod repl;
+mod error;
 
 use std::env;
 use std::fs;
