@@ -1,0 +1,5 @@
+# Map type demo
+flow main():
+    config = {"name": "cognos", "version": "0.1"}
+    emit(config.name)
+    emit(config.version)

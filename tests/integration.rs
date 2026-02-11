@@ -247,6 +247,43 @@ fn test_pass_statement() {
     assert_eq!(stdout.trim(), "after pass");
 }
 
+#[test]
+fn test_map_literal_and_field_access() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("map.cog");
+    std::fs::write(&path, r#"flow main():
+    m = {"name": "cognos", "ver": "0.1"}
+    emit(m.name)
+    emit(m.ver)
+"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "cognos\n0.1");
+}
+
+#[test]
+fn test_map_truthy() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("maptruthy.cog");
+    std::fs::write(&path, r#"flow main():
+    empty = {}
+    full = {"a": 1}
+    if empty:
+        emit("empty truthy")
+    else:
+        emit("empty falsy")
+    if full:
+        emit("full truthy")
+"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    let stdout = std::string::String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "empty falsy\nfull truthy");
+}
+
 // ─── Error tests ───
 
 #[test]

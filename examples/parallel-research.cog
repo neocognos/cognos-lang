@@ -1,5 +1,5 @@
 flow parallel_research:
-    question = receive(Text)
+    question = receive(String)
     
     tech, biz = parallel:
         think(question, system="Analyze technical aspects.", tools=[])

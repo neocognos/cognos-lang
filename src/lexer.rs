@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_hello_world() {
         let source = r#"flow hello:
-    input = receive(Text)
+    input = receive(String)
     emit(input)
 "#;
         let mut lexer = Lexer::new(source);
@@ -293,7 +293,7 @@ mod tests {
             Token::Eq,
             Token::Ident("receive".into()),
             Token::LParen,
-            Token::Ident("Text".into()),
+            Token::Ident("String".into()),
             Token::RParen,
             Token::Newline,
             Token::Emit,

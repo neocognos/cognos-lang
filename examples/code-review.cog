@@ -1,5 +1,5 @@
 type Issue = {
-    severity: Text,  # "critical", "warning", "info"
+    severity: String,  # "critical", "warning", "info"
     line: Int,
     message: Text
 }
@@ -9,7 +9,7 @@ type ReviewResult = {
     issues: List[Issue]
 }
 
-flow code_review(diff: Text) -> ReviewResult:
+flow code_review(diff: String) -> ReviewResult:
     issues = think(diff,
         system="Find bugs, security issues, and style problems.",
         output=List[Issue])

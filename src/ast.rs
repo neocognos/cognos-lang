@@ -82,6 +82,8 @@ pub enum Expr {
     UnaryOp { op: UnaryOp, operand: Box<Expr> },
     /// List literal: [a, b, c]
     List(Vec<Expr>),
+    /// Map literal: {"key": value, ...}
+    Map(Vec<(String, Expr)>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

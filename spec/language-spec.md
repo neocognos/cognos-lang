@@ -25,11 +25,11 @@ flow hello():
     emit("Hello, World!")
 
 # Takes input — caller decides where it comes from
-flow echo(input: Text):
+flow echo(input: String):
     emit(input)
 
 # Multiple inputs with return type
-flow greet(name: Text, style: Text) -> Text:
+flow greet(name: String, style: String) -> String:
     return think(name, system=style)
 ```
 
@@ -70,7 +70,7 @@ name = expression
 Cognos uses a static type system to ensure correctness.
 
 #### Primitive Types
-- `Text`: Unicode string
+- `String`: Unicode string
 - `Bool`: Boolean true/false
 - `Int`: 64-bit signed integer
 - `Float`: 64-bit floating point number
@@ -121,9 +121,9 @@ Invokes the LLM with the given context and constraints.
 
 Parameters:
 - `context`: The primary input to the LLM (any type that can be stringified)
-- `model`: Optional model identifier (Text). Can be a variable for reuse.
-- `system`: Optional system prompt (Text)
-- `tools`: Optional list of available tools (List[Text])
+- `model`: Optional model identifier (String). Can be a variable for reuse.
+- `system`: Optional system prompt (String)
+- `tools`: Optional list of available tools (List[String])
 - `output`: Optional output type constraint for structured generation
 
 ```cognos
@@ -160,14 +160,14 @@ facts = recall("user preferences")
 
 ### 3.4 System Functions
 
-#### `run(command: Text) -> RunResult`
+#### `run(command: String) -> RunResult`
 Executes a shell command and returns the result.
 
 ```cognos
 type RunResult = {
     success: Bool,
-    output: Text,
-    error: Text,
+    output: String,
+    error: String,
     exit_code: Int
 }
 
@@ -176,7 +176,7 @@ if result.success:
     emit("Tests passed!")
 ```
 
-#### `log(message: Text) -> Void`
+#### `log(message: String) -> Void`
 Outputs a debug message (not to the user channel).
 ```cognos
 log("Processing step 3")
@@ -186,10 +186,10 @@ log("Processing step 3")
 
 Flows can call other flows directly:
 ```cognos
-flow summarize(text: Text) -> Text:
+flow summarize(text: String) -> String:
     return think(text, model="claude-sonnet-4-20250514", system="Summarize concisely.")
 
-flow main(input: Text):
+flow main(input: String):
     summary = summarize(input)
     emit(summary)
 ```
@@ -252,7 +252,7 @@ catch error:
 
 Types are inferred where unambiguous:
 ```cognos
-name = "hello"  # inferred as Text
+name = "hello"  # inferred as String
 count = 42      # inferred as Int
 ```
 
@@ -260,9 +260,9 @@ count = 42      # inferred as Int
 
 ```cognos
 type Analysis = {
-    sentiment: Text,
+    sentiment: String,
     confidence: Float,
-    key_topics: List[Text]
+    key_topics: List[String]
 }
 
 result = think(text, system="Analyze this text", output=Analysis)
@@ -304,7 +304,7 @@ result = think(input)  # End-of-line comment
 A multi-model agentic assistant with tool use:
 
 ```cognos
-flow assistant(input: Text):
+flow assistant(input: String):
     fast = "claude-sonnet-4-20250514"
     smart = "claude-opus-4-0520"
 
@@ -362,7 +362,7 @@ CompOp <- "==" / "!=" / "<" / ">" / "<=" / ">="
 Addition <- Unary (("+" / "-") Unary)*
 Unary <- "not" Unary / Postfix
 Postfix <- Primary (("." Identifier) / ("(" ArgumentList? ")"))*
-Primary <- Identifier / StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / "(" Expression ")"
+Primary <- Identifier / StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / MapLiteral / "(" Expression ")"
 
 ArgumentList <- Argument ("," Argument)*
 Argument <- (Identifier "=")? Expression
@@ -381,6 +381,7 @@ IntLiteral <- [0-9]+
 FloatLiteral <- [0-9]+ "." [0-9]+
 BoolLiteral <- "true" / "false"
 ListLiteral <- "[" (Expression ("," Expression)*)? "]"
+MapLiteral <- "{" (StringLiteral ":" Expression ("," StringLiteral ":" Expression)*)? "}"
 ```
 
 ## 10. Compilation

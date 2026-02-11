@@ -1,4 +1,4 @@
 # Simple chat — think with a local model
-flow main(input: Text):
+flow main(input: String):
     response = think(input, model="qwen2.5:1.5b", system="Be concise. One sentence max.")
     emit(response)

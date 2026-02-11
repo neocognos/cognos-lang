@@ -1,5 +1,5 @@
 # Multi-model: fast model classifies, bigger model answers
-flow main(input: Text):
+flow main(input: String):
     fast = "qwen2.5:1.5b"
     smart = "qwen2.5:7b"
 

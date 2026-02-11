@@ -359,6 +359,27 @@ impl Parser {
                 self.expect(Token::RBracket)?;
                 Ok(Expr::List(items))
             }
+            Token::LBrace => {
+                self.advance();
+                let mut entries = Vec::new();
+                while !self.check(&Token::RBrace) {
+                    // key must be a string literal
+                    let key = if let Token::StringLit(s) = self.peek_token() {
+                        self.advance();
+                        s
+                    } else {
+                        bail!("line {}: map key must be a string literal", self.current_line());
+                    };
+                    self.expect(Token::Colon)?;
+                    let value = self.parse_expr()?;
+                    entries.push((key, value));
+                    if !self.check(&Token::RBrace) {
+                        self.expect(Token::Comma)?;
+                    }
+                }
+                self.expect(Token::RBrace)?;
+                Ok(Expr::Map(entries))
+            }
             other => bail!("line {}: unexpected token {:?}", self.current_line(), other),
         }
     }
@@ -477,7 +498,7 @@ mod tests {
     #[test]
     fn test_hello_world() {
         let program = parse(r#"flow hello:
-    input = receive(Text)
+    input = receive(String)
     emit(input)
 "#).unwrap();
         assert_eq!(program.flows.len(), 1);
@@ -487,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_flow_with_params() {
-        let program = parse(r#"flow greet(name: Text) -> Text:
+        let program = parse(r#"flow greet(name: String) -> String:
     msg = think(name, system="Say hello.")
     return msg
 "#).unwrap();

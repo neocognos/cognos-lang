@@ -1,5 +1,5 @@
-flow self_healing_deploy(service: Text):
-    task = receive(Text)
+flow self_healing_deploy(service: String):
+    task = receive(String)
     
     loop max=3:
         try:
@@ -12,7 +12,7 @@ flow self_healing_deploy(service: Text):
                 system="Diagnose this Kubernetes deployment failure.")
             fix = think(diagnosis,
                 system="Suggest a fix command.",
-                output=Text)
+                output=String)
             run(fix)
     
     emit("Deployment failed after 3 attempts for: " + service)

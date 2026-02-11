@@ -4,7 +4,7 @@ type TestResult = {
 }
 
 flow robust_tdd:
-    task = receive(Text)
+    task = receive(String)
     
     plan = think(task,
         system="You are a Senior Architect. Plan only, no code.",

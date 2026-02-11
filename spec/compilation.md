@@ -45,7 +45,7 @@ Cognos source files (`.cog`) compile to the same internal `StageDef` representat
 
 ### Flow Definitions
 ```cognos
-flow example_flow(param: Text) -> Text:
+flow example_flow(param: String) -> String:
     result = think(param)
     return result
 ```
@@ -103,7 +103,7 @@ Compiles to parallel execution group with result collection and synchronization.
 
 Cognos types map to kernel type schemas:
 
-- **Primitive types** (`Text`, `Bool`, `Int`, `Float`) map to corresponding JSON schema primitives
+- **Primitive types** (`String`, `Bool`, `Int`, `Float`) map to corresponding JSON schema primitives
 - **Container types** (`List[T]`, `Map[K,V]`) map to JSON schema arrays and objects
 - **Custom types** compile to structured JSON schemas with field validation
 - **Optional types** use JSON schema nullable properties

@@ -9,18 +9,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Text(String),
+    String(std::string::String),
     Int(i64),
     Float(f64),
     Bool(bool),
     List(Vec<Value>),
+    Map(Vec<(std::string::String, Value)>),  // ordered key-value pairs
     None,
 }
 
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Text(s) => write!(f, "{}", s),
+            Value::String(s) => write!(f, "{}", s),
             Value::Int(n) => write!(f, "{}", n),
             Value::Float(n) => write!(f, "{}", n),
             Value::Bool(b) => write!(f, "{}", b),
@@ -32,6 +33,14 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
+            Value::Map(entries) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in entries.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "\"{}\": {}", k, v)?;
+                }
+                write!(f, "}}")
+            }
             Value::None => write!(f, ""),
         }
     }
@@ -41,11 +50,21 @@ impl Value {
     fn is_truthy(&self) -> bool {
         match self {
             Value::Bool(b) => *b,
-            Value::Text(s) => !s.is_empty(),
+            Value::String(s) => !s.is_empty(),
             Value::Int(n) => *n != 0,
             Value::Float(n) => *n != 0.0,
             Value::List(items) => !items.is_empty(),
+            Value::Map(entries) => !entries.is_empty(),
             Value::None => false,
+        }
+    }
+
+    /// Get a field from a Map value
+    fn get_field(&self, field: &str) -> Option<&Value> {
+        if let Value::Map(entries) = self {
+            entries.iter().find(|(k, _)| k == field).map(|(_, v)| v)
+        } else {
+            None
         }
     }
 }
@@ -58,7 +77,7 @@ enum ControlFlow {
 }
 
 pub struct Interpreter {
-    vars: HashMap<String, Value>,
+    vars: HashMap<std::string::String, Value>,
 }
 
 impl Interpreter {
@@ -80,11 +99,11 @@ impl Interpreter {
                     log::debug!("Reading param '{}' from stdin", param.name);
                     print!("> ");
                     io::stdout().flush()?;
-                    let mut line = String::new();
+                    let mut line = std::string::String::new();
                     io::stdin().lock().read_line(&mut line)?;
                     let val = line.trim_end().to_string();
                     log::debug!("  {} = {:?}", param.name, val);
-                    self.vars.insert(param.name.clone(), Value::Text(val));
+                    self.vars.insert(param.name.clone(), Value::String(val));
                 }
                 self.run_block(&f.body)?;
                 Ok(())
@@ -169,7 +188,7 @@ impl Interpreter {
 
     fn eval(&mut self, expr: &Expr) -> Result<Value> {
         match expr {
-            Expr::StringLit(s) => Ok(Value::Text(s.clone())),
+            Expr::StringLit(s) => Ok(Value::String(s.clone())),
             Expr::IntLit(n) => Ok(Value::Int(*n)),
             Expr::FloatLit(n) => Ok(Value::Float(*n)),
             Expr::BoolLit(b) => Ok(Value::Bool(*b)),
@@ -186,6 +205,15 @@ impl Interpreter {
                 Ok(Value::List(vals?))
             }
 
+            Expr::Map(entries) => {
+                let mut result = Vec::new();
+                for (k, v) in entries {
+                    let val = self.eval(v)?;
+                    result.push((k.clone(), val));
+                }
+                Ok(Value::Map(result))
+            }
+
             Expr::Call { name, args, kwargs } => {
                 self.call_builtin(name, args, kwargs)
             }
@@ -193,8 +221,14 @@ impl Interpreter {
             Expr::Field { object, field } => {
                 let val = self.eval(object)?;
                 match (&val, field.as_str()) {
-                    (Value::Text(s), "length") => Ok(Value::Int(s.len() as i64)),
+                    (Value::String(s), "length") => Ok(Value::Int(s.len() as i64)),
                     (Value::List(l), "length") => Ok(Value::Int(l.len() as i64)),
+                    (Value::Map(_), _) => {
+                        match val.get_field(field) {
+                            Some(v) => Ok(v.clone()),
+                            None => bail!("map has no key '{}'", field),
+                        }
+                    }
                     _ => bail!("cannot access field '{}' on {:?}", field, val),
                 }
             }
@@ -214,7 +248,7 @@ impl Interpreter {
         }
     }
 
-    fn call_builtin(&mut self, name: &str, args: &[Expr], kwargs: &[(String, Expr)]) -> Result<Value> {
+    fn call_builtin(&mut self, name: &str, args: &[Expr], kwargs: &[(std::string::String, Expr)]) -> Result<Value> {
         match name {
             "print" | "emit" => {
                 for (i, arg) in args.iter().enumerate() {
@@ -231,9 +265,8 @@ impl Interpreter {
                 }
                 let context = self.eval(&args[0])?;
 
-                // Resolve kwargs
                 let mut model = "qwen2.5:1.5b".to_string();
-                let mut system = String::new();
+                let mut system = std::string::String::new();
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
@@ -264,10 +297,10 @@ impl Interpreter {
                     .arg("-c")
                     .arg(cmd.to_string())
                     .output()?;
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
                 let code = output.status.code().unwrap_or(-1);
                 log::debug!("run() exit={} stdout={} chars", code, stdout.len());
-                Ok(Value::Text(stdout.trim_end().to_string()))
+                Ok(Value::String(stdout.trim_end().to_string()))
             }
             "log" => {
                 for arg in args {
@@ -283,16 +316,16 @@ impl Interpreter {
     fn call_ollama(&self, model: &str, system: &str, prompt: &str) -> Result<Value> {
         #[derive(Serialize)]
         struct OllamaRequest {
-            model: String,
-            prompt: String,
-            #[serde(skip_serializing_if = "String::is_empty")]
-            system: String,
+            model: std::string::String,
+            prompt: std::string::String,
+            #[serde(skip_serializing_if = "str::is_empty")]
+            system: std::string::String,
             stream: bool,
         }
 
         #[derive(Deserialize)]
         struct OllamaResponse {
-            response: String,
+            response: std::string::String,
         }
 
         log::info!("think() → model={}", model);
@@ -322,13 +355,13 @@ impl Interpreter {
         log::info!("think() completed in {:.1}s ({} chars)", elapsed.as_secs_f64(), resp.response.len());
         log::trace!("Ollama response: {:?}", resp.response);
 
-        Ok(Value::Text(resp.response.trim().to_string()))
+        Ok(Value::String(resp.response.trim().to_string()))
     }
 
     fn eval_binop(&self, left: &Value, op: &BinOp, right: &Value) -> Result<Value> {
         match (left, op, right) {
             // String concat
-            (Value::Text(a), BinOp::Add, Value::Text(b)) => Ok(Value::Text(format!("{}{}", a, b))),
+            (Value::String(a), BinOp::Add, Value::String(b)) => Ok(Value::String(format!("{}{}", a, b))),
 
             // Int arithmetic
             (Value::Int(a), BinOp::Add, Value::Int(b)) => Ok(Value::Int(a + b)),
@@ -347,8 +380,8 @@ impl Interpreter {
             (Value::Int(a), BinOp::LtEq, Value::Int(b)) => Ok(Value::Bool(a <= b)),
             (Value::Int(a), BinOp::GtEq, Value::Int(b)) => Ok(Value::Bool(a >= b)),
 
-            (Value::Text(a), BinOp::Eq, Value::Text(b)) => Ok(Value::Bool(a == b)),
-            (Value::Text(a), BinOp::NotEq, Value::Text(b)) => Ok(Value::Bool(a != b)),
+            (Value::String(a), BinOp::Eq, Value::String(b)) => Ok(Value::Bool(a == b)),
+            (Value::String(a), BinOp::NotEq, Value::String(b)) => Ok(Value::Bool(a != b)),
 
             // Boolean logic
             (Value::Bool(a), BinOp::And, Value::Bool(b)) => Ok(Value::Bool(*a && *b)),
