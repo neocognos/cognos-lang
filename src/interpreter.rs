@@ -264,7 +264,16 @@ impl Interpreter {
             Expr::Ident(name) => {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
-                    None => bail!("undefined variable: {}", name),
+                    None => {
+                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall"];
+                        if builtins.contains(&name.as_str()) {
+                            bail!("'{}' is a function — did you mean {}(...)?", name, name)
+                        } else if self.flows.contains_key(name) {
+                            bail!("'{}' is a flow — did you mean {}(...)?", name, name)
+                        } else {
+                            bail!("undefined variable: '{}'", name)
+                        }
+                    }
                 }
             }
 
