@@ -16,6 +16,7 @@ pub enum Value {
     List(Vec<Value>),
     Map(Vec<(std::string::String, Value)>),  // ordered key-value pairs
     Handle(Handle),
+    Module(std::string::String),
     None,
 }
 
@@ -49,6 +50,7 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "}}")
             }
+            Value::Module(name) => write!(f, "<module '{}'>", name),
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
@@ -68,6 +70,7 @@ impl Value {
             Value::List(items) => !items.is_empty(),
             Value::Map(entries) => !entries.is_empty(),
             Value::Handle(_) => true,
+            Value::Module(_) => true,
             Value::None => false,
         }
     }
@@ -101,6 +104,7 @@ fn type_name(v: &Value) -> &'static str {
         Value::List(_) => "List",
         Value::Map(_) => "Map",
         Value::Handle(_) => "Handle",
+        Value::Module(_) => "Module",
         Value::None => "None",
     }
 }
@@ -132,6 +136,8 @@ impl Interpreter {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
+        vars.insert("math".to_string(), Value::Module("math".to_string()));
+        vars.insert("http".to_string(), Value::Module("http".to_string()));
         Self { vars, flows: HashMap::new(), types: HashMap::new() }
     }
 
@@ -388,6 +394,15 @@ impl Interpreter {
 
             Expr::Field { object, field } => {
                 let val = self.eval(object)?;
+                // Module constants: math.pi, math.e
+                if let Value::Module(ref mod_name) = val {
+                    return match (mod_name.as_str(), field.as_str()) {
+                        ("math", "pi") => Ok(Value::Float(std::f64::consts::PI)),
+                        ("math", "e") => Ok(Value::Float(std::f64::consts::E)),
+                        ("math", "inf") => Ok(Value::Float(f64::INFINITY)),
+                        _ => bail!("{} has no constant '{}'", mod_name, field),
+                    };
+                }
                 match (&val, field.as_str()) {
                     (Value::String(s), "length") => Ok(Value::Int(s.len() as i64)),
                     (Value::List(l), "length") => Ok(Value::Int(l.len() as i64)),
@@ -431,6 +446,9 @@ impl Interpreter {
                 let mut arg_vals = Vec::new();
                 for a in args {
                     arg_vals.push(self.eval(a)?);
+                }
+                if let Value::Module(ref mod_name) = val {
+                    return self.call_module(mod_name, method, arg_vals);
                 }
                 self.call_method(val, method, arg_vals)
             }
@@ -714,6 +732,103 @@ impl Interpreter {
         }
     }
 
+    fn call_module(&self, module: &str, method: &str, args: Vec<Value>) -> Result<Value> {
+        match module {
+            "math" => self.call_math(method, args),
+            "http" => self.call_http(method, args),
+            _ => bail!("unknown module '{}'", module),
+        }
+    }
+
+    fn to_float(v: &Value) -> Result<f64> {
+        match v {
+            Value::Float(f) => Ok(*f),
+            Value::Int(i) => Ok(*i as f64),
+            other => bail!("expected a number, got {} (type: {})", other, type_name(other)),
+        }
+    }
+
+    fn call_math(&self, method: &str, args: Vec<Value>) -> Result<Value> {
+        match method {
+            // Trig
+            "sin" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.sin())) }
+            "cos" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.cos())) }
+            "tan" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.tan())) }
+            "asin" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.asin())) }
+            "acos" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.acos())) }
+            "atan" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.atan())) }
+            "atan2" => { let y = Self::to_float(&args[0])?; let x = Self::to_float(&args[1])?; Ok(Value::Float(y.atan2(x))) }
+
+            // Powers & roots
+            "sqrt" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.sqrt())) }
+            "pow" => { let x = Self::to_float(&args[0])?; let y = Self::to_float(&args[1])?; Ok(Value::Float(x.powf(y))) }
+            "exp" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.exp())) }
+            "log" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.ln())) }
+            "log2" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.log2())) }
+            "log10" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.log10())) }
+
+            // Rounding
+            "floor" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.floor() as i64)) }
+            "ceil" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.ceil() as i64)) }
+            "round" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.round() as i64)) }
+            "abs" => {
+                match &args[0] {
+                    Value::Int(n) => Ok(Value::Int(n.abs())),
+                    Value::Float(n) => Ok(Value::Float(n.abs())),
+                    other => bail!("math.abs() expects a number, got {}", type_name(other)),
+                }
+            }
+
+            // Min/Max
+            "min" => {
+                let a = Self::to_float(&args[0])?;
+                let b = Self::to_float(&args[1])?;
+                Ok(Value::Float(a.min(b)))
+            }
+            "max" => {
+                let a = Self::to_float(&args[0])?;
+                let b = Self::to_float(&args[1])?;
+                Ok(Value::Float(a.max(b)))
+            }
+
+            // Constants (called as functions for now: math.pi())
+            "pi" => Ok(Value::Float(std::f64::consts::PI)),
+            "e" => Ok(Value::Float(std::f64::consts::E)),
+
+            _ => bail!("math has no function '{}'", method),
+        }
+    }
+
+    fn call_http(&self, method: &str, args: Vec<Value>) -> Result<Value> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?;
+        match method {
+            "get" => {
+                if args.is_empty() { bail!("http.get() requires a URL"); }
+                let url = args[0].to_string();
+                log::info!("http.get({})", url);
+                let resp = client.get(&url).send()
+                    .map_err(|e| anyhow::anyhow!("http.get error: {}", e))?;
+                let body = resp.text()
+                    .map_err(|e| anyhow::anyhow!("http.get read error: {}", e))?;
+                Ok(Value::String(body))
+            }
+            "post" => {
+                if args.len() < 2 { bail!("http.post(url, body)"); }
+                let url = args[0].to_string();
+                let body = args[1].to_string();
+                log::info!("http.post({})", url);
+                let resp = client.post(&url).body(body).send()
+                    .map_err(|e| anyhow::anyhow!("http.post error: {}", e))?;
+                let text = resp.text()
+                    .map_err(|e| anyhow::anyhow!("http.post read error: {}", e))?;
+                Ok(Value::String(text))
+            }
+            _ => bail!("http has no function '{}'", method),
+        }
+    }
+
     fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Result<Value> {
         match (&obj, method) {
             // ── String methods ──
@@ -990,6 +1105,31 @@ impl Interpreter {
                 Ok(Value::Int(a / b))
             }
 
+            // Float arithmetic
+            (Value::Float(a), BinOp::Add, Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Value::Float(a), BinOp::Sub, Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Value::Float(a), BinOp::Mul, Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::Float(a), BinOp::Div, Value::Float(b)) => {
+                if *b == 0.0 { bail!("division by zero"); }
+                Ok(Value::Float(a / b))
+            }
+
+            // Mixed Int/Float arithmetic (promote to Float)
+            (Value::Int(a), BinOp::Add, Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
+            (Value::Float(a), BinOp::Add, Value::Int(b)) => Ok(Value::Float(a + *b as f64)),
+            (Value::Int(a), BinOp::Sub, Value::Float(b)) => Ok(Value::Float(*a as f64 - b)),
+            (Value::Float(a), BinOp::Sub, Value::Int(b)) => Ok(Value::Float(a - *b as f64)),
+            (Value::Int(a), BinOp::Mul, Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
+            (Value::Float(a), BinOp::Mul, Value::Int(b)) => Ok(Value::Float(a * *b as f64)),
+            (Value::Int(a), BinOp::Div, Value::Float(b)) => {
+                if *b == 0.0 { bail!("division by zero"); }
+                Ok(Value::Float(*a as f64 / b))
+            }
+            (Value::Float(a), BinOp::Div, Value::Int(b)) => {
+                if *b == 0 { bail!("division by zero"); }
+                Ok(Value::Float(a / *b as f64))
+            }
+
             // Comparisons
             (Value::Int(a), BinOp::Eq, Value::Int(b)) => Ok(Value::Bool(a == b)),
             (Value::Int(a), BinOp::NotEq, Value::Int(b)) => Ok(Value::Bool(a != b)),
@@ -997,6 +1137,13 @@ impl Interpreter {
             (Value::Int(a), BinOp::Gt, Value::Int(b)) => Ok(Value::Bool(a > b)),
             (Value::Int(a), BinOp::LtEq, Value::Int(b)) => Ok(Value::Bool(a <= b)),
             (Value::Int(a), BinOp::GtEq, Value::Int(b)) => Ok(Value::Bool(a >= b)),
+
+            (Value::Float(a), BinOp::Eq, Value::Float(b)) => Ok(Value::Bool(a == b)),
+            (Value::Float(a), BinOp::NotEq, Value::Float(b)) => Ok(Value::Bool(a != b)),
+            (Value::Float(a), BinOp::Lt, Value::Float(b)) => Ok(Value::Bool(a < b)),
+            (Value::Float(a), BinOp::Gt, Value::Float(b)) => Ok(Value::Bool(a > b)),
+            (Value::Float(a), BinOp::LtEq, Value::Float(b)) => Ok(Value::Bool(a <= b)),
+            (Value::Float(a), BinOp::GtEq, Value::Float(b)) => Ok(Value::Bool(a >= b)),
 
             (Value::String(a), BinOp::Eq, Value::String(b)) => Ok(Value::Bool(a == b)),
             (Value::String(a), BinOp::NotEq, Value::String(b)) => Ok(Value::Bool(a != b)),

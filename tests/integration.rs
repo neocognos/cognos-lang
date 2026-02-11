@@ -534,6 +534,43 @@ fn test_list_concat_empty() {
     assert_eq!(out.trim(), "[1]");
 }
 
+// ─── Native module tests ───
+
+#[test]
+fn test_math_trig() {
+    let out = expect_run_ok("flow main():\n    write(stdout, math.sin(0.0))\n    write(stdout, math.cos(0.0))\n");
+    assert_eq!(out.trim(), "0\n1");
+}
+
+#[test]
+fn test_math_sqrt_pow() {
+    let out = expect_run_ok("flow main():\n    write(stdout, math.sqrt(144.0))\n    write(stdout, math.pow(2.0, 10.0))\n");
+    assert_eq!(out.trim(), "12\n1024");
+}
+
+#[test]
+fn test_math_constants() {
+    let out = expect_run_ok("flow main():\n    write(stdout, math.pi)\n    write(stdout, math.e)\n");
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert!(lines[0].starts_with("3.14159"));
+    assert!(lines[1].starts_with("2.71828"));
+}
+
+#[test]
+fn test_math_rounding() {
+    let out = expect_run_ok("flow main():\n    write(stdout, math.floor(3.7))\n    write(stdout, math.ceil(3.2))\n    write(stdout, math.round(3.5))\n    write(stdout, math.abs(-42))\n");
+    assert_eq!(out.trim(), "3\n4\n4\n42");
+}
+
+#[test]
+fn test_mixed_int_float_arithmetic() {
+    let out = expect_run_ok("flow main():\n    write(stdout, 1 + 2.5)\n    write(stdout, 10.0 / 3)\n    write(stdout, 2 * 3.14)\n");
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "3.5");
+    assert!(lines[1].starts_with("3.333"));
+    assert_eq!(lines[2], "6.28");
+}
+
 // ─── Tool tests ───
 
 #[test]
