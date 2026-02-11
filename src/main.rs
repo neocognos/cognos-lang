@@ -6,6 +6,7 @@ mod pretty;
 mod interpreter;
 mod repl;
 mod error;
+mod trace;
 
 use std::env;
 use std::fs;
@@ -28,6 +29,7 @@ fn main() {
     let mut verbosity = 0u8;
     let mut file_path = None;
     let mut allow_shell = false;
+    let mut trace_path: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -43,6 +45,15 @@ fn main() {
             "-vv" => verbosity = verbosity.max(2),
             "-vvv" => verbosity = verbosity.max(3),
             "--allow-shell" => allow_shell = true,
+            "--trace" => {
+                i += 1;
+                if i < args.len() {
+                    trace_path = Some(args[i].clone());
+                } else {
+                    eprintln!("--trace requires a file path");
+                    std::process::exit(1);
+                }
+            }
             s if s.starts_with('-') => {
                 eprintln!("Unknown flag: {}", s);
                 std::process::exit(1);
@@ -130,7 +141,13 @@ fn main() {
                 Err(e) => { eprintln!("Parse error: {}", e); std::process::exit(1); }
             };
             log::info!("Parsed {} flow(s)", program.flows.len());
-            let mut interp = interpreter::Interpreter::with_options(allow_shell);
+            let tracer = trace_path.as_ref().map(|p| {
+                std::sync::Arc::new(trace::Tracer::new_file(p).unwrap_or_else(|e| {
+                    eprintln!("Failed to open trace file {}: {}", p, e);
+                    std::process::exit(1);
+                }))
+            });
+            let mut interp = interpreter::Interpreter::with_full_options(allow_shell, tracer);
             if let Err(e) = interp.run(&program) {
                 eprintln!("Runtime error: {}", e);
                 std::process::exit(1);

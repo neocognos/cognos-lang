@@ -3,7 +3,9 @@
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
+use std::sync::Arc;
 use crate::ast::*;
+use crate::trace::{Tracer, TraceEvent};
 use anyhow::{bail, Result};
 
 
@@ -130,6 +132,7 @@ pub struct Interpreter {
     flows: HashMap<std::string::String, crate::ast::FlowDef>,
     types: HashMap<std::string::String, crate::ast::TypeDef>,
     allow_shell: bool,
+    tracer: Option<Arc<Tracer>>,
 }
 
 impl Interpreter {
@@ -138,12 +141,22 @@ impl Interpreter {
     }
 
     pub fn with_options(allow_shell: bool) -> Self {
+        Self::with_full_options(allow_shell, None)
+    }
+
+    pub fn with_full_options(allow_shell: bool, tracer: Option<Arc<Tracer>>) -> Self {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         vars.insert("math".to_string(), Value::Module("math".to_string()));
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), allow_shell }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), allow_shell, tracer }
+    }
+
+    fn trace(&self, event: TraceEvent) {
+        if let Some(ref tracer) = self.tracer {
+            tracer.emit(event);
+        }
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
@@ -711,11 +724,17 @@ impl Interpreter {
                 if args.is_empty() { bail!("__exec_shell__() requires a command string"); }
                 let cmd = self.eval(&args[0])?.to_string();
                 log::info!("__exec_shell__ → {:?}", cmd);
+                let shell_start = std::time::Instant::now();
                 let output = std::process::Command::new("sh")
                     .arg("-c")
                     .arg(&cmd)
                     .output()?;
                 let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
+                let exit_code = output.status.code().unwrap_or(-1);
+                self.trace(TraceEvent::ShellExec {
+                    command: cmd, latency_ms: shell_start.elapsed().as_millis() as u64,
+                    exit_code, output_chars: stdout.len(),
+                });
                 Ok(Value::String(stdout.trim_end().to_string()))
             }
             "log" => {
@@ -1049,6 +1068,7 @@ impl Interpreter {
 
     fn call_claude_cli(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         log::info!("Calling Claude CLI: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+        let call_start = std::time::Instant::now();
 
         // Build system prompt with tools embedded
         let mut full_system = system.to_string();
@@ -1101,24 +1121,28 @@ impl Interpreter {
             bail!("Claude CLI error: {}", raw_text);
         }
 
-        log::info!("Claude CLI response: {} chars", raw_text.len());
+        let latency = call_start.elapsed().as_millis() as u64;
+        log::info!("Claude CLI response: {} chars in {}ms", raw_text.len(), latency);
 
         // Parse tool calls from response text
         if tools.is_some() {
             if let Some(tool_calls) = self.parse_tool_calls_from_text(&raw_text) {
                 let content = raw_text.split("```json").next().unwrap_or("").trim().to_string();
+                self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: true, error: None });
                 return Ok(Value::Map(vec![
                     ("content".to_string(), Value::String(content)),
                     ("tool_calls".to_string(), Value::List(tool_calls)),
                     ("has_tool_calls".to_string(), Value::Bool(true)),
                 ]));
             }
+            self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: false, error: None });
             return Ok(Value::Map(vec![
                 ("content".to_string(), Value::String(raw_text)),
                 ("has_tool_calls".to_string(), Value::Bool(false)),
             ]));
         }
 
+        self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "claude-cli".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: raw_text.len(), has_tool_calls: false, error: None });
         Ok(Value::String(raw_text))
     }
 
@@ -1278,6 +1302,7 @@ impl Interpreter {
 
     fn call_ollama(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         log::info!("Calling Ollama: model={}, system={:?}, tools={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+        let call_start = std::time::Instant::now();
 
         let mut messages = Vec::new();
         if !system.is_empty() {
@@ -1321,6 +1346,8 @@ impl Interpreter {
                         ])
                     }).collect();
 
+                    let latency = call_start.elapsed().as_millis() as u64;
+                    self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "ollama".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: content.len(), has_tool_calls: true, error: None });
                     return Ok(Value::Map(vec![
                         ("content".to_string(), Value::String(content)),
                         ("tool_calls".to_string(), Value::List(tc)),
@@ -1330,6 +1357,8 @@ impl Interpreter {
             }
         }
 
+        let latency = call_start.elapsed().as_millis() as u64;
+        self.trace(TraceEvent::LlmCall { model: model.to_string(), provider: "ollama".into(), latency_ms: latency, prompt_chars: prompt.len(), response_chars: content.len(), has_tool_calls: false, error: None });
         // No tool calls — return simple string or structured map
         if tools.is_some() {
             Ok(Value::Map(vec![

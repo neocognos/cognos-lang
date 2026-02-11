@@ -18,6 +18,8 @@ flow write_file(path: String, content: String) -> String:
     return f"Written {content.length} chars to {path}"
 
 flow main():
+    sonnet= "claude-sonnet-4-20250514"
+    llama7= "qwen2.5:7b"
     history = []
     tools = ["shell", "read_file", "write_file"]
     system = "You are a helpful assistant with shell and file access. Use tools to answer questions. Be concise."
@@ -28,10 +30,10 @@ flow main():
             break
         history = history + [f"User: {input}"]
         context = history.join("\n")
-        response = think(context, model="qwen2.5:7b", tools=tools, system=system)
+        response = think(context, model=sonnet, tools=tools, system=system)
         if response.has_tool_calls:
             response = exec(response, tools=tools)
-            answer = think(context + "\n" + response.content, model="qwen2.5:7b", system=system)
+            answer = think(context + "\n" + response.content, model=sonnet, system=system)
             history = history + [f"Assistant: {answer}"]
             write(stdout, answer)
         else:
