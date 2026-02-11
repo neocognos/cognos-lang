@@ -75,12 +75,16 @@ impl Interpreter {
         match flow {
             Some(f) => {
                 // Bind flow parameters — in CLI mode, read from stdin
+                log::info!("Running flow '{}'", f.name);
                 for param in &f.params {
+                    log::debug!("Reading param '{}' from stdin", param.name);
                     print!("> ");
                     io::stdout().flush()?;
                     let mut line = String::new();
                     io::stdin().lock().read_line(&mut line)?;
-                    self.vars.insert(param.name.clone(), Value::Text(line.trim_end().to_string()));
+                    let val = line.trim_end().to_string();
+                    log::debug!("  {} = {:?}", param.name, val);
+                    self.vars.insert(param.name.clone(), Value::Text(val));
                 }
                 self.run_block(&f.body)?;
                 Ok(())
@@ -255,11 +259,14 @@ impl Interpreter {
                     bail!("run() requires a command string");
                 }
                 let cmd = self.eval(&args[0])?;
+                log::info!("run() → {:?}", cmd.to_string());
                 let output = std::process::Command::new("sh")
                     .arg("-c")
                     .arg(cmd.to_string())
                     .output()?;
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let code = output.status.code().unwrap_or(-1);
+                log::debug!("run() exit={} stdout={} chars", code, stdout.len());
                 Ok(Value::Text(stdout.trim_end().to_string()))
             }
             "log" => {
@@ -288,23 +295,33 @@ impl Interpreter {
             response: String,
         }
 
-        eprint!("🧠 thinking ({})... ", model);
-        io::stderr().flush()?;
+        log::info!("think() → model={}", model);
+        log::debug!("think() system={:?}", if system.is_empty() { "(none)" } else { system });
+        log::debug!("think() prompt={:?}", if prompt.len() > 200 { &prompt[..200] } else { prompt });
 
-        let client = reqwest::blocking::Client::new();
+        let start = std::time::Instant::now();
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()?;
+        let req_body = OllamaRequest {
+            model: model.to_string(),
+            prompt: prompt.to_string(),
+            system: system.to_string(),
+            stream: false,
+        };
+        log::trace!("Ollama request: {}", serde_json::to_string_pretty(&req_body)?);
+
         let resp = client
             .post("http://localhost:11434/api/generate")
-            .json(&OllamaRequest {
-                model: model.to_string(),
-                prompt: prompt.to_string(),
-                system: system.to_string(),
-                stream: false,
-            })
+            .json(&req_body)
             .send()?
             .error_for_status()?
             .json::<OllamaResponse>()?;
 
-        eprintln!("done");
+        let elapsed = start.elapsed();
+        log::info!("think() completed in {:.1}s ({} chars)", elapsed.as_secs_f64(), resp.response.len());
+        log::trace!("Ollama response: {:?}", resp.response);
+
         Ok(Value::Text(resp.response.trim().to_string()))
     }
 

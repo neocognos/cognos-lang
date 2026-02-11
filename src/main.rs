@@ -12,18 +12,72 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage: cognos <file.cog>         # run the program");
-        eprintln!("       cognos run <file.cog>      # run the program");
-        eprintln!("       cognos parse <file.cog>    # parse and pretty-print");
-        eprintln!("       cognos tokens <file.cog>   # show raw tokens");
+        eprintln!("Usage: cognos <file.cog>              # run the program");
+        eprintln!("       cognos run [-v|-vv|-vvv] <file> # run with verbosity");
+        eprintln!("       cognos parse <file.cog>         # parse and pretty-print");
+        eprintln!("       cognos tokens <file.cog>        # show raw tokens");
+        eprintln!("\nEnv: COGNOS_LOG=info|debug|trace");
         std::process::exit(1);
     }
 
-    let (command, file_path) = if args.len() == 2 {
-        ("run", args[1].as_str())
-    } else {
-        (args[1].as_str(), args[2].as_str())
+    // Parse args: find command, verbosity flags, and file path
+    let mut command = "run";
+    let mut verbosity = 0u8;
+    let mut file_path = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "run" | "parse" | "tokens" => command = match args[i].as_str() {
+                "run" => "run",
+                "parse" => "parse",
+                "tokens" => "tokens",
+                _ => unreachable!(),
+            },
+            "-v" => verbosity = verbosity.max(1),
+            "-vv" => verbosity = verbosity.max(2),
+            "-vvv" => verbosity = verbosity.max(3),
+            s if s.starts_with('-') => {
+                eprintln!("Unknown flag: {}", s);
+                std::process::exit(1);
+            }
+            _ => file_path = Some(args[i].as_str()),
+        }
+        i += 1;
+    }
+
+    // If no explicit command and the arg looks like a file, treat as "run"
+    let file_path = match file_path {
+        Some(p) => p,
+        None => {
+            eprintln!("No input file specified");
+            std::process::exit(1);
+        }
     };
+
+    // Initialize logging: CLI flag overrides env var
+    if verbosity > 0 || env::var("COGNOS_LOG").is_ok() {
+        let level = if verbosity > 0 {
+            match verbosity {
+                1 => "info",
+                2 => "debug",
+                _ => "trace",
+            }
+        } else {
+            // env var is set, let env_logger handle it
+            ""
+        };
+
+        if !level.is_empty() {
+            env::set_var("RUST_LOG", format!("cognos={}", level));
+        } else if let Ok(val) = env::var("COGNOS_LOG") {
+            env::set_var("RUST_LOG", format!("cognos={}", val));
+        }
+    }
+    env_logger::Builder::from_default_env()
+        .format_timestamp(None)
+        .format_target(false)
+        .init();
 
     let source = match fs::read_to_string(file_path) {
         Ok(s) => s,
@@ -33,8 +87,11 @@ fn main() {
         }
     };
 
+    log::info!("Loading {}", file_path);
+
     let mut lexer = lexer::Lexer::new(&source);
     let tokens = lexer.tokenize();
+    log::debug!("Lexed {} tokens", tokens.len());
 
     match command {
         "tokens" => {
@@ -58,6 +115,7 @@ fn main() {
                 Ok(prog) => prog,
                 Err(e) => { eprintln!("Parse error: {}", e); std::process::exit(1); }
             };
+            log::info!("Parsed {} flow(s)", program.flows.len());
             let mut interp = interpreter::Interpreter::new();
             if let Err(e) = interp.run(&program) {
                 eprintln!("Runtime error: {}", e);
