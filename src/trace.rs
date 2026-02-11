@@ -98,13 +98,17 @@ impl Tracer {
                     "duration_ms": duration_ms,
                 })
             }
-            TraceEvent::IoOp { operation, handle_type, path, bytes } => {
-                serde_json::json!({
+            TraceEvent::IoOp { operation, handle_type, path, bytes, content } => {
+                let mut j = serde_json::json!({
                     "ts": ts, "elapsed_ms": elapsed_ms, "turn": turn,
                     "event": "io",
                     "op": operation, "handle": handle_type,
                     "path": path, "bytes": bytes,
-                })
+                });
+                if is_full {
+                    if let Some(c) = content { j["content"] = serde_json::Value::String(c); }
+                }
+                j
             }
             TraceEvent::ShellExec { command, latency_ms, exit_code, output_chars, output } => {
                 let mut j = serde_json::json!({
@@ -178,6 +182,7 @@ pub enum TraceEvent {
         handle_type: String,
         path: Option<String>,
         bytes: usize,
+        content: Option<String>,
     },
     ShellExec {
         command: String,

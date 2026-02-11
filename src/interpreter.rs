@@ -602,12 +602,29 @@ impl Interpreter {
                         let mut line = std::string::String::new();
                         io::stdin().lock().read_line(&mut line)?;
                         if line.is_empty() { bail!("end of input"); }
-                        Ok(Value::String(line.trim_end().to_string()))
+                        let val = line.trim_end().to_string();
+                        // Increment turn on user input + trace
+                        if let Some(ref tracer) = self.tracer {
+                            tracer.increment_turn();
+                        }
+                        let full = self.is_full_trace();
+                        self.trace(TraceEvent::IoOp {
+                            operation: "read".into(), handle_type: "stdin".into(),
+                            path: None, bytes: val.len(),
+                            content: if full { Some(val.clone()) } else { None },
+                        });
+                        Ok(Value::String(val))
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
                     Handle::File(path) => {
                         let content = std::fs::read_to_string(&path)
                             .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
+                        let full = self.is_full_trace();
+                        self.trace(TraceEvent::IoOp {
+                            operation: "read".into(), handle_type: "file".into(),
+                            path: Some(path), bytes: content.len(),
+                            content: if full { Some(content.clone().chars().take(1000).collect()) } else { None },
+                        });
                         Ok(Value::String(content))
                     }
                 }
@@ -623,11 +640,23 @@ impl Interpreter {
                     Handle::Stdin => bail!("cannot write to stdin"),
                     Handle::Stdout => {
                         println!("{}", content);
+                        let full = self.is_full_trace();
+                        self.trace(TraceEvent::IoOp {
+                            operation: "write".into(), handle_type: "stdout".into(),
+                            path: None, bytes: content.len(),
+                            content: if full { Some(content) } else { None },
+                        });
                         Ok(Value::None)
                     }
                     Handle::File(path) => {
                         std::fs::write(&path, &content)
                             .map_err(|e| anyhow::anyhow!("cannot write '{}': {}", path, e))?;
+                        let full = self.is_full_trace();
+                        self.trace(TraceEvent::IoOp {
+                            operation: "write".into(), handle_type: "file".into(),
+                            path: Some(path), bytes: content.len(),
+                            content: if full { Some(content) } else { None },
+                        });
                         Ok(Value::None)
                     }
                 }

@@ -1,6 +1,0 @@
-{"elapsed_ms":18146,"error":null,"event":"llm_call","has_tool_calls":false,"latency_ms":3516,"model":"claude-sonnet-4-20250514","prompt_chars":8,"provider":"claude-cli","response_chars":127,"ts":"1770852484","turn":0}
-{"elapsed_ms":55193,"error":null,"event":"llm_call","has_tool_calls":true,"latency_ms":3931,"model":"claude-sonnet-4-20250514","prompt_chars":174,"provider":"claude-cli","response_chars":138,"ts":"1770852521","turn":0}
-{"command":"ls -la | head -50","elapsed_ms":55197,"event":"shell_exec","exit_code":0,"latency_ms":3,"output_chars":797,"ts":"1770852521","turn":0}
-{"elapsed_ms":60927,"error":null,"event":"llm_call","has_tool_calls":false,"latency_ms":5729,"model":"claude-sonnet-4-20250514","prompt_chars":1051,"provider":"claude-cli","response_chars":614,"ts":"1770852527","turn":0}
-{"elapsed_ms":291834,"error":null,"event":"llm_call","has_tool_calls":true,"latency_ms":3549,"model":"claude-sonnet-4-20250514","prompt_chars":837,"provider":"claude-cli","response_chars":87,"ts":"1770852758","turn":0}
-{"elapsed_ms":300187,"error":null,"event":"llm_call","has_tool_calls":false,"latency_ms":8352,"model":"claude-sonnet-4-20250514","prompt_chars":3587,"provider":"claude-cli","response_chars":1217,"ts":"1770852766","turn":0}
