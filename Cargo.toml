@@ -1,0 +1,8 @@
+[package]
+name = "cognos"
+version = "0.1.0"
+edition = "2021"
+description = "Cognos — an agentic programming language"
+
+[dependencies]
+anyhow = "1"
