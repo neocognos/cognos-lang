@@ -320,7 +320,7 @@ impl Interpreter {
                             None => bail!("map has no key '{}'", field),
                         }
                     }
-                    _ => bail!("cannot access field '{}' on {:?}", field, val),
+                    _ => bail!("cannot access field '{}' on {} (type: {})", field, val, type_name(&val)),
                 }
             }
 
@@ -492,8 +492,9 @@ impl Interpreter {
             (_, BinOp::And, _) => Ok(Value::Bool(left.is_truthy() && right.is_truthy())),
             (_, BinOp::Or, _) => Ok(Value::Bool(left.is_truthy() || right.is_truthy())),
 
-            _ => bail!("unsupported operation: {} {} {} (types: {} {:?} {})",
-                left, op_str(op), right, type_name(left), op, type_name(right)),
+            _ => bail!("cannot {} {} {} — {} {} {} not supported",
+                type_name(left), op_str(op), type_name(right),
+                type_name(left), op_str(op), type_name(right)),
         }
     }
 }

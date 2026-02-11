@@ -450,7 +450,7 @@ impl Parser {
                 self.expect(Token::RBrace)?;
                 Ok(Expr::Map(entries))
             }
-            other => bail!("line {}: unexpected token {:?}", self.current_line(), other),
+            other => bail!("line {}: unexpected {}", self.current_line(), other),
         }
     }
 
@@ -511,7 +511,7 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            bail!("line {}: expected {:?}, got {:?}", self.current_line(), expected, got)
+            bail!("line {}: expected {}, got {}", self.current_line(), expected, got)
         }
     }
 
@@ -520,7 +520,7 @@ impl Parser {
             self.advance();
             Ok(name)
         } else {
-            bail!("line {}: expected identifier, got {:?}", self.current_line(), self.peek_token())
+            bail!("line {}: expected identifier, got {}", self.current_line(), self.peek_token())
         }
     }
 

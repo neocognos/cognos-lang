@@ -762,25 +762,25 @@ fn test_type_errors() {
     let err = expect_error(r#"flow main():
     x = "hello" + 42
 "#);
-    assert!(err.contains("unsupported operation"), "string + int: {}", err);
+    assert!(err.contains("not supported"), "string + int: {}", err);
 
     // String - String → error
     let err = expect_error(r#"flow main():
     x = "a" - "b"
 "#);
-    assert!(err.contains("unsupported operation"), "string - string: {}", err);
+    assert!(err.contains("not supported"), "string - string: {}", err);
 
     // Int + String → error
     let err = expect_error(r#"flow main():
     x = 42 + "hello"
 "#);
-    assert!(err.contains("unsupported operation"), "int + string: {}", err);
+    assert!(err.contains("not supported"), "int + string: {}", err);
 
     // Bool + Bool → error
     let err = expect_error(r#"flow main():
     x = true + false
 "#);
-    assert!(err.contains("unsupported operation"), "bool + bool: {}", err);
+    assert!(err.contains("not supported"), "bool + bool: {}", err);
 
     // Division by zero
     let err = expect_error(r#"flow main():
@@ -819,7 +819,7 @@ fn test_type_errors() {
     let err = expect_error(r#"flow main():
     x = 42 == "hello"
 "#);
-    assert!(err.contains("unsupported operation"), "int == string: {}", err);
+    assert!(err.contains("not supported"), "int == string: {}", err);
 }
 
 // ─── Truthiness tests ───
