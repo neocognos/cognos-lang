@@ -1,6 +1,6 @@
 # Cognos Language Specification
 
-Version: 0.1.0
+Version: 0.2.0
 
 ## 1. Introduction
 
@@ -8,49 +8,64 @@ Cognos is a statically-typed, imperative programming language designed for defin
 
 ### 1.1 Design Principles
 
-- **Explicitness**: Every LLM interaction is visible in the code
+- **Explicitness**: Every LLM interaction is visible in the code. Input sources are declared, not assumed.
 - **Type Safety**: Static type checking prevents runtime errors
-- **Immutability by Default**: Bindings are immutable unless explicitly marked mutable
+- **Channel Agnosticism**: Flows declare *what* input they need, not *where* it comes from
 - **Hybrid Determinism**: Deterministic control flow with explicit non-deterministic operations
 
 ## 2. Core Concepts
 
 ### 2.1 Flows
 
-Flows are the fundamental unit of composition in Cognos, analogous to functions in other languages.
+Flows are the fundamental unit of composition in Cognos, analogous to functions in other languages. **Input is received through flow parameters** — the runtime binds them from whatever channel invokes the flow (stdin, TUI, API, another flow).
 
 ```cognos
-flow flow_name(param1: Type1, param2: Type2) -> ReturnType:
-    # flow body
-    return value
+# No input needed
+flow hello():
+    emit("Hello, World!")
+
+# Takes input — caller decides where it comes from
+flow echo(input: Text):
+    emit(input)
+
+# Multiple inputs with return type
+flow greet(name: Text, style: Text) -> Text:
+    return think(name, system=style)
 ```
 
 Key properties:
 - Flows can take zero or more typed parameters
+- **Parameters are the input contract** — the flow never cares about the channel
 - Flows can optionally specify a return type
 - The flow body consists of sequential statements
 - Flows are first-class values and can be passed as arguments
 
-### 2.2 Steps
+### 2.2 Input Binding
+
+When a flow is invoked, the runtime binds its parameters:
+
+| Context | Binding |
+|---------|---------|
+| `cognos run file.cog` (CLI) | Parameters read from stdin |
+| Neocognos TUI | Parameters bound from user message |
+| API call | Parameters bound from request body |
+| Flow-to-flow call | Parameters passed as arguments |
+
+The flow itself is identical in all cases. This is the **channel agnosticism** principle.
+
+### 2.3 Steps
 
 Within a flow, execution proceeds through sequential steps (statements). Each step creates bindings or performs side effects.
 
-### 2.3 Bindings
+### 2.4 Bindings
 
-Bindings associate names with values and are immutable by default:
+Bindings associate names with values:
 
 ```cognos
 name = expression
 ```
 
-For mutable bindings (rarely needed):
-
-```cognos
-var name = expression
-name = new_value  # reassignment
-```
-
-### 2.4 Types
+### 2.5 Types
 
 Cognos uses a static type system to ensure correctness.
 
@@ -70,50 +85,57 @@ Cognos uses a static type system to ensure correctness.
 type TypeName = {
     field1: Type1,
     field2: Type2,
-    # ...
 }
 ```
 
-### 2.5 The LLM as Co-processor
+### 2.6 The LLM as Co-processor
 
 The `think()` function is the only non-deterministic primitive in Cognos. It represents an LLM call and is the boundary between deterministic and non-deterministic computation.
 
 ```cognos
-result = think(context, system="system prompt", tools=[tool_list], output=OutputType)
+result = think(context, model="claude-sonnet-4-20250514", system="prompt", tools=[tool_list])
 ```
 
 ## 3. Built-in Functions
 
-### 3.1 Input/Output Functions
-
-#### `receive(Type) -> Type`
-Receives input from the runtime environment (user, API, another agent).
-```cognos
-input = receive(Text)
-```
+### 3.1 Output
 
 #### `emit(value) -> Void`
-Outputs a value from the flow.
+Outputs a value from the flow to whatever channel is listening.
 ```cognos
 emit("Hello, World!")
+emit(response)
+```
+
+#### `pass`
+No-op statement. Used for empty flow bodies.
+```cognos
+flow noop():
+    pass
 ```
 
 ### 3.2 LLM Functions
 
-#### `think(context, system="", tools=[], output=Type) -> Type`
+#### `think(context, model="", system="", tools=[], output=Type) -> Type`
 Invokes the LLM with the given context and constraints.
 
 Parameters:
 - `context`: The primary input to the LLM (any type that can be stringified)
+- `model`: Optional model identifier (Text). Can be a variable for reuse.
 - `system`: Optional system prompt (Text)
 - `tools`: Optional list of available tools (List[Text])
 - `output`: Optional output type constraint for structured generation
 
 ```cognos
-response = think(user_query, 
-    system="You are a helpful assistant",
-    tools=[read_file, write_file],
-    output=Text)
+# Simple call
+response = think(user_query)
+
+# With model selection
+fast = "claude-sonnet-4-20250514"
+smart = "claude-opus-4-0520"
+
+plan = think(task, model=fast, system="Plan only, don't implement.")
+result = think(plan, model=smart, system="Implement the plan.", tools=[read_file, write_file])
 ```
 
 #### `act(response) -> Any`
@@ -136,26 +158,11 @@ Searches long-term memory for relevant facts.
 facts = recall("user preferences")
 ```
 
-### 3.4 File System Functions
-
-#### `read_file(path: Text) -> Text`
-Reads the contents of a file.
-```cognos
-content = read_file("config.txt")
-```
-
-#### `write_file(path: Text, content: Text) -> Void`
-Writes content to a file.
-```cognos
-write_file("output.txt", result)
-```
-
-### 3.5 System Functions
+### 3.4 System Functions
 
 #### `run(command: Text) -> RunResult`
 Executes a shell command and returns the result.
 
-`RunResult` type:
 ```cognos
 type RunResult = {
     success: Bool,
@@ -163,23 +170,28 @@ type RunResult = {
     error: Text,
     exit_code: Int
 }
+
+result = run("cargo test")
+if result.success:
+    emit("Tests passed!")
 ```
 
 #### `log(message: Text) -> Void`
-Outputs a debug message.
+Outputs a debug message (not to the user channel).
 ```cognos
 log("Processing step 3")
 ```
 
-### 3.6 Flow Functions
+### 3.5 Flow Calls
 
-#### `call flow_name(args...)`
-Explicitly calls another flow. Can also use direct syntax: `flow_name(args)`.
-
+Flows can call other flows directly:
 ```cognos
-result = call process_data(input)
-# Or simply:
-result = process_data(input)
+flow summarize(text: Text) -> Text:
+    return think(text, model="claude-sonnet-4-20250514", system="Summarize concisely.")
+
+flow main(input: Text):
+    summary = summarize(input)
+    emit(summary)
 ```
 
 ## 4. Control Flow
@@ -224,17 +236,13 @@ result1, result2, result3 = parallel:
     expensive_operation_3()
 ```
 
-The `parallel` block executes all contained expressions concurrently and returns a tuple of results.
-
 ### 4.5 Error Handling
 
 ```cognos
 try:
-    # risky operations
     result = might_fail()
 catch error:
-    # handle error
-    log("Operation failed: " + error.message)
+    log("Failed: " + error.message)
     result = default_value
 ```
 
@@ -248,17 +256,7 @@ name = "hello"  # inferred as Text
 count = 42      # inferred as Int
 ```
 
-### 5.2 Explicit Typing
-
-Types can be explicitly declared:
-```cognos
-name: Text = "hello"
-items: List[Int] = [1, 2, 3]
-```
-
-### 5.3 Structured Output Constraints
-
-The `think()` function supports output type constraints for structured generation:
+### 5.2 Structured Output Constraints
 
 ```cognos
 type Analysis = {
@@ -267,12 +265,11 @@ type Analysis = {
     key_topics: List[Text]
 }
 
-result = think(text, 
-    system="Analyze this text",
-    output=Analysis)
+result = think(text, system="Analyze this text", output=Analysis)
+# result.sentiment, result.confidence, etc. are type-safe
 ```
 
-## 6. Data Flow and Operators
+## 6. Operators
 
 ### 6.1 Context Concatenation
 
@@ -284,133 +281,129 @@ response = think(context)
 
 ### 6.2 Field Access
 
-Use `.` to access fields of structured data:
 ```cognos
 if response.has_tool_calls:
     act(response)
-
-success_rate = results.map(r => r.success).count(true) / results.length
 ```
 
 ### 6.3 Comparison Operators
-
-- `==`, `!=`: Equality and inequality
-- `<`, `>`, `<=`, `>=`: Numeric/string comparison
+`==`, `!=`, `<`, `>`, `<=`, `>=`
 
 ### 6.4 Logical Operators
-
-- `and`, `or`: Boolean logic
-- `not`: Boolean negation
-
-### 6.5 Lambda Expressions
-
-Use `=>` for lambda expressions in functional operations:
-```cognos
-critical_issues = issues.filter(i => i.severity == "critical")
-names = people.map(p => p.name)
-total = numbers.reduce(0, (acc, n) => acc + n)
-```
+`and`, `or`, `not`
 
 ## 7. Comments
 
-Line comments use `#`:
 ```cognos
 # This is a comment
 result = think(input)  # End-of-line comment
 ```
 
-## 8. Grammar
+## 8. Complete Example
 
-The following PEG grammar defines Cognos syntax:
+A multi-model agentic assistant with tool use:
+
+```cognos
+flow assistant(input: Text):
+    fast = "claude-sonnet-4-20250514"
+    smart = "claude-opus-4-0520"
+
+    # Classify complexity
+    classification = think(input, model=fast, system="Reply SIMPLE or COMPLEX only.")
+
+    # Pick model based on complexity
+    if classification == "COMPLEX":
+        model = smart
+    else:
+        model = fast
+
+    # Agentic loop
+    response = input
+    loop max=30:
+        response = think(response, model=model, system="Be helpful.", tools=[read_file, write_file, run])
+        if response.has_tool_calls:
+            result = act(response)
+            response = result
+        else:
+            break
+
+    emit(response)
+```
+
+## 9. Grammar (PEG)
 
 ```peg
 Program <- Flow*
 
-Flow <- "flow" Identifier FunctionSignature ":" NEWLINE INDENT Statement* DEDENT
-
-FunctionSignature <- "(" ParameterList? ")" ("->" Type)?
+Flow <- "flow" Identifier "(" ParameterList? ")" ("->" Type)? ":" NEWLINE INDENT Statement* DEDENT
 
 ParameterList <- Parameter ("," Parameter)*
 Parameter <- Identifier ":" Type
 
-Type <- PrimitiveType / ContainerType / CustomType
-PrimitiveType <- "Text" / "Bool" / "Int" / "Float" / "Void"
-ContainerType <- "List[" Type "]" / "Map[" Type "," Type "]" / "Optional[" Type "]"
-CustomType <- Identifier
+Type <- Identifier ("[" Type ("," Type)* "]")?
 
-Statement <- Assignment / Expression / IfStatement / LoopStatement / ForStatement / 
-             TryStatement / ParallelStatement / ReturnStatement / BreakStatement / 
-             ContinueStatement
+Statement <- Assignment / EmitStatement / ReturnStatement / IfStatement / 
+             LoopStatement / ForStatement / TryStatement / ParallelStatement /
+             BreakStatement / ContinueStatement / PassStatement / ExprStatement
 
-Assignment <- ("var")? Identifier (":" Type)? "=" Expression NEWLINE
-
-Expression <- FunctionCall / BinaryOp / UnaryOp / FieldAccess / Identifier / Literal
-
-FunctionCall <- Identifier "(" ArgumentList? ")"
-ArgumentList <- Expression ("," Expression)*
-
-BinaryOp <- Expression BinaryOperator Expression
-BinaryOperator <- "+" / "==" / "!=" / "<" / ">" / "<=" / ">=" / "and" / "or"
-
-UnaryOp <- UnaryOperator Expression
-UnaryOperator <- "not" / "-"
-
-FieldAccess <- Expression "." Identifier
-
-IfStatement <- "if" Expression ":" Block ("elif" Expression ":" Block)* ("else" ":" Block)?
-
-LoopStatement <- "loop" "max=" Int ":" Block
-
-ForStatement <- "for" Identifier "in" Expression ":" Block
-
-TryStatement <- "try" ":" Block "catch" Identifier ":" Block
-
-ParallelStatement <- (Identifier ("," Identifier)*)? "=" "parallel" ":" Block
-
-ReturnStatement <- "return" Expression? NEWLINE
-
+Assignment <- Identifier "=" Expression NEWLINE
+EmitStatement <- "emit" "(" Expression ")" NEWLINE
+ReturnStatement <- "return" Expression NEWLINE
+PassStatement <- "pass" NEWLINE
 BreakStatement <- "break" NEWLINE
 ContinueStatement <- "continue" NEWLINE
+ExprStatement <- Expression NEWLINE
+
+Expression <- OrExpr
+OrExpr <- AndExpr ("or" AndExpr)*
+AndExpr <- Comparison ("and" Comparison)*
+Comparison <- Addition (CompOp Addition)*
+CompOp <- "==" / "!=" / "<" / ">" / "<=" / ">="
+Addition <- Unary (("+" / "-") Unary)*
+Unary <- "not" Unary / Postfix
+Postfix <- Primary (("." Identifier) / ("(" ArgumentList? ")"))*
+Primary <- Identifier / StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / "(" Expression ")"
+
+ArgumentList <- Argument ("," Argument)*
+Argument <- (Identifier "=")? Expression
+
+IfStatement <- "if" Expression ":" Block ("elif" Expression ":" Block)* ("else" ":" Block)?
+LoopStatement <- "loop" ("max=" IntLiteral)? ":" Block
+ForStatement <- "for" Identifier "in" Expression ":" Block
+TryStatement <- "try" ":" Block "catch" Identifier ":" Block
+ParallelStatement <- Identifier ("," Identifier)* "=" "parallel" ":" Block
 
 Block <- NEWLINE INDENT Statement* DEDENT
 
-Literal <- StringLiteral / IntLiteral / FloatLiteral / BoolLiteral / ListLiteral / MapLiteral
-
-StringLiteral <- "\"" [^"]* "\""
+Identifier <- [a-zA-Z_] [a-zA-Z0-9_]*
+StringLiteral <- '"' [^"]* '"'
 IntLiteral <- [0-9]+
 FloatLiteral <- [0-9]+ "." [0-9]+
 BoolLiteral <- "true" / "false"
 ListLiteral <- "[" (Expression ("," Expression)*)? "]"
-MapLiteral <- "{" (MapEntry ("," MapEntry)*)? "}"
-MapEntry <- Expression ":" Expression
-
-Identifier <- [a-zA-Z_] [a-zA-Z0-9_]*
-
-INDENT <- # Increased indentation
-DEDENT <- # Decreased indentation
-NEWLINE <- "\n" / "\r\n"
 ```
 
-## 9. Semantics
+## 10. Compilation
 
-### 9.1 Execution Model
+Cognos programs compile to Neocognos kernel `StageDef`s. The compiler maps:
 
-1. Flows are compiled to an internal representation
-2. The runtime maintains a stack of flow contexts
-3. Bindings are immutable within their scope
-4. The `think()` function is the only source of non-determinism
-5. All other operations are deterministic and side-effect free (except I/O)
+| Cognos | Kernel Stage |
+|--------|-------------|
+| `think()` | Think stage |
+| `act()` | Act stage |
+| `emit()` | Emit stage |
+| `if/elif/else` | Conditional stage |
+| `loop` | Loop stage |
+| `run()` | Tool call stage |
+| Flow params | Receive stage (bound by runtime) |
 
-### 9.2 Type Checking
+The kernel doesn't change — Cognos is a better syntax for the same execution model.
 
-- All expressions must type-check at compile time
-- `think()` calls with `output=Type` are checked for structural compatibility
-- Flow parameters and return types are enforced
+## 11. Execution Modes
 
-### 9.3 Memory Model
-
-- Bindings are lexically scoped
-- No global state except through explicit memory functions
-- Garbage collection handles cleanup
-
-This specification provides the foundation for implementing a Cognos compiler and runtime. The language balances expressiveness with safety, making AI-powered workflows as reliable as traditional code.
+| Mode | Command | Description |
+|------|---------|-------------|
+| Interpret | `cognos run file.cog` | Tree-walking interpreter, stdin/stdout |
+| Parse | `cognos parse file.cog` | Pretty-print parsed AST |
+| Compile | `cognos compile file.cog` | Emit kernel stages (future) |
+| Tokens | `cognos tokens file.cog` | Raw token dump |
