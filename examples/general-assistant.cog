@@ -1,8 +1,7 @@
-# General-purpose assistant with agentic loop
+# General-purpose agentic assistant
+# The runtime binds `input` from whatever channel invokes this flow.
 
-flow general_assistant:
-    input = receive(Text)
-    
+flow general_assistant(input: Text):
     response = input
     loop max=30:
         response = think(response)
@@ -11,5 +10,4 @@ flow general_assistant:
             response = result
         else:
             break
-    
     emit(response)

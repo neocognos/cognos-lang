@@ -1,4 +1,3 @@
-# Read input, echo it back
-flow main:
-    input = receive(Text)
+# Echo — flow receives input as parameter
+flow main(input: Text):
     emit(input)

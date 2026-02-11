@@ -73,6 +73,14 @@ impl Interpreter {
 
         match flow {
             Some(f) => {
+                // Bind flow parameters — in CLI mode, read from stdin
+                for param in &f.params {
+                    print!("> ");
+                    io::stdout().flush()?;
+                    let mut line = String::new();
+                    io::stdin().lock().read_line(&mut line)?;
+                    self.vars.insert(param.name.clone(), Value::Text(line.trim_end().to_string()));
+                }
                 self.run_block(&f.body)?;
                 Ok(())
             }
