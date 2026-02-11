@@ -83,16 +83,10 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
     }
 
     // Friendly errors for bare keywords
-    if trimmed == "flow" {
-        eprintln!("Error: 'flow' needs a name and body — e.g. flow greet(name: String):");
-        return;
-    }
-    if trimmed == "emit" || trimmed == "emit()" {
-        eprintln!("Error: emit() needs a value — e.g. emit(\"hello\")");
-        return;
-    }
-    if matches!(trimmed, "think" | "act" | "run" | "log" | "remember" | "recall") {
-        eprintln!("Error: '{}' is a function — did you mean {}(...)?", trimmed, trimmed);
+    let bare_keywords = ["flow", "emit", "think", "act", "run", "log", "remember", "recall"];
+    let bare = trimmed.trim_end_matches("()");
+    if bare_keywords.contains(&bare) && (trimmed == bare || trimmed == format!("{}()", bare)) {
+        eprintln!("Error: '{}' needs arguments — did you mean {}(...)?", bare, bare);
         return;
     }
 
