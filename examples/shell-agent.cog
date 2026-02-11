@@ -9,6 +9,7 @@ flow shell(command: String) -> String:
 
 flow main():
     history = []
+    system = "You are a helpful assistant with shell access. Use the shell tool to answer questions. After getting a tool result, give a brief answer. Be concise."
     write(stdout, "Shell agent ready. Type 'quit' to exit.")
     loop:
         input = read()
@@ -16,11 +17,12 @@ flow main():
             break
         history = history + [f"User: {input}"]
         context = history.join("\n")
-        response = think(context, model="qwen2.5:7b", tools=["shell"], system="You are a helpful assistant with shell access. Use the shell tool when asked. Be concise.")
-        loop max=5:
-            if not response.has_tool_calls:
-                break
+        response = think(context, model="qwen2.5:7b", tools=["shell"], system=system)
+        if response.has_tool_calls:
             response = exec(response, tools=["shell"])
-            response = think(response.content, model="qwen2.5:7b", tools=["shell"], system="You are a helpful assistant with shell access. Be concise.")
-        history = history + [f"Assistant: {response.content}"]
-        write(stdout, response.content)
+            answer = think(context + "\n" + response.content, model="qwen2.5:7b", system=system)
+            history = history + [f"Assistant: {answer}"]
+            write(stdout, answer)
+        else:
+            history = history + [f"Assistant: {response.content}"]
+            write(stdout, response.content)
