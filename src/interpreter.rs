@@ -69,6 +69,27 @@ impl Value {
     }
 }
 
+fn type_name(v: &Value) -> &'static str {
+    match v {
+        Value::String(_) => "String",
+        Value::Int(_) => "Int",
+        Value::Float(_) => "Float",
+        Value::Bool(_) => "Bool",
+        Value::List(_) => "List",
+        Value::Map(_) => "Map",
+        Value::None => "None",
+    }
+}
+
+fn op_str(op: &BinOp) -> &'static str {
+    match op {
+        BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/",
+        BinOp::Eq => "==", BinOp::NotEq => "!=",
+        BinOp::Lt => "<", BinOp::Gt => ">", BinOp::LtEq => "<=", BinOp::GtEq => ">=",
+        BinOp::And => "and", BinOp::Or => "or",
+    }
+}
+
 enum ControlFlow {
     Normal,
     Break,
@@ -391,7 +412,8 @@ impl Interpreter {
             (_, BinOp::And, _) => Ok(Value::Bool(left.is_truthy() && right.is_truthy())),
             (_, BinOp::Or, _) => Ok(Value::Bool(left.is_truthy() || right.is_truthy())),
 
-            _ => bail!("unsupported operation: {:?} {:?} {:?}", left, op, right),
+            _ => bail!("unsupported operation: {} {} {} (types: {} {:?} {})",
+                left, op_str(op), right, type_name(left), op, type_name(right)),
         }
     }
 }

@@ -243,11 +243,26 @@ impl Parser {
     }
 
     fn parse_addition(&mut self) -> Result<Expr> {
-        let mut left = self.parse_unary()?;
+        let mut left = self.parse_multiplication()?;
         loop {
             let op = match self.peek_token() {
                 Token::Plus => BinOp::Add,
                 Token::Minus => BinOp::Sub,
+                _ => break,
+            };
+            self.advance();
+            let right = self.parse_multiplication()?;
+            left = Expr::BinOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+        Ok(left)
+    }
+
+    fn parse_multiplication(&mut self) -> Result<Expr> {
+        let mut left = self.parse_unary()?;
+        loop {
+            let op = match self.peek_token() {
+                Token::Star => BinOp::Mul,
+                Token::Slash => BinOp::Div,
                 _ => break,
             };
             self.advance();
