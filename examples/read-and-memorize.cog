@@ -1,9 +1,9 @@
 # Read a file and extract key facts
-flow read_and_memorize(path: String) -> String:
-    content = run(f"cat {path}")
-    facts = think(content, system="Extract 3-5 key facts. Be specific and self-contained.")
-    return facts
+flow summarize(path: String):
+    content = read(file(path))
+    summary = think(content, system="Summarize in 3 bullet points.")
+    emit(summary)
 
-flow main(path: String):
-    facts = read_and_memorize(path)
-    emit(facts)
+flow main():
+    path = read(prompt="File path")
+    summarize(path)

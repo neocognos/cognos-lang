@@ -15,7 +15,14 @@ pub enum Value {
     Bool(bool),
     List(Vec<Value>),
     Map(Vec<(std::string::String, Value)>),  // ordered key-value pairs
+    Handle(Handle),
     None,
+}
+
+#[derive(Debug, Clone)]
+pub enum Handle {
+    Stdin,
+    File(std::string::String),
 }
 
 impl std::fmt::Display for Value {
@@ -41,9 +48,12 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "}}")
             }
+            Value::Handle(Handle::Stdin) => write!(f, "stdin"),
+            Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
             Value::None => write!(f, ""),
         }
     }
+
 }
 
 impl Value {
@@ -55,6 +65,7 @@ impl Value {
             Value::Float(n) => *n != 0.0,
             Value::List(items) => !items.is_empty(),
             Value::Map(entries) => !entries.is_empty(),
+            Value::Handle(_) => true,
             Value::None => false,
         }
     }
@@ -87,6 +98,7 @@ fn type_name(v: &Value) -> &'static str {
         Value::Bool(_) => "Bool",
         Value::List(_) => "List",
         Value::Map(_) => "Map",
+        Value::Handle(_) => "Handle",
         Value::None => "None",
     }
 }
@@ -115,7 +127,9 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { vars: HashMap::new(), flows: HashMap::new(), types: HashMap::new() }
+        let mut vars = HashMap::new();
+        vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
+        Self { vars, flows: HashMap::new(), types: HashMap::new() }
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
@@ -324,7 +338,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall", "ask"];
+                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall", "read", "write", "file"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -489,23 +503,64 @@ impl Interpreter {
                     Ok(result)
                 }
             }
-            "ask" => {
-                // ask(prompt) — read a line from stdin with optional prompt
-                let prompt = if args.is_empty() { "".to_string() } else { self.eval(&args[0])?.to_string() };
-                if !prompt.is_empty() {
-                    print!("{}: ", prompt);
+            "file" => {
+                if args.is_empty() { bail!("file() requires a path argument"); }
+                let path = self.eval(&args[0])?.to_string();
+                Ok(Value::Handle(Handle::File(path)))
+            }
+            "read" => {
+                // read() or read(handle) — default: stdin
+                let handle = if args.is_empty() {
+                    Handle::Stdin
                 } else {
-                    print!("> ");
+                    match self.eval(&args[0])? {
+                        Value::Handle(h) => h,
+                        other => bail!("read() expects a handle, got {} (type: {}). Use read() for stdin or read(file(\"path\")) for files", other, type_name(&other)),
+                    }
+                };
+                // Optional prompt kwarg for stdin
+                let mut prompt = std::string::String::new();
+                for (k, v) in kwargs {
+                    match k.as_str() {
+                        "prompt" => prompt = self.eval(v)?.to_string(),
+                        _ => bail!("read(): unknown kwarg '{}'", k),
+                    }
                 }
-                io::stdout().flush()?;
-                let mut line = std::string::String::new();
-                io::stdin().lock().read_line(&mut line)?;
-                let input = line.trim_end().to_string();
-                if input.is_empty() && line.is_empty() {
-                    // EOF
-                    bail!("end of input");
+                match handle {
+                    Handle::Stdin => {
+                        if !prompt.is_empty() {
+                            print!("{}: ", prompt);
+                        } else {
+                            print!("> ");
+                        }
+                        io::stdout().flush()?;
+                        let mut line = std::string::String::new();
+                        io::stdin().lock().read_line(&mut line)?;
+                        if line.is_empty() { bail!("end of input"); }
+                        Ok(Value::String(line.trim_end().to_string()))
+                    }
+                    Handle::File(path) => {
+                        let content = std::fs::read_to_string(&path)
+                            .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
+                        Ok(Value::String(content))
+                    }
                 }
-                Ok(Value::String(input))
+            }
+            "write" => {
+                if args.len() < 2 { bail!("write() requires a handle and content: write(file(\"path\"), content)"); }
+                let handle = match self.eval(&args[0])? {
+                    Value::Handle(h) => h,
+                    other => bail!("write() first argument must be a handle, got {}", type_name(&other)),
+                };
+                let content = self.eval(&args[1])?.to_string();
+                match handle {
+                    Handle::Stdin => bail!("cannot write to stdin"),
+                    Handle::File(path) => {
+                        std::fs::write(&path, &content)
+                            .map_err(|e| anyhow::anyhow!("cannot write '{}': {}", path, e))?;
+                        Ok(Value::None)
+                    }
+                }
             }
             "act" => {
                 if args.is_empty() {

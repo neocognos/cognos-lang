@@ -534,6 +534,32 @@ fn test_list_concat_empty() {
     assert_eq!(out.trim(), "[1]");
 }
 
+// ─── Handle I/O tests ───
+
+#[test]
+fn test_read_write_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.txt").to_str().unwrap().to_string();
+    let src = format!(
+        "flow main():\n    write(file(\"{}\"), \"hello cognos\")\n    content = read(file(\"{}\"))\n    emit(content)\n",
+        path, path
+    );
+    let out = expect_run_ok(&src);
+    assert_eq!(out.trim(), "hello cognos");
+}
+
+#[test]
+fn test_file_handle_display() {
+    let out = expect_run_ok("flow main():\n    f = file(\"test.txt\")\n    emit(f)\n");
+    assert_eq!(out.trim(), "file(\"test.txt\")");
+}
+
+#[test]
+fn test_stdin_handle() {
+    let out = expect_run_ok("flow main():\n    emit(stdin)\n");
+    assert_eq!(out.trim(), "stdin");
+}
+
 // ─── Type definition tests ───
 
 #[test]

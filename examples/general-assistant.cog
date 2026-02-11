@@ -3,7 +3,7 @@ flow main():
     history = []
     emit("Assistant ready. Type 'quit' to exit.")
     loop:
-        input = ask("You")
+        input = read(prompt="You")
         if input == "quit":
             break
         history = history + [f"User: {input}"]
