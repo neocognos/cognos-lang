@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Abstract Syntax Tree for Cognos programs.
 
 #[derive(Debug, Clone)]

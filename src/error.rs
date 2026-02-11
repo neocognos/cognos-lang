@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Cognos error system.
 /// Every error has a code, location, message, and optional hint.
 

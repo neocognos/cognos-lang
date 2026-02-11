@@ -1,7 +1,7 @@
 /// Interactive REPL for Cognos.
 
 use std::io::{self, BufRead, Write};
-use crate::interpreter::{Interpreter, Value};
+use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::ast::Program;

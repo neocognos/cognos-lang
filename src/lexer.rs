@@ -154,7 +154,7 @@ impl Lexer {
 
     fn handle_indentation(&mut self, tokens: &mut Vec<Spanned>) {
         // Skip blank lines
-        let start = self.pos;
+        let _start = self.pos;
         let mut spaces = 0;
         while self.pos < self.source.len() && self.source[self.pos] == ' ' {
             spaces += 1;
