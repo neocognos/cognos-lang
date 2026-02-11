@@ -1,7 +1,9 @@
+# Read a file and extract key facts
 flow read_and_memorize(path: String) -> String:
-    content = read_file(path)
-    facts = think(content,
-        system="Extract 3-5 key facts. Be specific and self-contained.",
-        output=List[String])
-    remember(facts)
+    content = run(f"cat {path}")
+    facts = think(content, system="Extract 3-5 key facts. Be specific and self-contained.")
     return facts
+
+flow main(path: String):
+    facts = read_and_memorize(path)
+    emit(facts)
