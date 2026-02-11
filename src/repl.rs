@@ -83,10 +83,28 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
     }
 
     // Friendly errors for bare keywords
-    if trimmed == "flow" {
+    // Bare keyword handling
+    if trimmed == "flow" || trimmed.starts_with("flow(") {
         eprintln!("Error: incomplete flow definition — usage: flow name(params): ...");
         return;
     }
+    if matches!(trimmed, "if" | "elif" | "else") || (trimmed.starts_with("if ") && !trimmed.ends_with(':')) {
+        eprintln!("Error: incomplete if statement — usage: if condition: ...");
+        return;
+    }
+    if trimmed == "loop" || (trimmed.starts_with("loop ") && !trimmed.ends_with(':')) {
+        eprintln!("Error: incomplete loop — usage: loop max=N: ...");
+        return;
+    }
+    if trimmed == "for" || (trimmed.starts_with("for ") && !trimmed.contains(" in ")) {
+        eprintln!("Error: incomplete for loop — usage: for item in collection: ...");
+        return;
+    }
+    if trimmed == "return" {
+        eprintln!("Error: return needs a value — usage: return expression");
+        return;
+    }
+    // Bare function names
     let bare_fns = ["emit", "think", "act", "run", "log", "remember", "recall"];
     let bare = trimmed.trim_end_matches("()");
     if bare_fns.contains(&bare) && (trimmed == bare || trimmed == format!("{}()", bare)) {
@@ -126,7 +144,15 @@ fn eval_repl_input(interp: &mut Interpreter, input: &str) {
                 eprintln!("Error: {}", e);
             }
         }
-        Err(e) => eprintln!("Error: {}", e),
+        Err(e) => {
+            // Clean up internal parse errors for REPL context
+            let msg = format!("{}", e);
+            if msg.contains("unexpected") || msg.contains("expected") {
+                eprintln!("Error: invalid syntax — {}", trimmed);
+            } else {
+                eprintln!("Error: {}", e);
+            }
+        }
     }
 }
 
