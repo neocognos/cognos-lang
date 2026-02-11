@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use crate::ast::*;
 use anyhow::{bail, Result};
-use serde::{Deserialize, Serialize};
+
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -470,13 +470,22 @@ impl Interpreter {
                 let mut model = "qwen2.5:1.5b".to_string();
                 let mut system = std::string::String::new();
                 let mut format_type: Option<std::string::String> = None;
+                let mut tool_names: Vec<std::string::String> = Vec::new();
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
                         "model" => model = val.to_string(),
                         "system" => system = val.to_string(),
                         "format" => format_type = Some(val.to_string()),
-                        "tools" => {} // TODO
+                        "tools" => {
+                            if let Value::List(items) = val {
+                                for item in items {
+                                    tool_names.push(item.to_string());
+                                }
+                            } else {
+                                bail!("tools= must be a list, got {}", type_name(&val));
+                            }
+                        }
                         _ => bail!("think(): unknown kwarg '{}'", k),
                     }
                 }
@@ -498,8 +507,22 @@ impl Interpreter {
                     }
                 }
 
-                let result = self.call_ollama(&model, &system, &context.to_string())?;
+                // Build tool definitions from flow signatures
+                let tool_defs = if !tool_names.is_empty() {
+                    let mut tools = Vec::new();
+                    for name in &tool_names {
+                        let flow = self.flows.get(name)
+                            .ok_or_else(|| anyhow::anyhow!("tools: flow '{}' not defined", name))?
+                            .clone();
+                        tools.push(self.flow_to_tool_json(&flow));
+                    }
+                    Some(tools)
+                } else {
+                    None
+                };
 
+                let result = self.call_ollama_with_tools(&model, &system, &context.to_string(), tool_defs)?;
+                
                 // If format= specified, parse JSON response into a Map
                 if format_type.is_some() {
                     self.parse_json_response(&result)
@@ -558,12 +581,102 @@ impl Interpreter {
                 }
             }
             "act" => {
+                // act(response, tools=[...]) — execute tool calls from think() response
                 if args.is_empty() {
-                    bail!("act() requires at least one argument");
+                    bail!("act() requires a think() response");
                 }
-                let val = self.eval(&args[0])?;
-                eprintln!("⚠ act() stubbed in interpreter mode");
-                Ok(val)
+                let response = self.eval(&args[0])?;
+
+                // Collect available tool flows
+                let mut tool_flow_names: Vec<std::string::String> = Vec::new();
+                for (k, v) in kwargs {
+                    if k == "tools" {
+                        if let Value::List(items) = self.eval(v)? {
+                            for item in items {
+                                tool_flow_names.push(item.to_string());
+                            }
+                        }
+                    }
+                }
+
+                match &response {
+                    Value::Map(entries) => {
+                        let tool_calls = entries.iter()
+                            .find(|(k, _)| k == "tool_calls")
+                            .map(|(_, v)| v.clone());
+
+                        match tool_calls {
+                            Some(Value::List(calls)) if !calls.is_empty() => {
+                                let mut results = Vec::new();
+                                for call in &calls {
+                                    if let Value::Map(call_entries) = call {
+                                        let func_name = call_entries.iter()
+                                            .find(|(k, _)| k == "name")
+                                            .map(|(_, v)| v.to_string())
+                                            .unwrap_or_default();
+                                        let func_args = call_entries.iter()
+                                            .find(|(k, _)| k == "arguments")
+                                            .map(|(_, v)| v.clone())
+                                            .unwrap_or(Value::Map(vec![]));
+
+                                        log::info!("Executing tool: {}({:?})", func_name, func_args);
+
+                                        if let Some(flow) = self.flows.get(&func_name).cloned() {
+                                            let saved_vars = self.vars.clone();
+                                            // Bind arguments to flow params
+                                            if let Value::Map(arg_entries) = &func_args {
+                                                for (k, v) in arg_entries {
+                                                    self.vars.insert(k.clone(), v.clone());
+                                                }
+                                            }
+                                            let result = self.run_block(&flow.body);
+                                            let ret = match result {
+                                                Ok(ControlFlow::Return(v)) => v,
+                                                Ok(_) => Value::None,
+                                                Err(e) => Value::String(format!("Error: {}", e)),
+                                            };
+                                            self.vars = saved_vars;
+                                            results.push(Value::Map(vec![
+                                                ("name".to_string(), Value::String(func_name)),
+                                                ("result".to_string(), ret),
+                                            ]));
+                                        } else {
+                                            results.push(Value::Map(vec![
+                                                ("name".to_string(), Value::String(func_name.clone())),
+                                                ("result".to_string(), Value::String(format!("Error: tool '{}' not found", func_name))),
+                                            ]));
+                                        }
+                                    }
+                                }
+
+                                // Build context string with tool results for next think() call
+                                let mut context_parts = Vec::new();
+                                let content = entries.iter()
+                                    .find(|(k, _)| k == "content")
+                                    .map(|(_, v)| v.to_string())
+                                    .unwrap_or_default();
+                                if !content.is_empty() {
+                                    context_parts.push(content);
+                                }
+                                for r in &results {
+                                    if let Value::Map(re) = r {
+                                        let name = re.iter().find(|(k,_)| k == "name").map(|(_,v)| v.to_string()).unwrap_or_default();
+                                        let result = re.iter().find(|(k,_)| k == "result").map(|(_,v)| v.to_string()).unwrap_or_default();
+                                        context_parts.push(format!("[Tool result from {}]: {}", name, result));
+                                    }
+                                }
+
+                                Ok(Value::Map(vec![
+                                    ("content".to_string(), Value::String(context_parts.join("\n"))),
+                                    ("tool_results".to_string(), Value::List(results)),
+                                    ("has_tool_calls".to_string(), Value::Bool(false)),
+                                ]))
+                            }
+                            _ => Ok(response), // No tool calls
+                        }
+                    }
+                    _ => Ok(response),
+                }
             }
             "run" => {
                 if args.is_empty() {
@@ -755,49 +868,103 @@ impl Interpreter {
         }
     }
 
-    fn call_ollama(&self, model: &str, system: &str, prompt: &str) -> Result<Value> {
-        #[derive(Serialize)]
-        struct OllamaRequest {
-            model: std::string::String,
-            prompt: std::string::String,
-            #[serde(skip_serializing_if = "str::is_empty")]
-            system: std::string::String,
-            stream: bool,
+    fn flow_to_tool_json(&self, flow: &FlowDef) -> serde_json::Value {
+        let mut properties = serde_json::Map::new();
+        let mut required = Vec::new();
+        for param in &flow.params {
+            let ty = match &param.ty {
+                TypeExpr::Named(n) => match n.as_str() {
+                    "String" => "string",
+                    "Int" => "integer",
+                    "Float" => "number",
+                    "Bool" => "boolean",
+                    _ => "string",
+                },
+                _ => "string",
+            };
+            properties.insert(param.name.clone(), serde_json::json!({
+                "type": ty,
+                "description": format!("Parameter '{}'", param.name)
+            }));
+            required.push(serde_json::Value::String(param.name.clone()));
+        }
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": flow.name,
+                "description": format!("Flow '{}'", flow.name),
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required
+                }
+            }
+        })
+    }
+
+    fn call_ollama_with_tools(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        log::info!("Calling Ollama: model={}, system={:?}, tools={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        let mut messages = Vec::new();
+        if !system.is_empty() {
+            messages.push(serde_json::json!({"role": "system", "content": system}));
+        }
+        messages.push(serde_json::json!({"role": "user", "content": prompt}));
+
+        let mut body = serde_json::json!({
+            "model": model,
+            "messages": messages,
+            "stream": false
+        });
+
+        if let Some(ref tool_defs) = tools {
+            body["tools"] = serde_json::json!(tool_defs);
         }
 
-        #[derive(Deserialize)]
-        struct OllamaResponse {
-            response: std::string::String,
+        let client = reqwest::blocking::Client::new();
+        let resp = client.post("http://localhost:11434/api/chat")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Ollama error: {}", e))?;
+
+        let json: serde_json::Value = resp.json()
+            .map_err(|e| anyhow::anyhow!("Ollama JSON error: {}", e))?;
+
+        let message = &json["message"];
+        let content = message["content"].as_str().unwrap_or("").to_string();
+
+        // Check for tool calls
+        if let Some(tool_calls) = message.get("tool_calls") {
+            if let Some(calls) = tool_calls.as_array() {
+                if !calls.is_empty() {
+                    let tc: Vec<Value> = calls.iter().map(|c| {
+                        let func = &c["function"];
+                        let name = func["name"].as_str().unwrap_or("").to_string();
+                        let arguments = self.json_to_value(func["arguments"].clone());
+                        Value::Map(vec![
+                            ("name".to_string(), Value::String(name)),
+                            ("arguments".to_string(), arguments),
+                        ])
+                    }).collect();
+
+                    return Ok(Value::Map(vec![
+                        ("content".to_string(), Value::String(content)),
+                        ("tool_calls".to_string(), Value::List(tc)),
+                        ("has_tool_calls".to_string(), Value::Bool(true)),
+                    ]));
+                }
+            }
         }
 
-        log::info!("think() → model={}", model);
-        log::debug!("think() system={:?}", if system.is_empty() { "(none)" } else { system });
-        log::debug!("think() prompt={:?}", if prompt.len() > 200 { &prompt[..200] } else { prompt });
-
-        let start = std::time::Instant::now();
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .build()?;
-        let req_body = OllamaRequest {
-            model: model.to_string(),
-            prompt: prompt.to_string(),
-            system: system.to_string(),
-            stream: false,
-        };
-        log::trace!("Ollama request: {}", serde_json::to_string_pretty(&req_body)?);
-
-        let resp = client
-            .post("http://localhost:11434/api/generate")
-            .json(&req_body)
-            .send()?
-            .error_for_status()?
-            .json::<OllamaResponse>()?;
-
-        let elapsed = start.elapsed();
-        log::info!("think() completed in {:.1}s ({} chars)", elapsed.as_secs_f64(), resp.response.len());
-        log::trace!("Ollama response: {:?}", resp.response);
-
-        Ok(Value::String(resp.response.trim().to_string()))
+        // No tool calls — return simple string or structured map
+        if tools.is_some() {
+            Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]))
+        } else {
+            Ok(Value::String(content))
+        }
     }
 
     fn eval_binop(&self, left: &Value, op: &BinOp, right: &Value) -> Result<Value> {

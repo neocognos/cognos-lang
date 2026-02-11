@@ -534,6 +534,26 @@ fn test_list_concat_empty() {
     assert_eq!(out.trim(), "[1]");
 }
 
+// ─── Tool tests ───
+
+#[test]
+fn test_act_executes_tool_flow() {
+    // Simulate a think() response with tool_calls, then act() on it
+    let out = expect_run_ok("flow greet(name: String) -> String:\n    return f\"Hello, {name}!\"\n\nflow main():\n    tc = [{\"name\": \"greet\", \"arguments\": {\"name\": \"World\"}}]\n    response = {\"content\": \"\", \"tool_calls\": tc, \"has_tool_calls\": true}\n    result = act(response, tools=[\"greet\"])\n    write(stdout, result.tool_results[0].result)\n");
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+#[test]
+fn test_act_no_tool_calls_passthrough() {
+    let out = expect_run_ok(concat!(
+        "flow main():\n",
+        "    response = {\"content\": \"just text\", \"has_tool_calls\": false}\n",
+        "    result = act(response)\n",
+        "    write(stdout, result.content)\n",
+    ));
+    assert_eq!(out.trim(), "just text");
+}
+
 // ─── Handle I/O tests ───
 
 #[test]
