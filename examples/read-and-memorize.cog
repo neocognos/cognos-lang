@@ -2,8 +2,8 @@
 flow summarize(path: String):
     content = read(file(path))
     summary = think(content, system="Summarize in 3 bullet points.")
-    emit(summary)
+    write(stdout, summary)
 
 flow main():
-    path = read(prompt="File path")
+    path = read()
     summarize(path)

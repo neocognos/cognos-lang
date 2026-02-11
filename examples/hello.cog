@@ -1,3 +1,3 @@
-# Hello world in Cognos
+# Hello World
 flow main():
-    emit("Hello, World!")
+    write(stdout, "Hello, World!")

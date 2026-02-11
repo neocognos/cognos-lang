@@ -1,13 +1,13 @@
 # General-purpose conversational agent with history
 flow main():
     history = []
-    emit("Assistant ready. Type 'quit' to exit.")
+    write(stdout, "Assistant ready. Type 'quit' to exit.")
     loop:
-        input = read(prompt="You")
+        input = read()
         if input == "quit":
             break
         history = history + [f"User: {input}"]
         context = history.join("\n")
         response = think(context, system="You are a helpful assistant. Be concise.")
         history = history + [f"Assistant: {response}"]
-        emit(response)
+        write(stdout, response)

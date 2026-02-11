@@ -22,6 +22,7 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub enum Handle {
     Stdin,
+    Stdout,
     File(std::string::String),
 }
 
@@ -49,6 +50,7 @@ impl std::fmt::Display for Value {
                 write!(f, "}}")
             }
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
+            Value::Handle(Handle::Stdout) => write!(f, "stdout"),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
             Value::None => write!(f, ""),
         }
@@ -129,6 +131,7 @@ impl Interpreter {
     pub fn new() -> Self {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
+        vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         Self { vars, flows: HashMap::new(), types: HashMap::new() }
     }
 
@@ -240,6 +243,7 @@ impl Interpreter {
             }
 
             Stmt::Emit { value } => {
+                // emit(x) is sugar for write(stdout, x)
                 let val = self.eval(value)?;
                 println!("{}", val);
                 Ok(ControlFlow::Normal)
@@ -515,30 +519,17 @@ impl Interpreter {
                 } else {
                     match self.eval(&args[0])? {
                         Value::Handle(h) => h,
-                        other => bail!("read() expects a handle, got {} (type: {}). Use read() for stdin or read(file(\"path\")) for files", other, type_name(&other)),
+                        other => bail!("read() expects a handle, got {} (type: {})", other, type_name(&other)),
                     }
                 };
-                // Optional prompt kwarg for stdin
-                let mut prompt = std::string::String::new();
-                for (k, v) in kwargs {
-                    match k.as_str() {
-                        "prompt" => prompt = self.eval(v)?.to_string(),
-                        _ => bail!("read(): unknown kwarg '{}'", k),
-                    }
-                }
                 match handle {
                     Handle::Stdin => {
-                        if !prompt.is_empty() {
-                            print!("{}: ", prompt);
-                        } else {
-                            print!("> ");
-                        }
-                        io::stdout().flush()?;
                         let mut line = std::string::String::new();
                         io::stdin().lock().read_line(&mut line)?;
                         if line.is_empty() { bail!("end of input"); }
                         Ok(Value::String(line.trim_end().to_string()))
                     }
+                    Handle::Stdout => bail!("cannot read from stdout"),
                     Handle::File(path) => {
                         let content = std::fs::read_to_string(&path)
                             .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
@@ -547,7 +538,7 @@ impl Interpreter {
                 }
             }
             "write" => {
-                if args.len() < 2 { bail!("write() requires a handle and content: write(file(\"path\"), content)"); }
+                if args.len() < 2 { bail!("write(handle, content) — e.g. write(stdout, \"hello\") or write(file(\"path\"), content)"); }
                 let handle = match self.eval(&args[0])? {
                     Value::Handle(h) => h,
                     other => bail!("write() first argument must be a handle, got {}", type_name(&other)),
@@ -555,6 +546,10 @@ impl Interpreter {
                 let content = self.eval(&args[1])?.to_string();
                 match handle {
                     Handle::Stdin => bail!("cannot write to stdin"),
+                    Handle::Stdout => {
+                        println!("{}", content);
+                        Ok(Value::None)
+                    }
                     Handle::File(path) => {
                         std::fs::write(&path, &content)
                             .map_err(|e| anyhow::anyhow!("cannot write '{}': {}", path, e))?;

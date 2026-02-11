@@ -92,7 +92,7 @@ fn test_parse_general_assistant() {
     assert!(stdout.contains("Parsed 1 flow(s)"));
     assert!(stdout.contains("flow main"));
     assert!(stdout.contains("think("));
-    assert!(stdout.contains("emit("));
+    assert!(stdout.contains("write("));
     assert!(stdout.contains("loop:"));
 }
 
@@ -100,7 +100,7 @@ fn test_parse_general_assistant() {
 fn test_parse_roundtrip_hello() {
     let (stdout, _stderr, code) = parse_cog("hello.cog");
     assert_eq!(code, 0);
-    assert!(stdout.contains("emit(\"Hello, World!\")"));
+    assert!(stdout.contains("write("));
 }
 
 // ─── Language feature tests ───
