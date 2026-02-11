@@ -1,25 +1,36 @@
-# Shell agent with sandboxed shell access
+# Shell agent with sandboxed shell, file read/write
 flow shell(command: String) -> String:
-    "Execute a sandboxed shell command. Output is limited to 50 lines."
+    "Execute a sandboxed shell command. Output limited to 50 lines."
     allowed = ["ls", "cat", "grep", "date", "echo", "wc", "pwd", "whoami", "head", "tail"]
     cmd = command.split(" ")[0]
     if not allowed.contains(cmd):
         return f"Error: '{cmd}' is not allowed"
     return __exec_shell__(command + " | head -50")
 
+flow read_file(path: String) -> String:
+    "Read the contents of a file"
+    content = read(file(path))
+    return content.truncate(3000)
+
+flow write_file(path: String, content: String) -> String:
+    "Write content to a file"
+    write(file(path), content)
+    return f"Written {content.length} chars to {path}"
+
 flow main():
     history = []
-    system = "You are a helpful assistant with shell access. Use the shell tool to answer questions. After getting a tool result, give a brief answer. Be concise."
-    write(stdout, "Shell agent ready. Type 'quit' to exit.")
+    tools = ["shell", "read_file", "write_file"]
+    system = "You are a helpful assistant with shell and file access. Use tools to answer questions. Be concise."
+    write(stdout, "Agent ready. I can run commands, read and write files. Type 'quit' to exit.")
     loop:
         input = read()
         if input == "quit":
             break
         history = history + [f"User: {input}"]
         context = history.join("\n")
-        response = think(context, model="qwen2.5:7b", tools=["shell"], system=system)
+        response = think(context, model="qwen2.5:7b", tools=tools, system=system)
         if response.has_tool_calls:
-            response = exec(response, tools=["shell"])
+            response = exec(response, tools=tools)
             answer = think(context + "\n" + response.content, model="qwen2.5:7b", system=system)
             history = history + [f"Assistant: {answer}"]
             write(stdout, answer)

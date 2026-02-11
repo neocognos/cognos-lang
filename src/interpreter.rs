@@ -859,6 +859,18 @@ impl Interpreter {
                 let to = self.expect_string_arg(method, &args, 1)?;
                 Ok(Value::String(s.replace(&from, &to)))
             }
+            (Value::String(s), "truncate") => {
+                let max = match args.get(0) {
+                    Some(Value::Int(n)) => *n as usize,
+                    _ => bail!(".truncate() requires an Int argument"),
+                };
+                if s.len() <= max {
+                    Ok(Value::String(s.clone()))
+                } else {
+                    let truncated: String = s.chars().take(max).collect();
+                    Ok(Value::String(format!("{}...", truncated)))
+                }
+            }
             (Value::String(s), "split") => {
                 let delim = self.expect_string_arg(method, &args, 0)?;
                 let parts: Vec<Value> = s.split(&delim).map(|p| Value::String(p.to_string())).collect();
