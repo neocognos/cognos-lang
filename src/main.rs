@@ -27,6 +27,7 @@ fn main() {
     let mut command = "run";
     let mut verbosity = 0u8;
     let mut file_path = None;
+    let mut allow_shell = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -41,6 +42,7 @@ fn main() {
             "-v" => verbosity = verbosity.max(1),
             "-vv" => verbosity = verbosity.max(2),
             "-vvv" => verbosity = verbosity.max(3),
+            "--allow-shell" => allow_shell = true,
             s if s.starts_with('-') => {
                 eprintln!("Unknown flag: {}", s);
                 std::process::exit(1);
@@ -128,7 +130,7 @@ fn main() {
                 Err(e) => { eprintln!("Parse error: {}", e); std::process::exit(1); }
             };
             log::info!("Parsed {} flow(s)", program.flows.len());
-            let mut interp = interpreter::Interpreter::new();
+            let mut interp = interpreter::Interpreter::with_options(allow_shell);
             if let Err(e) = interp.run(&program) {
                 eprintln!("Runtime error: {}", e);
                 std::process::exit(1);

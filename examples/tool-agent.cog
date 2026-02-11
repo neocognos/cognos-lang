@@ -5,7 +5,7 @@ flow get_weather(city: String) -> String:
 
 flow get_time() -> String:
     "Get the current date and time"
-    result = run("date")
+    result = exec(shell("date"))
     return result.strip()
 
 flow main():
@@ -18,6 +18,6 @@ flow main():
         loop max=3:
             if not response.has_tool_calls:
                 break
-            response = act(response, tools=["get_weather", "get_time"])
+            response = exec(response, tools=["get_weather", "get_time"])
             response = think(response.content, tools=["get_weather", "get_time"])
         write(stdout, response.content)

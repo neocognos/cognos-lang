@@ -25,6 +25,7 @@ pub enum Handle {
     Stdin,
     Stdout,
     File(std::string::String),
+    Shell(std::string::String),
 }
 
 impl std::fmt::Display for Value {
@@ -53,6 +54,7 @@ impl std::fmt::Display for Value {
             Value::Module(name) => write!(f, "<module '{}'>", name),
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
+            Value::Handle(Handle::Shell(cmd)) => write!(f, "shell(\"{}\")", cmd),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
             Value::None => write!(f, ""),
         }
@@ -129,16 +131,21 @@ pub struct Interpreter {
     vars: HashMap<std::string::String, Value>,
     flows: HashMap<std::string::String, crate::ast::FlowDef>,
     types: HashMap<std::string::String, crate::ast::TypeDef>,
+    allow_shell: bool,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
+        Self::with_options(false)
+    }
+
+    pub fn with_options(allow_shell: bool) -> Self {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         vars.insert("math".to_string(), Value::Module("math".to_string()));
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new() }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), allow_shell }
     }
 
     pub fn run(&mut self, program: &Program) -> Result<()> {
@@ -348,7 +355,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "act", "emit", "run", "log", "print", "remember", "recall", "read", "write", "file"];
+                        let builtins = ["think", "exec", "emit", "log", "print", "remember", "recall", "read", "write", "file", "shell"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -571,6 +578,7 @@ impl Interpreter {
                         Ok(Value::String(line.trim_end().to_string()))
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
+                    Handle::Shell(_) => bail!("cannot read from shell — use exec(shell(\"cmd\"))"),
                     Handle::File(path) => {
                         let content = std::fs::read_to_string(&path)
                             .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
@@ -587,6 +595,7 @@ impl Interpreter {
                 let content = self.eval(&args[1])?.to_string();
                 match handle {
                     Handle::Stdin => bail!("cannot write to stdin"),
+                    Handle::Shell(_) => bail!("cannot write to shell — use exec(shell(\"cmd\"))"),
                     Handle::Stdout => {
                         println!("{}", content);
                         Ok(Value::None)
@@ -598,12 +607,31 @@ impl Interpreter {
                     }
                 }
             }
-            "act" => {
-                // act(response, tools=[...]) — execute tool calls from think() response
+            "exec" => {
+                // exec(target, tools=[...])
+                // target can be: shell("cmd"), or a think() response with tool_calls
                 if args.is_empty() {
-                    bail!("act() requires a think() response");
+                    bail!("exec() requires an argument: exec(shell(\"cmd\")) or exec(response, tools=[...])");
                 }
-                let response = self.eval(&args[0])?;
+                let target = self.eval(&args[0])?;
+
+                // Shell execution
+                if let Value::Handle(Handle::Shell(cmd)) = &target {
+                    if !self.allow_shell {
+                        bail!("shell execution is disabled — use: cognos run --allow-shell file.cog");
+                    }
+                    log::info!("exec(shell) → {:?}", cmd);
+                    let output = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd)
+                        .output()?;
+                    let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
+                    let code = output.status.code().unwrap_or(-1);
+                    log::debug!("exec(shell) exit={} stdout={} chars", code, stdout.len());
+                    return Ok(Value::String(stdout.trim_end().to_string()));
+                }
+
+                let response = target;
 
                 // Collect available tool flows
                 let mut tool_flow_names: Vec<std::string::String> = Vec::new();
@@ -696,20 +724,10 @@ impl Interpreter {
                     _ => Ok(response),
                 }
             }
-            "run" => {
-                if args.is_empty() {
-                    bail!("run() requires a command string");
-                }
-                let cmd = self.eval(&args[0])?;
-                log::info!("run() → {:?}", cmd.to_string());
-                let output = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(cmd.to_string())
-                    .output()?;
-                let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
-                let code = output.status.code().unwrap_or(-1);
-                log::debug!("run() exit={} stdout={} chars", code, stdout.len());
-                Ok(Value::String(stdout.trim_end().to_string()))
+            "shell" => {
+                if args.is_empty() { bail!("shell() requires a command string"); }
+                let cmd = self.eval(&args[0])?.to_string();
+                Ok(Value::Handle(Handle::Shell(cmd)))
             }
             "log" => {
                 for arg in args {

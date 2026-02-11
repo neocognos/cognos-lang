@@ -218,16 +218,20 @@ fn test_string_comparison() {
 }
 
 #[test]
-fn test_run_shell_command() {
+fn test_exec_shell_with_flag() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("shell.cog");
-    std::fs::write(&path, r#"flow main():
-    result = run("echo hello from shell")
-    emit(result)
-"#).unwrap();
+    std::fs::write(&path, "flow main():\n    result = exec(shell(\"echo hello from shell\"))\n    emit(result)\n").unwrap();
 
     let bin = cognos_bin();
+    // Without --allow-shell: should fail
     let output = Command::new(&bin).arg("run").arg(&path).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("shell execution is disabled"));
+
+    // With --allow-shell: should work
+    let output = Command::new(&bin).arg("run").arg("--allow-shell").arg(&path).output().unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.trim(), "hello from shell");
 }
@@ -576,7 +580,7 @@ fn test_mixed_int_float_arithmetic() {
 #[test]
 fn test_act_executes_tool_flow() {
     // Simulate a think() response with tool_calls, then act() on it
-    let out = expect_run_ok("flow greet(name: String) -> String:\n    return f\"Hello, {name}!\"\n\nflow main():\n    tc = [{\"name\": \"greet\", \"arguments\": {\"name\": \"World\"}}]\n    response = {\"content\": \"\", \"tool_calls\": tc, \"has_tool_calls\": true}\n    result = act(response, tools=[\"greet\"])\n    write(stdout, result.tool_results[0].result)\n");
+    let out = expect_run_ok("flow greet(name: String) -> String:\n    return f\"Hello, {name}!\"\n\nflow main():\n    tc = [{\"name\": \"greet\", \"arguments\": {\"name\": \"World\"}}]\n    response = {\"content\": \"\", \"tool_calls\": tc, \"has_tool_calls\": true}\n    result = exec(response, tools=[\"greet\"])\n    write(stdout, result.tool_results[0].result)\n");
     assert_eq!(out.trim(), "Hello, World!");
 }
 
@@ -592,7 +596,7 @@ fn test_act_no_tool_calls_passthrough() {
     let out = expect_run_ok(concat!(
         "flow main():\n",
         "    response = {\"content\": \"just text\", \"has_tool_calls\": false}\n",
-        "    result = act(response)\n",
+        "    result = exec(response)\n",
         "    write(stdout, result.content)\n",
     ));
     assert_eq!(out.trim(), "just text");
