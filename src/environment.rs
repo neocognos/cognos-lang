@@ -61,8 +61,8 @@ impl Env for RealEnv {
     fn read_stdin(&mut self) -> Result<String> {
         use std::io::BufRead;
         let mut line = String::new();
-        std::io::stdin().lock().read_line(&mut line)?;
-        if line.is_empty() { anyhow::bail!("end of input"); }
+        let bytes = std::io::stdin().lock().read_line(&mut line)?;
+        if bytes == 0 { anyhow::bail!("end of input (EOF)"); }
         Ok(line.trim_end().to_string())
     }
 

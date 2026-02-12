@@ -715,6 +715,7 @@ impl Interpreter {
             Expr::IntLit(n) => Ok(Value::Int(*n)),
             Expr::FloatLit(n) => Ok(Value::Float(*n)),
             Expr::BoolLit(b) => Ok(Value::Bool(*b)),
+            Expr::NoneLiteral => Ok(Value::None),
 
             Expr::Ident(name) => {
                 match self.vars.get(name) {
@@ -1023,17 +1024,29 @@ impl Interpreter {
                 };
                 match handle {
                     Handle::Stdin => {
-                        let val = self.env.lock().unwrap().read_stdin()?;
-                        if let Some(ref tracer) = self.tracer {
-                            tracer.increment_turn();
+                        match self.env.lock().unwrap().read_stdin() {
+                            Ok(val) => {
+                                if let Some(ref tracer) = self.tracer {
+                                    tracer.increment_turn();
+                                }
+                                let full = self.is_full_trace();
+                                self.trace(TraceEvent::IoOp {
+                                    operation: "read".into(), handle_type: "stdin".into(),
+                                    path: None, bytes: val.len(),
+                                    content: if full { Some(val.clone()) } else { None },
+                                });
+                                Ok(Value::String(val))
+                            }
+                            Err(e) if e.to_string().contains("EOF") => {
+                                self.trace(TraceEvent::IoOp {
+                                    operation: "read".into(), handle_type: "stdin".into(),
+                                    path: None, bytes: 0,
+                                    content: Some("EOF".into()),
+                                });
+                                Ok(Value::None)
+                            }
+                            Err(e) => Err(e),
                         }
-                        let full = self.is_full_trace();
-                        self.trace(TraceEvent::IoOp {
-                            operation: "read".into(), handle_type: "stdin".into(),
-                            path: None, bytes: val.len(),
-                            content: if full { Some(val.clone()) } else { None },
-                        });
-                        Ok(Value::String(val))
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
                     Handle::File(path) => {

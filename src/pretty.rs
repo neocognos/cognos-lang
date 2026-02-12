@@ -168,6 +168,7 @@ fn pretty_expr(expr: &Expr) -> String {
         Expr::IntLit(n) => n.to_string(),
         Expr::FloatLit(n) => format!("{}", n),
         Expr::BoolLit(b) => b.to_string(),
+        Expr::NoneLiteral => "none".to_string(),
         Expr::Call { name, args, kwargs } => {
             let mut parts: Vec<String> = args.iter().map(|a| pretty_expr(a)).collect();
             for (k, v) in kwargs {

@@ -107,6 +107,10 @@ pub fn unexpected_token(line: usize, got: &Token, context: &str) -> CognosError 
             "found 'pass' where an expression was expected".into(),
             None,
         ),
+        Token::None_ => (
+            "found 'none' — this is a value, not a statement".into(),
+            Some("use in expressions: if x == none:".into()),
+        ),
         Token::Type => (
             "found 'type' where an expression was expected".into(),
             Some("type definitions are not yet supported".into()),

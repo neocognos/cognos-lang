@@ -118,6 +118,7 @@ pub enum Expr {
     FloatLit(f64),
     /// Boolean literal
     BoolLit(bool),
+    NoneLiteral,
     /// Function call: name(args, key=val, ...)
     Call {
         name: String,

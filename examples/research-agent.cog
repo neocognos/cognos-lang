@@ -23,7 +23,7 @@ flow main():
     loop:
         input = read(stdin)
 
-        if input == "quit":
+        if input == none or input == "quit":
             break
         if input == "notes":
             if notes.length == 0:

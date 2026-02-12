@@ -27,6 +27,7 @@ pub enum Token {
     Not,
     True,
     False,
+    None_,
     Pass,
     Select,
 
@@ -99,6 +100,7 @@ impl std::fmt::Display for Token {
             Token::Not => write!(f, "'not'"),
             Token::True => write!(f, "'true'"),
             Token::False => write!(f, "'false'"),
+            Token::None_ => write!(f, "'none'"),
             Token::Pass => write!(f, "'pass'"),
             Token::Select => write!(f, "'select'"),
             Token::Ident(s) => write!(f, "'{}'", s),

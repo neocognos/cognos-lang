@@ -38,7 +38,7 @@ flow main():
         write(stdout, "> ")
         if tasks.length == 0:
             input = read(stdin)
-            if input == "exit" or input == "quit":
+            if input == none or input == "exit" or input == "quit":
                 break
             if input == "status":
                 write(stdout, "No tasks running.\n")
@@ -54,7 +54,7 @@ flow main():
             select:
                 branch:
                     input = read(stdin)
-                    if input == "exit" or input == "quit":
+                    if input == none or input == "exit" or input == "quit":
                         for name, handle in tasks:
                             cancel(handle)
                         break

@@ -695,6 +695,7 @@ impl Parser {
             }
             Token::True => { self.advance(); Ok(Expr::BoolLit(true)) }
             Token::False => { self.advance(); Ok(Expr::BoolLit(false)) }
+            Token::None_ => { self.advance(); Ok(Expr::NoneLiteral) }
             Token::LParen => {
                 self.advance();
                 let expr = self.parse_expr()?;
@@ -842,6 +843,7 @@ impl Parser {
             Token::Not => "not".to_string(),
             Token::True => "true".to_string(),
             Token::False => "false".to_string(),
+            Token::None_ => "none".to_string(),
             Token::Pass => "pass".to_string(),
             Token::Select => "select".to_string(),
             _ => {

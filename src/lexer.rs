@@ -294,6 +294,7 @@ impl Lexer {
             "not" => Token::Not,
             "true" => Token::True,
             "false" => Token::False,
+            "none" => Token::None_,
             "pass" => Token::Pass,
             "select" => Token::Select,
             _ => Token::Ident(s),
