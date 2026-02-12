@@ -1,0 +1,12 @@
+# Test for key, value in map
+flow main():
+    config = {"name": "cognos", "version": "0.5", "lang": "rust"}
+    for key, value in config:
+        write(stdout, f"{key} = {value}")
+
+    write(stdout, "---")
+
+    # Also works with lists (index, value)
+    items = ["a", "b", "c"]
+    for i, item in items:
+        write(stdout, f"{i}: {item}")

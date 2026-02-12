@@ -109,9 +109,13 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
             }
             for s in catch_body { pretty_stmt(out, s, level + 1); }
         }
-        Stmt::For { var, iterable, body } => {
+        Stmt::For { var, value_var, iterable, body } => {
             indent(out, level);
-            out.push_str(&format!("for {} in {}:\n", var, pretty_expr(iterable)));
+            if let Some(vv) = value_var {
+                out.push_str(&format!("for {}, {} in {}:\n", var, vv, pretty_expr(iterable)));
+            } else {
+                out.push_str(&format!("for {} in {}:\n", var, pretty_expr(iterable)));
+            }
             for s in body { pretty_stmt(out, s, level + 1); }
         }
         Stmt::Loop { max, body } => {
@@ -149,6 +153,11 @@ fn pretty_expr(expr: &Expr) -> String {
         }
         Expr::Index { object, index } => {
             format!("{}[{}]", pretty_expr(object), pretty_expr(index))
+        }
+        Expr::Slice { object, start, end } => {
+            let s = start.as_ref().map(|e| pretty_expr(e)).unwrap_or_default();
+            let e = end.as_ref().map(|e| pretty_expr(e)).unwrap_or_default();
+            format!("{}[{}:{}]", pretty_expr(object), s, e)
         }
         Expr::MethodCall { object, method, args } => {
             let a: Vec<String> = args.iter().map(|e| pretty_expr(e)).collect();

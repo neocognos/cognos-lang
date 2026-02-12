@@ -33,6 +33,7 @@ fn main() {
     let mut trace_path: Option<String> = None;
     let mut trace_level = trace::TraceLevel::Metrics;
     let mut env_path: Option<String> = None;
+    let mut session_path: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -55,6 +56,15 @@ fn main() {
                     trace_path = Some(args[i].clone());
                 } else {
                     eprintln!("--trace requires a file path");
+                    std::process::exit(1);
+                }
+            }
+            "--session" => {
+                i += 1;
+                if i < args.len() {
+                    session_path = Some(args[i].clone());
+                } else {
+                    eprintln!("--session requires a file path");
                     std::process::exit(1);
                 }
             }
@@ -174,9 +184,27 @@ fn main() {
                 }))
             });
             let mut interp = interpreter::Interpreter::with_full_options(allow_shell, tracer);
+            // Load session state if --session provided
+            if let Some(ref sp) = session_path {
+                if std::path::Path::new(sp).exists() {
+                    if let Err(e) = interp.load_session(sp) {
+                        eprintln!("Warning: failed to load session: {}", e);
+                    }
+                }
+            }
             if let Err(e) = interp.run_with_base(&program, Some(std::path::Path::new(file_path))) {
                 eprintln!("Runtime error: {}", e);
+                // Still save session on error
+                if let Some(ref sp) = session_path {
+                    let _ = interp.save_session(sp);
+                }
                 std::process::exit(1);
+            }
+            // Save session state
+            if let Some(ref sp) = session_path {
+                if let Err(e) = interp.save_session(sp) {
+                    eprintln!("Warning: failed to save session: {}", e);
+                }
             }
         }
         "test" => {

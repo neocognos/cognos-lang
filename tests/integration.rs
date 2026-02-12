@@ -1341,3 +1341,65 @@ fn test_mock_env_no_network() {
     assert_eq!(code, 0);
     assert!(start.elapsed().as_millis() < 2000, "Mock should be instant, took {}ms", start.elapsed().as_millis());
 }
+
+// ─── For key, value in map ───
+
+#[test]
+fn test_for_key_value_map() {
+    let (out, _, code) = run_cog("for-map.cog", "");
+    assert_eq!(code, 0);
+    assert!(out.contains("name = cognos"));
+    assert!(out.contains("version = 0.5"));
+    assert!(out.contains("0: a"));
+    assert!(out.contains("2: c"));
+}
+
+// ─── String/List slicing ───
+
+#[test]
+fn test_slicing() {
+    let (out, _, code) = run_cog("slice-test.cog", "");
+    assert_eq!(code, 0);
+    assert!(out.contains("Hello"));
+    assert!(out.contains("World!"));
+    assert!(out.contains("[2, 3]"));
+    assert!(out.contains("[1, 2]"));
+    assert!(out.contains("[4, 5]"));
+}
+
+#[test]
+fn test_slice_inline() {
+    let src = r#"
+flow main():
+    s = "abcdef"
+    write(stdout, s[2:4])
+    write(stdout, f"{[10,20,30,40][1:3]}")
+"#;
+    let (out, _, code) = run_inline(src, "");
+    assert_eq!(code, 0);
+    assert_eq!(out.trim(), "cd\n[20, 30]");
+}
+
+// ─── Session persistence ───
+
+#[test]
+fn test_session_persistence() {
+    let dir = tempfile::tempdir().unwrap();
+    let session = dir.path().join("session.json");
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"
+flow main():
+    x = 42
+    name = "test"
+"#).unwrap();
+
+    let bin = cognos_bin();
+    Command::new(&bin)
+        .args(&["run", "--session", session.to_str().unwrap(), cog.to_str().unwrap()])
+        .output().unwrap();
+
+    assert!(session.exists(), "session file should be created");
+    let content = std::fs::read_to_string(&session).unwrap();
+    assert!(content.contains("42"));
+    assert!(content.contains("test"));
+}

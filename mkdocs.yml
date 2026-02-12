@@ -1,0 +1,25 @@
+site_name: Cognos Language
+site_description: Programming language for agentic workflows
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+    accent: amber
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Language Spec: spec/language-spec.md
+  - Guides:
+    - Import System: docs/import.md
+    - Error Handling: docs/error-handling.md
+    - Environments & Testing: docs/environments.md
+    - Tracing & Diagnostics: docs/tracing.md
+    - Memory Design: docs/memory.md
+  - Compilation: spec/compilation.md
+
+docs_dir: site-docs

@@ -310,12 +310,18 @@ impl Parser {
     fn parse_for(&mut self) -> Result<Stmt> {
         self.expect(Token::For)?;
         let var = self.expect_ident()?;
+        let value_var = if self.check(&Token::Comma) {
+            self.advance();
+            Some(self.expect_ident()?)
+        } else {
+            None
+        };
         self.expect(Token::In)?;
         let iterable = self.parse_expr()?;
         self.expect(Token::Colon)?;
         self.expect_newline()?;
         let body = self.parse_block()?;
-        Ok(Stmt::For { var, iterable, body })
+        Ok(Stmt::For { var, value_var, iterable, body })
     }
 
     fn parse_try_catch(&mut self) -> Result<Stmt> {
@@ -458,11 +464,27 @@ impl Parser {
                     expr = Expr::Field { object: Box::new(expr), field };
                 }
             } else if self.check(&Token::LBracket) {
-                // Index: expr[index]
+                // Index or Slice: expr[index] or expr[start:end]
                 self.advance();
-                let index = self.parse_expr()?;
-                self.expect(Token::RBracket)?;
-                expr = Expr::Index { object: Box::new(expr), index: Box::new(index) };
+                // Check for [:end]
+                if self.check(&Token::Colon) {
+                    self.advance();
+                    let end = if self.check(&Token::RBracket) { None } else { Some(Box::new(self.parse_expr()?)) };
+                    self.expect(Token::RBracket)?;
+                    expr = Expr::Slice { object: Box::new(expr), start: None, end };
+                } else {
+                    let first = self.parse_expr()?;
+                    if self.check(&Token::Colon) {
+                        // expr[start:end] or expr[start:]
+                        self.advance();
+                        let end = if self.check(&Token::RBracket) { None } else { Some(Box::new(self.parse_expr()?)) };
+                        self.expect(Token::RBracket)?;
+                        expr = Expr::Slice { object: Box::new(expr), start: Some(Box::new(first)), end };
+                    } else {
+                        self.expect(Token::RBracket)?;
+                        expr = Expr::Index { object: Box::new(expr), index: Box::new(first) };
+                    }
+                }
             } else if self.check(&Token::LParen) {
                 if let Expr::Ident(name) = expr {
                     expr = self.parse_call(name)?;

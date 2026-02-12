@@ -157,6 +157,34 @@ impl Interpreter {
         Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer }
     }
 
+    pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("cannot load session '{}': {}", path, e))?;
+        let json: serde_json::Value = serde_json::from_str(&content)?;
+        if let Some(obj) = json.as_object() {
+            for (k, v) in obj {
+                self.vars.insert(k.clone(), self.json_to_value(v.clone()));
+            }
+        }
+        log::info!("Loaded session from {}", path);
+        Ok(())
+    }
+
+    pub fn save_session(&self, path: &str) -> anyhow::Result<()> {
+        let mut map = serde_json::Map::new();
+        for (k, v) in &self.vars {
+            // Skip builtins
+            match k.as_str() {
+                "stdin" | "stdout" | "math" | "http" => continue,
+                _ => {}
+            }
+            map.insert(k.clone(), self.value_to_json(v));
+        }
+        std::fs::write(path, serde_json::to_string_pretty(&serde_json::Value::Object(map))?)?;
+        log::info!("Saved session to {}", path);
+        Ok(())
+    }
+
     pub fn captured_stdout(&self) -> Option<Vec<String>> {
         self.env.captured_stdout()
     }
@@ -368,25 +396,59 @@ impl Interpreter {
                 }
             }
 
-            Stmt::For { var, iterable, body } => {
+            Stmt::For { var, value_var, iterable, body } => {
                 let collection = self.eval(iterable)?;
-                let items = match collection {
-                    Value::List(items) => items,
-                    Value::Map(entries) => entries.into_iter()
-                        .map(|(k, _)| Value::String(k))
-                        .collect(),
-                    Value::String(s) => s.chars()
-                        .map(|c| Value::String(c.to_string()))
-                        .collect(),
-                    other => bail!("cannot iterate over {} (type: {})", other, type_name(&other)),
-                };
-                for item in items {
-                    self.vars.insert(var.clone(), item);
-                    match self.run_block(body)? {
-                        ControlFlow::Break => break,
-                        ControlFlow::Continue => continue,
-                        ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
-                        ControlFlow::Normal => {}
+                match (&collection, value_var) {
+                    (Value::Map(entries), Some(vv)) => {
+                        // for key, value in map:
+                        let entries = entries.clone();
+                        for (k, v) in entries {
+                            self.vars.insert(var.clone(), Value::String(k));
+                            self.vars.insert(vv.clone(), v);
+                            match self.run_block(body)? {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::Normal => {}
+                            }
+                        }
+                    }
+                    (Value::List(items), Some(vv)) => {
+                        // for index, value in list:
+                        let items = items.clone();
+                        for (i, item) in items.into_iter().enumerate() {
+                            self.vars.insert(var.clone(), Value::Int(i as i64));
+                            self.vars.insert(vv.clone(), item);
+                            match self.run_block(body)? {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::Normal => {}
+                            }
+                        }
+                    }
+                    (_, Some(_)) => bail!("two-variable for loop requires a Map or List"),
+                    _ => {
+                        // Single variable iteration
+                        let items: Vec<Value> = match collection {
+                            Value::List(items) => items,
+                            Value::Map(entries) => entries.into_iter()
+                                .map(|(k, _)| Value::String(k))
+                                .collect(),
+                            Value::String(s) => s.chars()
+                                .map(|c| Value::String(c.to_string()))
+                                .collect(),
+                            other => bail!("cannot iterate over {} (type: {})", other, type_name(&other)),
+                        };
+                        for item in items {
+                            self.vars.insert(var.clone(), item);
+                            match self.run_block(body)? {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::Normal => {}
+                            }
+                        }
                     }
                 }
                 Ok(ControlFlow::Normal)
@@ -521,6 +583,25 @@ impl Interpreter {
                             .ok_or_else(|| anyhow::anyhow!("map has no key '{}'", key))
                     }
                     _ => bail!("cannot index {} with {} (type: {}[{}])", type_name(&val), idx, type_name(&val), type_name(&idx)),
+                }
+            }
+
+            Expr::Slice { object, start, end } => {
+                let val = self.eval(object)?;
+                let s = start.as_ref().map(|e| self.eval(e)).transpose()?;
+                let e = end.as_ref().map(|e| self.eval(e)).transpose()?;
+                let start_idx = match s { Some(Value::Int(i)) => i as usize, None => 0, _ => bail!("slice start must be Int") };
+                match val {
+                    Value::String(ref sv) => {
+                        let chars: Vec<char> = sv.chars().collect();
+                        let end_idx = match e { Some(Value::Int(i)) => (i as usize).min(chars.len()), None => chars.len(), _ => bail!("slice end must be Int") };
+                        Ok(Value::String(chars[start_idx.min(chars.len())..end_idx].iter().collect()))
+                    }
+                    Value::List(ref items) => {
+                        let end_idx = match e { Some(Value::Int(i)) => (i as usize).min(items.len()), None => items.len(), _ => bail!("slice end must be Int") };
+                        Ok(Value::List(items[start_idx.min(items.len())..end_idx].to_vec()))
+                    }
+                    other => bail!("cannot slice {} (type: {})", other, type_name(&other)),
                 }
             }
 

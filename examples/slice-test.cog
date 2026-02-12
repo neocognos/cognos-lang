@@ -1,0 +1,11 @@
+# Test string and list slicing
+flow main():
+    s = "Hello, World!"
+    write(stdout, s[0:5])       # Hello
+    write(stdout, s[7:])        # World!
+    write(stdout, s[:5])        # Hello
+
+    items = [1, 2, 3, 4, 5]
+    write(stdout, f"{items[1:3]}")   # [2, 3]
+    write(stdout, f"{items[:2]}")    # [1, 2]
+    write(stdout, f"{items[3:]}")    # [4, 5]

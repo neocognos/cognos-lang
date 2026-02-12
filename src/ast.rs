@@ -71,6 +71,7 @@ pub enum Stmt {
     /// `for item in collection: body`
     For {
         var: String,
+        value_var: Option<String>,  // for k, v in map
         iterable: Expr,
         body: Vec<Stmt>,
     },
@@ -106,6 +107,8 @@ pub enum Expr {
     Field { object: Box<Expr>, field: String },
     /// Index access: expr[expr]
     Index { object: Box<Expr>, index: Box<Expr> },
+    /// Slice access: expr[start:end]
+    Slice { object: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>> },
     /// Method call: expr.method(args)
     MethodCall { object: Box<Expr>, method: String, args: Vec<Expr> },
     /// Binary op: left op right
