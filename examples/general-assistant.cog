@@ -69,9 +69,9 @@ flow handle_input(input: String, tasks: Map) -> Map:
     if response.has_tool_calls:
         executed = exec(response, tools=tools)
         final = think(
-            f"Tool results:\n{executed.content}",
+            f"User asked: {input}\n\nTool results:\n{executed.content}\n\nAnswer the user's question based on these results.",
             model="claude-sonnet-4-20250514",
-            system="Answer based on these results. Be concise."
+            system="Answer the user's question based on the tool results. Be concise."
         )
         write(stdout, f"{final.content}\n")
     else:
