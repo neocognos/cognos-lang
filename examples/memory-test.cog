@@ -1,0 +1,34 @@
+# Memory test — run with: cognos run --memory examples/memory-test.cog
+
+flow main():
+    # Store some facts
+    remember("The project is called Cognos")
+    remember("Cognos is written in Rust")
+    remember("The default model is deepseek-chat")
+    remember("Tests run every 4 hours via heartbeat")
+    remember("The language uses indentation-based syntax")
+
+    write(stdout, "Stored 5 facts")
+
+    # Recall by semantic query
+    facts = recall("what programming language")
+    write(stdout, f"\nQuery: what programming language")
+    for fact in facts:
+        write(stdout, f"  → {fact}")
+
+    facts = recall("testing", limit=2)
+    write(stdout, f"\nQuery: testing (limit=2)")
+    for fact in facts:
+        write(stdout, f"  → {fact}")
+
+    # Forget
+    removed = forget("heartbeat")
+    write(stdout, f"\nForgot {removed} facts about heartbeat")
+
+    # Recall again to verify
+    facts = recall("heartbeat")
+    write(stdout, f"\nQuery: heartbeat (after forget)")
+    if facts.length == 0:
+        write(stdout, "  → (no results)")
+    for fact in facts:
+        write(stdout, f"  → {fact}")

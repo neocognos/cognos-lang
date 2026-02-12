@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use crate::ast::*;
 use crate::environment::{Env, RealEnv};
+use crate::memory::MemoryStore;
 use crate::trace::{Tracer, TraceEvent};
 use anyhow::{bail, Result};
 
@@ -142,6 +143,7 @@ pub struct Interpreter {
     next_future_id: u64,
     async_handles: HashMap<u64, (std::thread::JoinHandle<Result<Value>>, Arc<AtomicBool>)>,
     cancelled: Arc<AtomicBool>,
+    memory: Option<Arc<MemoryStore>>,
 }
 
 impl Interpreter {
@@ -163,7 +165,16 @@ impl Interpreter {
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         // math module removed (P11: lean core runtime)
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), env: Arc::from(Mutex::new(env)), tracer, import_stack: Vec::new(), conversation_history: Vec::new(), next_future_id: 0, async_handles: HashMap::new(), cancelled: Arc::new(AtomicBool::new(false)) }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env: Arc::from(Mutex::new(env)), tracer, import_stack: Vec::new(), conversation_history: Vec::new(), next_future_id: 0, async_handles: HashMap::new(), cancelled: Arc::new(AtomicBool::new(false)), memory: None }
+    }
+
+    pub fn set_memory(&mut self, store: MemoryStore) {
+        self.memory = Some(Arc::new(store));
+    }
+
+    fn get_memory(&self) -> Result<&MemoryStore> {
+        self.memory.as_ref().map(|m| m.as_ref())
+            .ok_or_else(|| anyhow::anyhow!("memory not enabled. Use --memory-db <path> or --memory to enable"))
     }
 
     pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
@@ -555,6 +566,7 @@ impl Interpreter {
         let types = self.types.clone();
         let vars = self.vars.clone();
         let tracer = self.tracer.clone();
+        let memory = self.memory.clone();
 
         // Each branch returns its final vars (new/changed only)
         let results: Vec<Result<HashMap<String, Value>>> = std::thread::scope(|s| {
@@ -564,6 +576,7 @@ impl Interpreter {
                 let types = types.clone();
                 let vars = vars.clone();
                 let tracer = tracer.clone();
+                let memory = memory.clone();
                 let branch = branch.clone();
                 s.spawn(move || {
                     let mut interp = Interpreter {
@@ -577,6 +590,7 @@ impl Interpreter {
                         next_future_id: 0,
                         async_handles: HashMap::new(),
                         cancelled: Arc::new(AtomicBool::new(false)),
+                        memory: memory.clone(),
                     };
                     interp.run_block(&branch)?;
                     // Return only new/changed vars
@@ -630,6 +644,7 @@ impl Interpreter {
         let types = self.types.clone();
         let vars = self.vars.clone();
         let tracer = self.tracer.clone();
+        let memory = self.memory.clone();
         let cancelled = Arc::new(AtomicBool::new(false));
 
         let (tx, rx) = std::sync::mpsc::channel();
@@ -641,6 +656,7 @@ impl Interpreter {
             let types = types.clone();
             let vars = vars.clone();
             let tracer = tracer.clone();
+            let memory = memory.clone();
             let branch = branch.clone();
             let cancelled = cancelled.clone();
             let tx = tx.clone();
@@ -657,6 +673,7 @@ impl Interpreter {
                     next_future_id: 0,
                     async_handles: HashMap::new(),
                     cancelled: cancelled.clone(),
+                    memory: memory.clone(),
                 };
                 let mut flow = ControlFlow::Normal;
                 for stmt in &branch {
@@ -725,7 +742,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__", "history", "clear_history"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "__exec_shell__", "history", "clear_history"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -744,6 +761,7 @@ impl Interpreter {
                 let types = self.types.clone();
                 let vars = self.vars.clone();
                 let tracer = self.tracer.clone();
+                let memory = self.memory.clone();
                 let inner = (**inner).clone();
                 let cancel_token = Arc::new(AtomicBool::new(false));
                 let cancel_token2 = cancel_token.clone();
@@ -760,6 +778,7 @@ impl Interpreter {
                         next_future_id: 0,
                         async_handles: HashMap::new(),
                         cancelled: cancel_token2,
+                        memory,
                     };
                     interp.eval(&inner)
                 });
@@ -1153,6 +1172,44 @@ impl Interpreter {
                     .map_err(|e| anyhow::anyhow!("load JSON error: {}", e))?;
                 log::info!("Loaded from {}", path);
                 Ok(self.json_to_value(json))
+            }
+            "remember" => {
+                if args.is_empty() { bail!("remember(text) requires a string argument"); }
+                let text = self.eval(&args[0])?.to_string();
+                let mem = self.get_memory()?;
+                mem.remember(&text)?;
+                Ok(Value::None)
+            }
+            "recall" => {
+                if args.is_empty() { bail!("recall(query) requires a query string"); }
+                let query = self.eval(&args[0])?.to_string();
+                let limit = if args.len() > 1 {
+                    match self.eval(&args[1])? {
+                        Value::Int(n) => n as usize,
+                        _ => 5,
+                    }
+                } else {
+                    // Check kwargs for limit=
+                    let mut lim = 5usize;
+                    for (k, v) in kwargs {
+                        if k == "limit" {
+                            if let Value::Int(n) = self.eval(v)? {
+                                lim = n as usize;
+                            }
+                        }
+                    }
+                    lim
+                };
+                let mem = self.get_memory()?;
+                let facts = mem.recall(&query, limit)?;
+                Ok(Value::List(facts.into_iter().map(Value::String).collect()))
+            }
+            "forget" => {
+                if args.is_empty() { bail!("forget(query) requires a query string"); }
+                let query = self.eval(&args[0])?.to_string();
+                let mem = self.get_memory()?;
+                let removed = mem.forget(&query)?;
+                Ok(Value::Int(removed as i64))
             }
             "await" => {
                 if args.is_empty() { bail!("await() requires a future handle"); }

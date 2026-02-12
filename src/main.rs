@@ -9,10 +9,16 @@ mod repl;
 mod environment;
 mod error;
 mod trace;
+mod memory;
 
 use std::env;
 use std::fs;
 use std::collections::HashMap;
+
+fn default_memory_path() -> String {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    format!("{}/.cognos/memory.db", home)
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -43,6 +49,8 @@ fn main() {
     let mut trace_level = trace::TraceLevel::Metrics;
     let mut env_path: Option<String> = None;
     let mut session_path: Option<String> = None;
+    let mut memory_db: Option<String> = None;
+    let mut memory_ns: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -76,6 +84,28 @@ fn main() {
                     session_path = Some(args[i].clone());
                 } else {
                     eprintln!("--session requires a file path");
+                    std::process::exit(1);
+                }
+            }
+            "--memory" => {
+                // Enable memory with default path
+                memory_db = Some(default_memory_path());
+            }
+            "--memory-db" => {
+                i += 1;
+                if i < args.len() {
+                    memory_db = Some(args[i].clone());
+                } else {
+                    eprintln!("--memory-db requires a file path");
+                    std::process::exit(1);
+                }
+            }
+            "--memory-ns" => {
+                i += 1;
+                if i < args.len() {
+                    memory_ns = Some(args[i].clone());
+                } else {
+                    eprintln!("--memory-ns requires a namespace");
                     std::process::exit(1);
                 }
             }
@@ -206,6 +236,23 @@ fn main() {
                 }))
             });
             let mut interp = interpreter::Interpreter::with_full_options(allow_shell, tracer);
+            // Enable memory if --memory or --memory-db provided
+            if let Some(ref db_path) = memory_db {
+                // Ensure parent directory exists
+                if let Some(parent) = std::path::Path::new(db_path).parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let ns = memory_ns.as_deref().unwrap_or("default");
+                match memory::MemoryStore::open(db_path, ns) {
+                    Ok(store) => {
+                        log::info!("Memory enabled: {} (namespace: {})", db_path, ns);
+                        interp.set_memory(store);
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: failed to open memory DB: {}", e);
+                    }
+                }
+            }
             // Load session state if --session provided
             if let Some(ref sp) = session_path {
                 if std::path::Path::new(sp).exists() {
