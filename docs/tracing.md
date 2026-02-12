@@ -94,7 +94,7 @@ Emitted for every `__exec_shell__()` call.
 
 ### tool_exec
 
-Emitted when `exec()` invokes a tool flow.
+Emitted when `invoke()` or `exec()` (from `lib/exec.cog`) invokes a tool flow.
 
 ```json
 {

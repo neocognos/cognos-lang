@@ -1,3 +1,5 @@
+import "lib/exec.cog"
+
 # Shell agent with sandboxed shell, file read/write
 flow shell(command: String) -> String:
     "Execute a sandboxed shell command. Output limited to 50 lines."

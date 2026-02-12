@@ -40,7 +40,8 @@
 - [x] `think()` with model routing (Claude CLI/API, Ollama)
 - [x] `format=Type` structured output with strict validation
 - [x] Flows as tools — `think(input, tools=["shell"])`
-- [x] `exec()` for tool call execution
+- [x] `invoke()` builtin for dynamic flow dispatch
+- [x] `exec()` moved to `.cog` stdlib (`lib/exec.cog`), `agent_think()` in `lib/agent.cog`
 - [x] Handle-based I/O — `read(stdin)`, `write(stdout, ...)`, `file("path")`
 - [x] Native modules — `math.*`, `http.*`
 - [x] `import "file.cog"` with circular detection
@@ -54,5 +55,5 @@
 - [x] JSONL tracing with metrics/full levels
 - [x] `validated_think` library flow with auto-retry
 - [x] Bool/None comparison operators
-- [x] 122 tests, comprehensive edge case coverage
+- [x] 139 tests, comprehensive edge case coverage
 - [x] Full docs: spec v0.5.0, tracing, environments, imports, error handling

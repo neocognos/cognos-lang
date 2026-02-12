@@ -1,3 +1,5 @@
+import "lib/exec.cog"
+
 flow shell(command: String) -> String:
     "Execute a sandboxed shell command. Output limited to 50 lines."
     return __exec_shell__(f"{command} | head -50")

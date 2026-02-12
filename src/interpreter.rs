@@ -539,7 +539,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "exec", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -715,14 +715,12 @@ impl Interpreter {
                 let mut system = std::string::String::new();
                 let mut format_type: Option<std::string::String> = None;
                 let mut tool_names: Vec<std::string::String> = Vec::new();
-                let mut auto_exec = false;
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
                         "model" => model = val.to_string(),
                         "system" => system = val.to_string(),
                         "format" => format_type = Some(val.to_string()),
-                        "auto_exec" => auto_exec = val.is_truthy(),
                         "tools" => {
                             if let Value::List(items) = val {
                                 for item in items {
@@ -767,53 +765,7 @@ impl Interpreter {
                     None
                 };
 
-                let mut result = self.call_llm(&model, &system, &context.to_string(), tool_defs.clone())?;
-
-                // Auto-exec loop: if auto_exec=true and result has tool_calls, execute them automatically
-                if auto_exec {
-                    let mut current_context = context.to_string();
-                    for _iteration in 0..10 {
-                        // Check if result has tool_calls
-                        let has_tool_calls = match &result {
-                            Value::Map(entries) => entries.iter()
-                                .find(|(k, _)| k == "has_tool_calls")
-                                .map(|(_, v)| v.is_truthy())
-                                .unwrap_or(false),
-                            _ => false,
-                        };
-                        if !has_tool_calls {
-                            break;
-                        }
-
-                        // Execute tool calls via exec()
-                        let exec_result = self.auto_exec_tools(&result)?;
-
-                        // Build new context with tool results
-                        let tool_context = match &exec_result {
-                            Value::Map(entries) => entries.iter()
-                                .find(|(k, _)| k == "content")
-                                .map(|(_, v)| v.to_string())
-                                .unwrap_or_default(),
-                            _ => exec_result.to_string(),
-                        };
-                        current_context = format!("{}\n{}", current_context, tool_context);
-
-                        // Call LLM again with updated context
-                        result = self.call_llm(&model, &system, &current_context, tool_defs.clone())?;
-                    }
-
-                    // Return final text content, not the Map
-                    match &result {
-                        Value::Map(entries) => {
-                            let content = entries.iter()
-                                .find(|(k, _)| k == "content")
-                                .map(|(_, v)| v.clone())
-                                .unwrap_or(Value::String(String::new()));
-                            return Ok(content);
-                        }
-                        _ => return Ok(result),
-                    }
-                }
+                let result = self.call_llm(&model, &system, &context.to_string(), tool_defs.clone())?;
 
                 // If format= specified, parse JSON and validate against type
                 if let Some(ref tn) = format_type {
@@ -901,106 +853,25 @@ impl Interpreter {
                     }
                 }
             }
-            "exec" => {
-                // exec(target, tools=[...])
-                // target can be: shell("cmd"), or a think() response with tool_calls
+            "invoke" => {
+                // invoke(name, args) — call a flow by string name with a Map of arguments
                 if args.is_empty() {
-                    bail!("exec() requires an argument: exec(shell(\"cmd\")) or exec(response, tools=[...])");
+                    bail!("invoke() requires a flow name: invoke(\"flow_name\", {{\"arg\": value}})");
                 }
-                let target = self.eval(&args[0])?;
+                let flow_name = self.eval(&args[0])?.to_string();
+                let flow_args = if args.len() > 1 {
+                    self.eval(&args[1])?
+                } else {
+                    Value::Map(vec![])
+                };
 
-                let response = target;
+                // Convert Map to kwargs
+                let kwarg_vals = match flow_args {
+                    Value::Map(entries) => entries,
+                    other => bail!("invoke() second argument must be a Map, got {}", type_name(&other)),
+                };
 
-                // Collect available tool flows
-                let mut tool_flow_names: Vec<std::string::String> = Vec::new();
-                for (k, v) in kwargs {
-                    if k == "tools" {
-                        if let Value::List(items) = self.eval(v)? {
-                            for item in items {
-                                tool_flow_names.push(item.to_string());
-                            }
-                        }
-                    }
-                }
-
-                match &response {
-                    Value::Map(entries) => {
-                        let tool_calls = entries.iter()
-                            .find(|(k, _)| k == "tool_calls")
-                            .map(|(_, v)| v.clone());
-
-                        match tool_calls {
-                            Some(Value::List(calls)) if !calls.is_empty() => {
-                                let mut results = Vec::new();
-                                for call in &calls {
-                                    if let Value::Map(call_entries) = call {
-                                        let func_name = call_entries.iter()
-                                            .find(|(k, _)| k == "name")
-                                            .map(|(_, v)| v.to_string())
-                                            .unwrap_or_default();
-                                        let func_args = call_entries.iter()
-                                            .find(|(k, _)| k == "arguments")
-                                            .map(|(_, v)| v.clone())
-                                            .unwrap_or(Value::Map(vec![]));
-
-                                        log::info!("Executing tool: {}({:?})", func_name, func_args);
-
-                                        if let Some(flow) = self.flows.get(&func_name).cloned() {
-                                            let saved_vars = self.vars.clone();
-                                            // Bind arguments to flow params
-                                            if let Value::Map(arg_entries) = &func_args {
-                                                for (k, v) in arg_entries {
-                                                    self.vars.insert(k.clone(), v.clone());
-                                                }
-                                            }
-                                            let result = self.run_block(&flow.body);
-                                            let ret = match result {
-                                                Ok(ControlFlow::Return(v)) => v,
-                                                Ok(_) => Value::None,
-                                                Err(e) => Value::String(format!("Error: {}", e)),
-                                            };
-                                            self.vars = saved_vars;
-                                            results.push(Value::Map(vec![
-                                                ("name".to_string(), Value::String(func_name)),
-                                                ("result".to_string(), ret),
-                                            ]));
-                                        } else {
-                                            results.push(Value::Map(vec![
-                                                ("name".to_string(), Value::String(func_name.clone())),
-                                                ("result".to_string(), Value::String(format!("Error: tool '{}' not found", func_name))),
-                                            ]));
-                                        }
-                                    }
-                                }
-
-                                // Build context string with tool results for next think() call
-                                let mut context_parts = Vec::new();
-                                let content = entries.iter()
-                                    .find(|(k, _)| k == "content")
-                                    .map(|(_, v)| v.to_string())
-                                    .unwrap_or_default();
-                                if !content.is_empty() {
-                                    context_parts.push(content);
-                                }
-                                for r in &results {
-                                    if let Value::Map(re) = r {
-                                        let name = re.iter().find(|(k,_)| k == "name").map(|(_,v)| v.to_string()).unwrap_or_default();
-                                        let result = re.iter().find(|(k,_)| k == "result").map(|(_,v)| v.to_string()).unwrap_or_default();
-                                        context_parts.push(format!("[Tool result from {}]: {}", name, result));
-                                    }
-                                }
-
-                                Ok(Value::Map(vec![
-                                    ("content".to_string(), Value::String(context_parts.join("\n"))),
-                                    ("tool_results".to_string(), Value::List(results)),
-                                    ("has_tool_calls".to_string(), Value::Bool(false)),
-                                ]))
-                            }
-                            _ => Ok(response), // No tool calls
-                        }
-                    }
-                    _ => Ok(response),
-                }
+                self.call_flow(&flow_name, vec![], kwarg_vals)
             }
             "__exec_shell__" => {
                 if !self.env.allow_shell() {
@@ -1760,108 +1631,6 @@ impl Interpreter {
             ]))
         } else {
             Ok(Value::String(content))
-        }
-    }
-
-    /// Execute tool calls from a think() response (used by auto_exec)
-    fn auto_exec_tools(&mut self, response: &Value) -> Result<Value> {
-        // Execute tool calls from the response map
-        match response {
-            Value::Map(entries) => {
-                let tool_calls = entries.iter()
-                    .find(|(k, _)| k == "tool_calls")
-                    .map(|(_, v)| v.clone());
-
-                match tool_calls {
-                    Some(Value::List(calls)) if !calls.is_empty() => {
-                        let mut results = Vec::new();
-                        for call in &calls {
-                            if let Value::Map(call_entries) = call {
-                                let func_name = call_entries.iter()
-                                    .find(|(k, _)| k == "name")
-                                    .map(|(_, v)| v.to_string())
-                                    .unwrap_or_default();
-                                let func_args = call_entries.iter()
-                                    .find(|(k, _)| k == "arguments")
-                                    .map(|(_, v)| v.clone())
-                                    .unwrap_or(Value::Map(vec![]));
-
-                                log::info!("auto_exec: {}({:?})", func_name, func_args);
-
-                                // Handle "shell" tool specially
-                                if func_name == "shell" || func_name == "__exec_shell__" {
-                                    let cmd = match &func_args {
-                                        Value::Map(ae) => ae.iter()
-                                            .find(|(k, _)| k == "command")
-                                            .map(|(_, v)| v.to_string())
-                                            .unwrap_or_default(),
-                                        _ => func_args.to_string(),
-                                    };
-                                    if self.env.allow_shell() {
-                                        let shell_result = self.env.exec_shell(&cmd)?;
-                                        results.push(Value::Map(vec![
-                                            ("name".to_string(), Value::String(func_name)),
-                                            ("result".to_string(), Value::String(shell_result.stdout)),
-                                        ]));
-                                    } else {
-                                        results.push(Value::Map(vec![
-                                            ("name".to_string(), Value::String(func_name)),
-                                            ("result".to_string(), Value::String("shell execution disabled".to_string())),
-                                        ]));
-                                    }
-                                } else if let Some(flow) = self.flows.get(&func_name).cloned() {
-                                    let saved_vars = self.vars.clone();
-                                    if let Value::Map(arg_entries) = &func_args {
-                                        for (k, v) in arg_entries {
-                                            self.vars.insert(k.clone(), v.clone());
-                                        }
-                                    }
-                                    let result = self.run_block(&flow.body);
-                                    let ret = match result {
-                                        Ok(ControlFlow::Return(v)) => v,
-                                        Ok(_) => Value::None,
-                                        Err(e) => Value::String(format!("Error: {}", e)),
-                                    };
-                                    self.vars = saved_vars;
-                                    results.push(Value::Map(vec![
-                                        ("name".to_string(), Value::String(func_name)),
-                                        ("result".to_string(), ret),
-                                    ]));
-                                } else {
-                                    results.push(Value::Map(vec![
-                                        ("name".to_string(), Value::String(func_name.clone())),
-                                        ("result".to_string(), Value::String(format!("Error: tool '{}' not found", func_name))),
-                                    ]));
-                                }
-                            }
-                        }
-
-                        let mut context_parts = Vec::new();
-                        let content = entries.iter()
-                            .find(|(k, _)| k == "content")
-                            .map(|(_, v)| v.to_string())
-                            .unwrap_or_default();
-                        if !content.is_empty() {
-                            context_parts.push(content);
-                        }
-                        for r in &results {
-                            if let Value::Map(re) = r {
-                                let name = re.iter().find(|(k,_)| k == "name").map(|(_,v)| v.to_string()).unwrap_or_default();
-                                let result = re.iter().find(|(k,_)| k == "result").map(|(_,v)| v.to_string()).unwrap_or_default();
-                                context_parts.push(format!("[Tool result from {}]: {}", name, result));
-                            }
-                        }
-
-                        Ok(Value::Map(vec![
-                            ("content".to_string(), Value::String(context_parts.join("\n"))),
-                            ("tool_results".to_string(), Value::List(results)),
-                            ("has_tool_calls".to_string(), Value::Bool(false)),
-                        ]))
-                    }
-                    _ => Ok(response.clone()),
-                }
-            }
-            _ => Ok(response.clone()),
         }
     }
 

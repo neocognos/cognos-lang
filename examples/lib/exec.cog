@@ -1,0 +1,13 @@
+flow exec(response: Map, tools: List = []) -> Map:
+    "Execute tool calls from a think() response by invoking named flows"
+    if response["has_tool_calls"] == false:
+        return response
+    results = []
+    for call in response["tool_calls"]:
+        name = call["name"]
+        args = call["arguments"]
+        result = invoke(name, args)
+        results = results + [f"[Tool result from {name}]: {result}"]
+    content = response["content"]
+    tool_output = results.join("\n")
+    return {"content": f"{content}\n{tool_output}", "has_tool_calls": false}

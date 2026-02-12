@@ -50,7 +50,11 @@ flow main():
 ## A Shell Agent with Tools
 
 ```cognos
-import "lib/shell.cog"
+import "lib/exec.cog"
+
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command"
+    return __exec_shell__(command)
 
 flow main():
     write(stdout, "Agent ready. Type 'quit' to exit.")
@@ -75,6 +79,8 @@ flow main():
 | **LLM calls** | `think(input, model="claude-sonnet-4-20250514", system="Be concise.")` |
 | **Structured output** | `think(input, format="Review")` — LLM returns typed Map |
 | **Tools** | `think(input, tools=["search", "shell"])` — flows as LLM tools |
+| **Dynamic dispatch** | `invoke("flow_name", {"arg": value})` — call flows by string name |
+| **Stdlib** | `import "lib/exec.cog"` — tool execution, agent loops in `.cog` |
 | **F-strings** | `f"Hello {name}, you have {count} items"` |
 | **I/O handles** | `read(stdin)`, `write(stdout, ...)`, `read(file("path"))` |
 | **Shell** | `__exec_shell__("ls")` (requires `--allow-shell`) |
@@ -93,6 +99,7 @@ flow main():
 - **Channel agnostic.** `read(stdin)` / `write(stdout, ...)` — same code works in CLI, TUI, API, Slack.
 - **The LLM is a co-processor.** `think()` is the only non-deterministic primitive.
 - **Environment agnostic.** Same `.cog` runs in production or against a mock — no code changes.
+- **Builtins are atomic.** Rust builtins perform one I/O operation. Orchestration belongs in `.cog` flows.
 - **Sandboxed by design.** Shell disabled by default. `--allow-shell` for explicit opt-in.
 - **Platform portable.** `.cog` files run anywhere the interpreter compiles.
 
@@ -153,4 +160,4 @@ cognos test examples/chat.cog --env examples/mocks/chat-test.json  # mock test
 PATH="$HOME/.cargo/bin:$PATH" cargo test
 ```
 
-91 tests: lexer, parser, interpreter, integration, type errors, mock environments.
+139 tests: lexer, parser, interpreter, integration, type errors, mock environments.

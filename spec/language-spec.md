@@ -13,6 +13,7 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 - **The LLM is a co-processor.** `think()` is the only non-deterministic primitive.
 - **Environment agnostic.** Same `.cog` runs in production or against a mock.
 - **Sandboxed by design.** Only builtins can interact with the outside world.
+- **Builtins are atomic.** Rust builtins perform one I/O operation. Orchestration, loops, and decision-making belong in `.cog` flows.
 - **Platform portable.** `.cog` files run anywhere the interpreter compiles.
 
 ## 2. Types
@@ -125,6 +126,8 @@ flow main():
 Flows can be passed to `think()` as tools. The interpreter auto-generates JSON schemas from flow signatures:
 
 ```cognos
+import "lib/exec.cog"
+
 flow shell(command: String) -> String:
     "Execute a sandboxed shell command"
     return __exec_shell__(command)
@@ -162,15 +165,16 @@ review = think(code, format="Review")
 
 **Model routing:** `claude-*` → Claude CLI/API, anything else → Ollama.
 
-#### `exec(response, tools=[...]) -> String | Map`
+#### `invoke(name, args) -> Value`
 
-Executes tool calls from a `think()` response by invoking the named flows:
+Calls a flow by string name with a Map of keyword arguments. This is the atomic primitive for dynamic dispatch.
 
 ```cognos
-response = think(input, tools=["shell"])
-if response["has_tool_calls"]:
-    result = exec(response, tools=["shell"])
+result = invoke("shell", {"command": "date"})
+# equivalent to: result = shell(command="date")
 ```
+
+> **Note:** `exec()` (tool call execution from `think()` responses) has moved to the standard library at `lib/exec.cog`. Import it with `import "lib/exec.cog"`. See [Standard Library](#standard-library) below.
 
 ### 5.2 I/O
 

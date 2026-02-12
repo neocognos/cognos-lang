@@ -1,0 +1,15 @@
+import "exec.cog"
+
+flow agent_think(input: String, model: String = "qwen2.5:1.5b", system: String = "", tools: List = []) -> String:
+    "Think with automatic tool execution. Loops until LLM gives final answer."
+    context = input
+    loop max=10:
+        response = think(context, model=model, system=system, tools=tools)
+        if response["has_tool_calls"] == false:
+            if tools.length > 0:
+                return response["content"]
+            else:
+                return response
+        executed = exec(response, tools=tools)
+        context = f"{input}\n{executed[\"content\"]}"
+    return context

@@ -647,9 +647,9 @@ fn test_mixed_int_float_arithmetic() {
 // ─── Tool tests ───
 
 #[test]
-fn test_act_executes_tool_flow() {
-    // Simulate a think() response with tool_calls, then act() on it
-    let out = expect_run_ok("flow greet(name: String) -> String:\n    return f\"Hello, {name}!\"\n\nflow main():\n    tc = [{\"name\": \"greet\", \"arguments\": {\"name\": \"World\"}}]\n    response = {\"content\": \"\", \"tool_calls\": tc, \"has_tool_calls\": true}\n    result = exec(response, tools=[\"greet\"])\n    write(stdout, result.tool_results[0].result)\n");
+fn test_invoke_calls_flow_by_name() {
+    // invoke() calls a flow by string name with a Map of arguments
+    let out = expect_run_ok("flow greet(name: String) -> String:\n    return f\"Hello, {name}!\"\n\nflow main():\n    result = invoke(\"greet\", {\"name\": \"World\"})\n    write(stdout, result)\n");
     assert_eq!(out.trim(), "Hello, World!");
 }
 
@@ -661,14 +661,10 @@ fn test_flow_docstring() {
 }
 
 #[test]
-fn test_act_no_tool_calls_passthrough() {
-    let out = expect_run_ok(concat!(
-        "flow main():\n",
-        "    response = {\"content\": \"just text\", \"has_tool_calls\": false}\n",
-        "    result = exec(response)\n",
-        "    write(stdout, result.content)\n",
-    ));
-    assert_eq!(out.trim(), "just text");
+fn test_invoke_no_args() {
+    // invoke() with no arguments map
+    let out = expect_run_ok("flow hello() -> String:\n    return \"hi\"\n\nflow main():\n    result = invoke(\"hello\", {})\n    write(stdout, result)\n");
+    assert_eq!(out.trim(), "hi");
 }
 
 // ─── Handle I/O tests ───
@@ -2067,20 +2063,59 @@ flow main():
     assert_eq!(out.trim(), "[hi!");
 }
 
-// ─── Feature 3: auto_exec (tested via mock) ───
+// ─── Feature 3: exec via lib/exec.cog and agent_think via lib/agent.cog (tested via mock) ───
 
 #[test]
-fn test_auto_exec_mock() {
+fn test_exec_lib_mock() {
     let dir = tempfile::tempdir().unwrap();
+    let lib_dir = dir.path().join("lib");
+    std::fs::create_dir_all(&lib_dir).unwrap();
+
+    // Write lib/exec.cog
+    std::fs::write(lib_dir.join("exec.cog"), r#"flow exec(response: Map, tools: List = []) -> Map:
+    "Execute tool calls from a think() response by invoking named flows"
+    if response["has_tool_calls"] == false:
+        return response
+    results = []
+    for call in response["tool_calls"]:
+        name = call["name"]
+        args = call["arguments"]
+        result = invoke(name, args)
+        results = results + [f"[Tool result from {name}]: {result}"]
+    content = response["content"]
+    tool_output = results.join("\n")
+    return {"content": f"{content}\n{tool_output}", "has_tool_calls": false}
+"#).unwrap();
+
+    // Write lib/agent.cog
+    std::fs::write(lib_dir.join("agent.cog"), r#"import "exec.cog"
+
+flow agent_think(input: String, model: String = "qwen2.5:1.5b", system: String = "", tools: List = []) -> String:
+    "Think with automatic tool execution. Loops until LLM gives final answer."
+    context = input
+    loop max=10:
+        response = think(context, model=model, system=system, tools=tools)
+        if response["has_tool_calls"] == false:
+            if tools.length > 0:
+                return response["content"]
+            else:
+                return response
+        executed = exec(response, tools=tools)
+        context = f"{input}\n{executed[\"content\"]}"
+    return context
+"#).unwrap();
+
     let cog = dir.path().join("test.cog");
     let mock = dir.path().join("mock.json");
 
-    std::fs::write(&cog, r#"flow shell(command: String) -> String:
+    std::fs::write(&cog, r#"import "lib/agent.cog"
+
+flow shell(command: String) -> String:
     "Execute a shell command"
     return __exec_shell__(command)
 
 flow main():
-    result = think("list files", model="test", tools=["shell"], auto_exec=true)
+    result = agent_think("list files", model="test", tools=["shell"])
     write(stdout, result)
 "#).unwrap();
 
@@ -2110,8 +2145,94 @@ flow main():
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code().unwrap(), 0,
-        "auto_exec test failed:\nstdout: {}\nstderr: {}", stdout, stderr);
+        "agent_think test failed:\nstdout: {}\nstderr: {}", stdout, stderr);
     assert!(stdout.contains("Here are the files"), "Expected final text, got: {}", stdout);
+}
+
+#[test]
+fn test_exec_lib_passthrough() {
+    // Test that exec() passes through when no tool calls
+    let dir = tempfile::tempdir().unwrap();
+    let lib_dir = dir.path().join("lib");
+    std::fs::create_dir_all(&lib_dir).unwrap();
+
+    std::fs::write(lib_dir.join("exec.cog"), r#"flow exec(response: Map, tools: List = []) -> Map:
+    "Execute tool calls from a think() response by invoking named flows"
+    if response["has_tool_calls"] == false:
+        return response
+    results = []
+    for call in response["tool_calls"]:
+        name = call["name"]
+        args = call["arguments"]
+        result = invoke(name, args)
+        results = results + [f"[Tool result from {name}]: {result}"]
+    content = response["content"]
+    tool_output = results.join("\n")
+    return {"content": f"{content}\n{tool_output}", "has_tool_calls": false}
+"#).unwrap();
+
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"import "lib/exec.cog"
+
+flow main():
+    response = {"content": "just text", "has_tool_calls": false}
+    result = exec(response)
+    write(stdout, result["content"])
+"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .arg("run")
+        .arg(&cog)
+        .output().unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "just text");
+}
+
+#[test]
+fn test_exec_lib_tool_execution() {
+    // Test that exec() actually invokes tool flows
+    let dir = tempfile::tempdir().unwrap();
+    let lib_dir = dir.path().join("lib");
+    std::fs::create_dir_all(&lib_dir).unwrap();
+
+    std::fs::write(lib_dir.join("exec.cog"), r#"flow exec(response: Map, tools: List = []) -> Map:
+    "Execute tool calls from a think() response by invoking named flows"
+    if response["has_tool_calls"] == false:
+        return response
+    results = []
+    for call in response["tool_calls"]:
+        name = call["name"]
+        args = call["arguments"]
+        result = invoke(name, args)
+        results = results + [f"[Tool result from {name}]: {result}"]
+    content = response["content"]
+    tool_output = results.join("\n")
+    return {"content": f"{content}\n{tool_output}", "has_tool_calls": false}
+"#).unwrap();
+
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"import "lib/exec.cog"
+
+flow greet(name: String) -> String:
+    return f"Hello, {name}!"
+
+flow main():
+    tc = [{"name": "greet", "arguments": {"name": "World"}}]
+    response = {"content": "", "tool_calls": tc, "has_tool_calls": true}
+    result = exec(response, tools=["greet"])
+    write(stdout, result["content"])
+"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .arg("run")
+        .arg(&cog)
+        .output().unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Hello, World!"), "Expected greeting in output, got: {}", stdout);
 }
 
 // ─── Feature 4: trace-to-mock ───
