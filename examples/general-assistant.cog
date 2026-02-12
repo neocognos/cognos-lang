@@ -1,10 +1,6 @@
 import "lib/exec.cog"
 import "../lib/web_search.cog"
 
-type Action:
-    type: String
-    task_name: String
-
 flow shell(command: String) -> String:
     "Run a shell command. Output limited to 50 lines."
     return __exec_shell__(f"{command} | head -50")
@@ -13,27 +9,45 @@ flow read_file(path: String) -> String:
     "Read the contents of a file"
     return read(file(path))
 
-flow write_file(path: String, content: String) -> String:
-    "Write content to a file"
-    write(file(path), content)
-    return f"Wrote {content.length} chars to {path}"
+flow do_research(query: String) -> String:
+    "Research a topic using web search + LLM synthesis"
+    write(stdout, "  📡 Searching the web...\n")
+    results = web_search(query, num_results=3)
+    if results == "":
+        return "Web search returned no results."
+    write(stdout, "  🧠 Synthesizing findings...\n")
+    summary = think(f"Research query: {query}\n\nSearch results:\n{results}\n\nProvide a clear, structured summary.", model="claude-sonnet-4-20250514", system="Synthesize search results into a concise summary. Include key points and URLs.")
+    return summary
 
-flow do_task(description: String) -> String:
-    "Execute a complex task in the background"
-    # Step 1: Search the web for information
-    write(stdout, f"  📡 Searching the web...\n")
-    search_results = web_search(description)
-    # Step 2: Ask LLM to synthesize
-    write(stdout, f"  🧠 Analyzing results...\n")
-    response = think(
-        f"Task: {description}\n\nWeb search results:\n{search_results}\n\nProvide a comprehensive summary based on these search results.",
-        model="claude-sonnet-4-20250514",
-        system="Synthesize the search results into a clear, well-structured summary. Include key findings, trends, and insights."
-    )
-    return response.content
+flow classify_and_respond(input: String, tasks: Map) -> Map:
+    "Classify user input and either respond or spawn a task"
+    write(stdout, "🔍 Thinking...\n")
+    classification = think(f"Does this request need web research or lengthy analysis? Answer ONLY 'yes' or 'no'.\n\nRequest: \"{input}\"", model="claude-sonnet-4-20250514")
+    if classification.lower().contains("yes"):
+        handle = async do_research(input)
+        tasks["research"] = handle
+        write(stdout, "⚡ Started 'research' in background. Keep talking.\n")
+        return tasks
+    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful.", tools=["shell", "read_file"])
+    if response.has_tool_calls:
+        executed = exec(response, tools=["shell", "read_file"])
+        final = think(f"User asked: {input}\nResults:\n{executed.content}", model="claude-sonnet-4-20250514", system="Answer concisely.")
+        write(stdout, f"{final.content}\n")
+    else:
+        write(stdout, f"{response.content}\n")
+    return tasks
 
-flow handle_input(input: String, tasks: Map) -> Map:
-    tools = ["shell", "read_file", "write_file", "web_search"]
+flow quick_respond(input: String, tasks: Map):
+    "Quick response while background tasks are running"
+    task_names = []
+    for name, handle in tasks:
+        task_names = task_names + [name]
+    write(stdout, "🔍 Thinking...\n")
+    response = think(input, model="claude-sonnet-4-20250514", system=f"Be very concise (1-2 sentences). Background tasks running: {task_names}. If user asks about them, say they're still working.")
+    write(stdout, f"{response}\n")
+
+flow handle_command(input: String, tasks: Map) -> Map:
+    "Handle status, cancel, and other commands"
     if input == "status":
         if tasks.length == 0:
             write(stdout, "No tasks running.\n")
@@ -49,68 +63,35 @@ flow handle_input(input: String, tasks: Map) -> Map:
         catch err:
             write(stdout, f"No task named '{name}'.\n")
         return tasks
-    # Simple keyword-based routing — no LLM needed for classification
-    should_spawn = false
-    task_name = "task"
-    if input.contains("research") or input.contains("investigate") or input.contains("analyze") or input.contains("summarize") or input.contains("find out") or input.contains("look into") or input.contains("deep dive"):
-        should_spawn = true
-        if input.contains("research"):
-            task_name = "research"
-        if input.contains("analyze"):
-            task_name = "analysis"
-        if input.contains("investigate"):
-            task_name = "investigation"
-    if should_spawn:
-        handle = async do_task(input)
-        tasks[task_name] = handle
-        write(stdout, f"⚡ Started '{task_name}' in background. Keep talking.\n")
-        return tasks
-    write(stdout, "🔍 Thinking...\n")
-    task_names = []
-    for name, handle in tasks:
-        task_names = task_names + [name]
-    context_note = ""
-    if task_names.length > 0:
-        context_note = f"\n\nNote: You have background tasks running: {task_names}. If the user asks about them, tell them they're still running."
-    response = think(
-        input,
-        model="claude-sonnet-4-20250514",
-        system=f"Be concise and helpful. You have tools available — use them when they can help answer the question. For date/time use shell('date'), for web info use web_search().{context_note}",
-        tools=tools
-    )
-    if response.has_tool_calls:
-        write(stdout, "🔧 Using tools...\n")
-        executed = exec(response, tools=tools)
-        final = think(
-            f"User asked: {input}\n\nTool results:\n{executed.content}\n\nAnswer the user's question based on these results.",
-            model="claude-sonnet-4-20250514",
-            system="Answer the user's question based on the tool results. Be concise."
-        )
-        write(stdout, f"{final.content}\n")
-    else:
-        write(stdout, f"{response.content}\n")
     return tasks
 
 flow main():
-    write(stdout, "🤖 Responsive Assistant\n")
-    write(stdout, "Commands: status, cancel <name>, exit\n\n")
+    write(stdout, "🤖 Assistant ready.\n")
+    write(stdout, "Type naturally. 'status' to check tasks, 'exit' to quit.\n\n")
     tasks = {}
     loop:
         write(stdout, "> ")
         if tasks.length == 0:
             input = read(stdin)
-            if input == "exit":
+            if input == "exit" or input == "quit":
                 break
-            tasks = handle_input(input, tasks)
+            if input == "status":
+                write(stdout, "No tasks running.\n")
+            if input != "status":
+                tasks = classify_and_respond(input, tasks)
         else:
             select:
                 branch:
                     input = read(stdin)
-                    if input == "exit":
+                    if input == "exit" or input == "quit":
                         for name, handle in tasks:
                             cancel(handle)
                         break
-                    tasks = handle_input(input, tasks)
+                    if input == "status" or input.starts_with("cancel "):
+                        tasks = handle_command(input, tasks)
+                    if input != "status":
+                        if input.starts_with("cancel ") == false:
+                            quick_respond(input, tasks)
                 branch:
                     first_name = ""
                     first_handle = None
@@ -119,6 +100,6 @@ flow main():
                             first_name = name
                             first_handle = handle
                     result = await(first_handle)
-                    write(stdout, f"\n✅ Task '{first_name}' complete:\n{result}\n")
+                    write(stdout, f"\n✅ '{first_name}' complete:\n{result}\n")
                     tasks = remove(tasks, first_name)
     write(stdout, "Goodbye! 👋\n")
