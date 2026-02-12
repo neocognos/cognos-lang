@@ -1,0 +1,10 @@
+{
+  "stdin": ["what time is it?", "quit"],
+  "llm_responses": [
+    {"content": "", "tool_calls": [{"name": "shell", "arguments": {"command": "date"}}]},
+    "It's Thursday, February 12th, 2026 at 12:34 AM."
+  ],
+  "shell": {
+    "date": "Thu Feb 12 00:34:00 CET 2026"
+  }
+}

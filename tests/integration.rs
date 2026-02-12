@@ -1301,3 +1301,43 @@ flow main():
     assert_eq!(code, 0);
     assert_eq!(out.trim(), "data=[]");
 }
+
+// ─── Mock Environment ───
+
+fn run_test(cog_file: &str, env_file: &str) -> (String, String, i32) {
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", &format!("examples/{}", cog_file), "--env", &format!("examples/mocks/{}", env_file)])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    (stdout, stderr, output.status.code().unwrap_or(-1))
+}
+
+#[test]
+fn test_mock_chat() {
+    let (out, _, code) = run_test("chat.cog", "chat-test.json");
+    assert_eq!(code, 0);
+    assert!(out.contains("Hi there!"));
+    assert!(out.contains("Pass ✓"));
+}
+
+#[test]
+fn test_mock_shell_agent() {
+    let (out, _, code) = run_test("shell-agent.cog", "shell-agent-test.json");
+    assert_eq!(code, 0);
+    assert!(out.contains("Thursday, February 12th"));
+    assert!(out.contains("Pass ✓"));
+}
+
+#[test]
+fn test_mock_env_no_network() {
+    // Mock env should complete instantly without any network calls
+    let start = std::time::Instant::now();
+    let (_, _, code) = run_test("chat.cog", "chat-test.json");
+    assert_eq!(code, 0);
+    assert!(start.elapsed().as_millis() < 2000, "Mock should be instant, took {}ms", start.elapsed().as_millis());
+}

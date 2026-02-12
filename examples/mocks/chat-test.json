@@ -1,0 +1,6 @@
+{
+  "stdin": ["hello", "quit"],
+  "llm_responses": [
+    "Hi there! How can I help you today?"
+  ]
+}

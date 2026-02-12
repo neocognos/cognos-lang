@@ -5,6 +5,7 @@ mod parser;
 mod pretty;
 mod interpreter;
 mod repl;
+mod environment;
 mod error;
 mod trace;
 
@@ -31,15 +32,17 @@ fn main() {
     let mut allow_shell = false;
     let mut trace_path: Option<String> = None;
     let mut trace_level = trace::TraceLevel::Metrics;
+    let mut env_path: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "run" | "parse" | "tokens" | "repl" => command = match args[i].as_str() {
+            "run" | "parse" | "tokens" | "repl" | "test" => command = match args[i].as_str() {
                 "run" => "run",
                 "parse" => "parse",
                 "tokens" => "tokens",
                 "repl" => "repl",
+                "test" => "test",
                 _ => unreachable!(),
             },
             "-v" => verbosity = verbosity.max(1),
@@ -52,6 +55,15 @@ fn main() {
                     trace_path = Some(args[i].clone());
                 } else {
                     eprintln!("--trace requires a file path");
+                    std::process::exit(1);
+                }
+            }
+            "--env" => {
+                i += 1;
+                if i < args.len() {
+                    env_path = Some(args[i].clone());
+                } else {
+                    eprintln!("--env requires a file path");
                     std::process::exit(1);
                 }
             }
@@ -165,6 +177,49 @@ fn main() {
             if let Err(e) = interp.run_with_base(&program, Some(std::path::Path::new(file_path))) {
                 eprintln!("Runtime error: {}", e);
                 std::process::exit(1);
+            }
+        }
+        "test" => {
+            let env_file = env_path.unwrap_or_else(|| {
+                eprintln!("cognos test requires --env <mock.json>");
+                std::process::exit(1);
+            });
+            let env_json: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(&env_file).unwrap_or_else(|e| {
+                    eprintln!("Cannot read env file {}: {}", env_file, e);
+                    std::process::exit(1);
+                })
+            ).unwrap_or_else(|e| {
+                eprintln!("Invalid JSON in {}: {}", env_file, e);
+                std::process::exit(1);
+            });
+            let mock_env = environment::MockEnv::from_json(&env_json).unwrap_or_else(|e| {
+                eprintln!("Invalid mock env: {}", e);
+                std::process::exit(1);
+            });
+            let mut p = parser::Parser::new(tokens);
+            let program = match p.parse_program() {
+                Ok(prog) => prog,
+                Err(e) => { eprintln!("Parse error: {}", e); std::process::exit(1); }
+            };
+            let tracer = trace_path.as_ref().map(|p| {
+                std::sync::Arc::new(trace::Tracer::new_file(p, trace_level).unwrap_or_else(|e| {
+                    eprintln!("Failed to open trace file {}: {}", p, e);
+                    std::process::exit(1);
+                }))
+            });
+            let mut interp = interpreter::Interpreter::with_env(Box::new(mock_env), tracer);
+            if let Err(e) = interp.run_with_base(&program, Some(std::path::Path::new(file_path))) {
+                eprintln!("Runtime error: {}", e);
+                std::process::exit(1);
+            }
+            // Print captured stdout
+            if let Some(output) = interp.captured_stdout() {
+                println!("─── Mock Output ({} lines) ───", output.len());
+                for line in &output {
+                    println!("  {}", line);
+                }
+                println!("─── Pass ✓ ───");
             }
         }
         _ => {

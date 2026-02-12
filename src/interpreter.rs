@@ -2,9 +2,9 @@
 /// Executes a parsed AST directly — no kernel needed.
 
 use std::collections::HashMap;
-use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 use crate::ast::*;
+use crate::environment::{Env, RealEnv};
 use crate::trace::{Tracer, TraceEvent};
 use anyhow::{bail, Result};
 
@@ -131,7 +131,7 @@ pub struct Interpreter {
     vars: HashMap<std::string::String, Value>,
     flows: HashMap<std::string::String, crate::ast::FlowDef>,
     types: HashMap<std::string::String, crate::ast::TypeDef>,
-    allow_shell: bool,
+    env: Box<dyn Env>,
     tracer: Option<Arc<Tracer>>,
 }
 
@@ -145,12 +145,20 @@ impl Interpreter {
     }
 
     pub fn with_full_options(allow_shell: bool, tracer: Option<Arc<Tracer>>) -> Self {
+        Self::with_env(Box::new(RealEnv::new(allow_shell)), tracer)
+    }
+
+    pub fn with_env(env: Box<dyn Env>, tracer: Option<Arc<Tracer>>) -> Self {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         vars.insert("math".to_string(), Value::Module("math".to_string()));
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), allow_shell, tracer }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer }
+    }
+
+    pub fn captured_stdout(&self) -> Option<Vec<String>> {
+        self.env.captured_stdout()
     }
 
     fn trace(&self, event: TraceEvent) {
@@ -231,11 +239,8 @@ impl Interpreter {
                 log::info!("Running flow '{}'", f.name);
                 for param in &f.params {
                     log::debug!("Reading param '{}' from stdin", param.name);
-                    print!("> ");
-                    io::stdout().flush()?;
-                    let mut line = std::string::String::new();
-                    io::stdin().lock().read_line(&mut line)?;
-                    let val = line.trim_end().to_string();
+                    self.env.write_stdout("> ")?;
+                    let val = self.env.read_stdin()?;
                     log::debug!("  {} = {:?}", param.name, val);
                     self.vars.insert(param.name.clone(), Value::String(val));
                 }
@@ -643,11 +648,7 @@ impl Interpreter {
                 };
                 match handle {
                     Handle::Stdin => {
-                        let mut line = std::string::String::new();
-                        io::stdin().lock().read_line(&mut line)?;
-                        if line.is_empty() { bail!("end of input"); }
-                        let val = line.trim_end().to_string();
-                        // Increment turn on user input + trace
+                        let val = self.env.read_stdin()?;
                         if let Some(ref tracer) = self.tracer {
                             tracer.increment_turn();
                         }
@@ -661,13 +662,12 @@ impl Interpreter {
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
                     Handle::File(path) => {
-                        let content = std::fs::read_to_string(&path)
-                            .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))?;
+                        let content = self.env.read_file(&path)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "read".into(), handle_type: "file".into(),
                             path: Some(path), bytes: content.len(),
-                            content: if full { Some(content.clone().chars().take(1000).collect()) } else { None },
+                            content: if full { Some(content.chars().take(1000).collect()) } else { None },
                         });
                         Ok(Value::String(content))
                     }
@@ -683,7 +683,7 @@ impl Interpreter {
                 match handle {
                     Handle::Stdin => bail!("cannot write to stdin"),
                     Handle::Stdout => {
-                        println!("{}", content);
+                        self.env.write_stdout(&content)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "write".into(), handle_type: "stdout".into(),
@@ -693,8 +693,7 @@ impl Interpreter {
                         Ok(Value::None)
                     }
                     Handle::File(path) => {
-                        std::fs::write(&path, &content)
-                            .map_err(|e| anyhow::anyhow!("cannot write '{}': {}", path, e))?;
+                        self.env.write_file(&path, &content)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "write".into(), handle_type: "file".into(),
@@ -807,25 +806,20 @@ impl Interpreter {
                 }
             }
             "__exec_shell__" => {
-                if !self.allow_shell {
+                if !self.env.allow_shell() {
                     bail!("shell execution is disabled — use: cognos run --allow-shell file.cog");
                 }
                 if args.is_empty() { bail!("__exec_shell__() requires a command string"); }
                 let cmd = self.eval(&args[0])?.to_string();
                 log::info!("__exec_shell__ → {:?}", cmd);
                 let shell_start = std::time::Instant::now();
-                let output = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(&cmd)
-                    .output()?;
-                let stdout = std::string::String::from_utf8_lossy(&output.stdout).to_string();
-                let exit_code = output.status.code().unwrap_or(-1);
-                let shell_output = if self.is_full_trace() { Some(stdout.clone()) } else { None };
+                let result = self.env.exec_shell(&cmd)?;
+                let shell_output = if self.is_full_trace() { Some(result.stdout.clone()) } else { None };
                 self.trace(TraceEvent::ShellExec {
                     command: cmd, latency_ms: shell_start.elapsed().as_millis() as u64,
-                    exit_code, output_chars: stdout.len(), output: shell_output,
+                    exit_code: result.exit_code, output_chars: result.stdout.len(), output: shell_output,
                 });
-                Ok(Value::String(stdout.trim_end().to_string()))
+                Ok(Value::String(result.stdout))
             }
             "save" => {
                 // save(path, value) — persist a value as JSON
@@ -870,7 +864,7 @@ impl Interpreter {
         }
     }
 
-    fn call_module(&self, module: &str, method: &str, args: Vec<Value>) -> Result<Value> {
+    fn call_module(&mut self, module: &str, method: &str, args: Vec<Value>) -> Result<Value> {
         match module {
             "math" => self.call_math(method, args),
             "http" => self.call_http(method, args),
@@ -937,19 +931,13 @@ impl Interpreter {
         }
     }
 
-    fn call_http(&self, method: &str, args: Vec<Value>) -> Result<Value> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
+    fn call_http(&mut self, method: &str, args: Vec<Value>) -> Result<Value> {
         match method {
             "get" => {
                 if args.is_empty() { bail!("http.get() requires a URL"); }
                 let url = args[0].to_string();
                 log::info!("http.get({})", url);
-                let resp = client.get(&url).send()
-                    .map_err(|e| anyhow::anyhow!("http.get error: {}", e))?;
-                let body = resp.text()
-                    .map_err(|e| anyhow::anyhow!("http.get read error: {}", e))?;
+                let body = self.env.http_get(&url)?;
                 Ok(Value::String(body))
             }
             "post" => {
@@ -957,11 +945,8 @@ impl Interpreter {
                 let url = args[0].to_string();
                 let body = args[1].to_string();
                 log::info!("http.post({})", url);
-                let resp = client.post(&url).body(body).send()
-                    .map_err(|e| anyhow::anyhow!("http.post error: {}", e))?;
-                let text = resp.text()
-                    .map_err(|e| anyhow::anyhow!("http.post read error: {}", e))?;
-                Ok(Value::String(text))
+                let resp = self.env.http_post(&url, &body)?;
+                Ok(Value::String(resp))
             }
             _ => bail!("http has no function '{}'", method),
         }
@@ -1187,10 +1172,43 @@ impl Interpreter {
         })
     }
 
-    fn call_llm(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
-        // Route to correct provider based on model prefix
+    fn call_llm(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        // Check if mock env handles LLM calls
+        if self.env.captured_stdout().is_some() {
+            // Mock environment — use env.call_llm
+            let request = crate::environment::LlmRequest {
+                model: model.to_string(), system: system.to_string(),
+                prompt: prompt.to_string(), tools: tools.clone(),
+                format: None, history: vec![],
+            };
+            let resp = self.env.call_llm(request)?;
+            let has_tc = resp.tool_calls.is_some();
+            self.trace_llm(model, "mock", 0, prompt, system, &resp.content, has_tc);
+            if let Some(tc) = resp.tool_calls {
+                let tool_calls: Vec<Value> = tc.iter().map(|c| {
+                    let name = c["name"].as_str().unwrap_or("").to_string();
+                    let arguments = self.json_to_value(c["arguments"].clone());
+                    Value::Map(vec![
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ])
+                }).collect();
+                return Ok(Value::Map(vec![
+                    ("content".to_string(), Value::String(resp.content)),
+                    ("tool_calls".to_string(), Value::List(tool_calls)),
+                    ("has_tool_calls".to_string(), Value::Bool(true)),
+                ]));
+            }
+            if tools.is_some() {
+                return Ok(Value::Map(vec![
+                    ("content".to_string(), Value::String(resp.content)),
+                    ("has_tool_calls".to_string(), Value::Bool(false)),
+                ]));
+            }
+            return Ok(Value::String(resp.content));
+        }
+        // Real environment — route to correct provider
         if model.starts_with("claude") {
-            // Try CLI first (for Max subscription), fall back to API
             return self.call_claude_cli(model, system, prompt, tools);
         }
         self.call_ollama(model, system, prompt, tools)
