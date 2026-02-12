@@ -154,8 +154,8 @@ Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in
 1. ~~**`save()`/`load()` must route through Env**~~ — ✅ Now routes through `env.write_file()` / `env.read_file()`
 2. ~~**Prompt `> ` in param binding**~~ — ✅ Removed presentation from interpreter
 
-### Decide
-3. **`think()` format validation** — keep in Rust (pragmatic) or split to `.cog` (pure P6)?
+### Decided
+3. **`think()` format validation stays in Rust** — it's the marshalling layer (type boundary between LLM world and Cognos world), not orchestration. Schema injection, JSON parsing, and type validation are all part of the single atomic operation: "call LLM, return typed value." This extends naturally to multimodal: `think(audio_handle, format="Transcript")` — same boundary, different media.
 
 ### Deferred (on roadmap)
 4. Path restrictions for file access (P5)
