@@ -1707,7 +1707,7 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            return self.call_anthropic_api(model, system, prompt, tools);
+            return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
