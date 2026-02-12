@@ -1707,6 +1707,13 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
+            // Use Anthropic API when tools are needed (native tool support)
+            // Fall back to CLI for simple calls (uses Max subscription)
+            if tools.is_some() {
+                if let Ok(_) = std::env::var("ANTHROPIC_API_KEY") {
+                    return self.call_anthropic(model, system, prompt, tools);
+                }
+            }
             return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
