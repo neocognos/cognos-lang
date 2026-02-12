@@ -1843,33 +1843,31 @@ impl Interpreter {
     fn call_anthropic_api(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         let call_start = std::time::Instant::now();
 
-        // Read token: ANTHROPIC_API_KEY env var, or OpenClaw auth-profiles, or Claude CLI OAuth
-        let token = if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
-            key
-        } else {
-            // Try OpenClaw auth-profiles (multiple agent dirs)
-            let home = std::env::var("HOME").unwrap_or_default();
-            let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
-            let mut found_token = None;
-            if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
-                for entry in entries.flatten() {
-                    let auth_path = entry.path().join("agent/auth-profiles.json");
-                    if let Ok(data) = std::fs::read_to_string(&auth_path) {
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
-                            if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
-                                if !t.is_empty() {
-                                    found_token = Some(t.to_string());
-                                    break;
-                                }
+        // Read token: OpenClaw auth-profiles first, then ANTHROPIC_API_KEY env var
+        let home = std::env::var("HOME").unwrap_or_default();
+        let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+        let mut token: Option<String> = None;
+        if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
+            for entry in entries.flatten() {
+                let auth_path = entry.path().join("agent/auth-profiles.json");
+                if let Ok(data) = std::fs::read_to_string(&auth_path) {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
+                        if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
+                            if !t.is_empty() {
+                                token = Some(t.to_string());
+                                break;
                             }
                         }
                     }
                 }
             }
-            found_token.ok_or_else(|| anyhow::anyhow!(
-                "No Anthropic token found. Set ANTHROPIC_API_KEY or run 'openclaw configure'."
-            ))?
-        };
+        }
+        if token.is_none() {
+            token = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+        }
+        let token = token.ok_or_else(|| anyhow::anyhow!(
+            "No Anthropic token found. Run 'openclaw configure' or set ANTHROPIC_API_KEY."
+        ))?;
 
         log::info!("Calling Anthropic API: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
 
