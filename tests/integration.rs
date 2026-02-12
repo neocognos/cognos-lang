@@ -3003,3 +3003,314 @@ flow main:
     let (_, _, code) = run_inline(src, "");
     assert_ne!(code, 0);
 }
+
+// ═══════════════════════════════════════════════════════
+// Comprehensive Parallel & Async Tests
+// ═══════════════════════════════════════════════════════
+
+// ─── Parallel: Complex scenarios ───
+
+#[test]
+fn test_parallel_multi_statement_branches() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            a = 1
+            b = a + 10
+            c = b * 2
+        branch:
+            x = 100
+            y = x + 200
+            z = y - 50
+    emit(c)
+    emit(z)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["22", "250"]);
+}
+
+#[test]
+fn test_parallel_branches_read_outer_variables() {
+    let src = r#"
+flow main:
+    base = 100
+    parallel:
+        branch:
+            a = base + 1
+        branch:
+            b = base + 2
+    emit(a)
+    emit(b)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["101", "102"]);
+}
+
+#[test]
+fn test_parallel_nested() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            parallel:
+                branch:
+                    a = 1
+                branch:
+                    b = 2
+        branch:
+            c = 3
+    emit(c)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.trim().contains("3"), "got: {}", out);
+}
+
+#[test]
+fn test_parallel_branch_with_loop() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            items = [1, 2, 3]
+            total = 0
+            for i in items:
+                total = total + i
+        branch:
+            msg = "done"
+    emit(total)
+    emit(msg)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["6", "done"]);
+}
+
+#[test]
+fn test_parallel_branch_with_try_catch() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            try:
+                x = 1 / 0
+            catch err:
+                x = -1
+        branch:
+            y = 42
+    emit(x)
+    emit(y)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["-1", "42"]);
+}
+
+#[test]
+fn test_parallel_branch_with_if_else() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            val = 10
+            if val > 5:
+                result_a = "high"
+            else:
+                result_a = "low"
+        branch:
+            result_b = "always"
+    emit(result_a)
+    emit(result_b)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["high", "always"]);
+}
+
+#[test]
+fn test_parallel_many_branches() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            a = 1
+        branch:
+            b = 2
+        branch:
+            c = 3
+        branch:
+            d = 4
+        branch:
+            e = 5
+    total = a + b + c + d + e
+    emit(total)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert_eq!(out.trim(), "15");
+}
+
+#[test]
+fn test_parallel_error_in_one_branch_propagates() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            a = 1
+        branch:
+            b = 1 / 0
+"#;
+    let (_, err, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+    assert!(err.contains("division by zero") || err.contains("parallel block errors"), "got: {}", err);
+}
+
+#[test]
+fn test_parallel_branch_with_string_ops() {
+    let src = r#"
+flow main:
+    parallel:
+        branch:
+            name = "hello"
+            upper = name + " WORLD"
+            greeting = f"Say: {upper}"
+        branch:
+            nums = [1, 2, 3, 4, 5]
+            sliced = nums[1:4]
+    emit(greeting)
+    emit(sliced)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "Say: hello WORLD");
+    assert_eq!(lines[1], "[2, 3, 4]");
+}
+
+// ─── Async: Complex scenarios ───
+
+#[test]
+fn test_async_await_basic_flow() {
+    let src = r#"
+flow slow_add(a: Int, b: Int) -> Int:
+    return a + b
+
+flow main:
+    h = async slow_add(10, 20)
+    immediate = 42
+    result = await(h)
+    emit(f"{result} {immediate}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert_eq!(out.trim(), "30 42");
+}
+
+#[test]
+fn test_async_multiple_handles() {
+    let src = r#"
+flow add(a: Int, b: Int) -> Int:
+    return a + b
+
+flow main:
+    h1 = async add(1, 2)
+    h2 = async add(3, 4)
+    h3 = async add(5, 6)
+    r1 = await(h1)
+    r2 = await(h2)
+    r3 = await(h3)
+    emit(f"{r1} {r2} {r3}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert_eq!(out.trim(), "3 7 11");
+}
+
+#[test]
+fn test_async_complex_flow() {
+    let src = r#"
+flow compute(x: Int) -> String:
+    doubled = x * 2
+    tripled = x * 3
+    return f"{doubled},{tripled}"
+
+flow main:
+    h = async compute(5)
+    other = "working"
+    result = await(h)
+    emit(f"{other}: {result}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert_eq!(out.trim(), "working: 10,15");
+}
+
+#[test]
+fn test_await_invalid_handle_error_message() {
+    let src = r#"
+flow main:
+    result = await(42)
+"#;
+    let (_, err, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+    assert!(err.contains("Future") || err.contains("future") || err.contains("await"),
+        "expected meaningful error about invalid future, got: {}", err);
+}
+
+#[test]
+fn test_async_with_mock_think() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+flow main():
+    h = async think("hello")
+    other = "meanwhile"
+    result = await(h)
+    write(stdout, f"{other}: {result}")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["async response"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code().unwrap(), 0, "stderr: {}", stderr);
+    assert!(stdout.contains("meanwhile: async response"), "got: {}", stdout);
+}
+
+#[test]
+fn test_parallel_with_mock_think() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+flow main():
+    parallel:
+        branch:
+            a = think("question 1")
+        branch:
+            b = think("question 2")
+    write(stdout, f"{a} | {b}")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["answer1", "answer2"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code().unwrap(), 0, "stderr: {}", stderr);
+    assert!(stdout.contains("answer1") && stdout.contains("answer2"), "got: {}", stdout);
+}
