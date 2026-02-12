@@ -1709,6 +1709,10 @@ impl Interpreter {
         if model.starts_with("claude") {
             return self.call_claude_cli(model, system, prompt, tools);
         }
+        if model.starts_with("deepseek") {
+            return self.call_openai_compat(model, system, prompt, tools,
+                "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY");
+        }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
         }
@@ -2069,22 +2073,28 @@ impl Interpreter {
     }
 
     fn call_openai(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
-        let api_key = std::env::var("OPENAI_API_KEY")
+        self.call_openai_compat(model, system, prompt, tools,
+            "https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY")
+    }
+
+    fn call_openai_compat(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>,
+                          endpoint: &str, env_key: &str) -> Result<Value> {
+        let api_key = std::env::var(env_key)
             .or_else(|_| {
                 let env_path = std::path::Path::new(".env");
                 if env_path.exists() {
                     std::fs::read_to_string(env_path).ok().and_then(|content| {
                         content.lines().find_map(|line| {
                             let line = line.trim();
-                            line.strip_prefix("OPENAI_API_KEY=")
+                            line.strip_prefix(&format!("{}=", env_key))
                                 .map(|val| val.trim_matches('"').trim_matches('\'').to_string())
                         })
                     }).ok_or_else(|| std::env::VarError::NotPresent)
                 } else { Err(std::env::VarError::NotPresent) }
             })
-            .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set. Set it in env or .env file."))?;
+            .map_err(|_| anyhow::anyhow!("{} not set. Set it in env or .env file.", env_key))?;
 
-        log::info!("Calling OpenAI: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+        log::info!("Calling {}: model={}, tools={}", env_key, model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
         let call_start = std::time::Instant::now();
 
         let mut messages = Vec::new();
@@ -2107,12 +2117,12 @@ impl Interpreter {
             .timeout(std::time::Duration::from_secs(120))
             .build()?;
 
-        let resp = client.post("https://api.openai.com/v1/chat/completions")
+        let resp = client.post(endpoint)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
-            .map_err(|e| anyhow::anyhow!("OpenAI error: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
 
         let json: serde_json::Value = resp.json()
             .map_err(|e| anyhow::anyhow!("OpenAI JSON error: {}", e))?;
