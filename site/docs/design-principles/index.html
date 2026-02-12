@@ -736,15 +736,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#p6-violations" class="md-nav__link">
+  <a href="#p6-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        P6 Violations
+        P6 Notes
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="P6 Violations">
+    <nav class="md-nav" aria-label="P6 Notes">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1171,15 +1171,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#p6-violations" class="md-nav__link">
+  <a href="#p6-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        P6 Violations
+        P6 Notes
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="P6 Violations">
+    <nav class="md-nav" aria-label="P6 Notes">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1374,8 +1374,8 @@
 <tbody>
 <tr>
 <td><code>think()</code></td>
-<td>⚠️ <strong>VIOLATION</strong></td>
-<td>See below</td>
+<td>✅</td>
+<td>Single LLM call + marshalling (decided: format validation is the type boundary, not orchestration)</td>
 </tr>
 <tr>
 <td><code>invoke(name, args)</code></td>
@@ -1424,30 +1424,11 @@
 </tr>
 </tbody>
 </table>
-<h3 id="p6-violations">P6 Violations</h3>
+<h3 id="p6-notes">P6 Notes</h3>
 <h4 id="think-format-validation-schema-injection"><code>think()</code> — format validation + schema injection</h4>
-<p><code>think()</code> currently does three things:
-1. <strong>Call the LLM</strong> — atomic ✅
-2. <strong>Inject type schema into system prompt</strong> (<code>format=</code>) — preparation, not I/O ⚠️
-3. <strong>Parse + validate JSON response</strong> (<code>format=</code>) — post-processing ⚠️</p>
-<p>Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in <code>.cog</code>:</p>
-<p><strong>Option A: Keep as-is (pragmatic)</strong>
-- Schema injection is prompt construction, not a separate I/O operation
-- Validation is a check on the return value, not a loop or branch
-- Moving it to <code>.cog</code> would require exposing <code>type_schema()</code> as a builtin</p>
-<p><strong>Option B: Split (pure)</strong>
-- <code>think()</code> only calls LLM, returns raw string
-- <code>type_schema(name)</code> builtin returns the JSON schema string
-- <code>validate(value, type_name)</code> builtin checks a value against a type
-- <code>formatted_think()</code> in <code>.cog</code> stdlib composes them</p>
-<p><strong>Recommendation:</strong> Option A for now. The format/validation logic doesn't loop, doesn't call flows, and doesn't do I/O. It's data transformation on the builtin's return value. A strict reading of P6 says split it, but the pragmatic cost is high (3 new builtins, user complexity).</p>
-<p><strong>Decision needed from Reza.</strong></p>
+<p><strong>Decided:</strong> <code>think()</code> format validation stays in Rust. It's the marshalling layer — the type boundary between LLM world (unstructured strings) and Cognos world (typed values). Schema injection, JSON parsing, and type validation are all part of the single atomic operation: "call LLM, return typed value." This extends naturally to multimodal: <code>think(audio_handle, format="Transcript")</code> — same boundary, different media.</p>
 <h4 id="think-tools-kwarg"><code>think()</code> — tools= kwarg</h4>
-<p><code>think()</code> builds tool JSON schemas from flow signatures when <code>tools=</code> is passed. This is:
-- Reading flow definitions (data access, not I/O)
-- Building JSON (data transformation)
-- Passing to LLM call (part of the one I/O operation)</p>
-<p><strong>Verdict:</strong> Acceptable. It's preparing the LLM request, not orchestrating.</p>
+<p><code>think()</code> builds tool JSON schemas from flow signatures when <code>tools=</code> is passed. This is data preparation for the LLM request, not orchestration. Acceptable.</p>
 <h3 id="channel-agnosticism-audit-p2">Channel Agnosticism Audit (P2)</h3>
 <table>
 <thead>
@@ -1467,7 +1448,7 @@
 </tr>
 <tr>
 <td><code>print("&gt; ")</code> for prompts</td>
-<td>⚠️ Leaks presentation into logic</td>
+<td>✅ Removed</td>
 </tr>
 <tr>
 <td><code>emit()</code></td>
@@ -1571,7 +1552,7 @@
 </tr>
 <tr>
 <td>All I/O through Env</td>
-<td>⚠️ <code>save()</code>/<code>load()</code> bypass</td>
+<td>✅ All routed through Env</td>
 </tr>
 <tr>
 <td>Deterministic mock replay</td>
@@ -1618,7 +1599,7 @@
 </tr>
 <tr>
 <td>Format validation</td>
-<td>⚠️ In Rust (see think() discussion above)</td>
+<td>✅ In Rust — decided: marshalling layer, not orchestration</td>
 </tr>
 </tbody>
 </table>

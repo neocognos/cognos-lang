@@ -43,7 +43,7 @@ Cognos is a domain language for agents, not a general-purpose language. Resist a
 
 | Builtin | Atomic? | Verdict |
 |---------|---------|---------|
-| `think()` | ⚠️ **VIOLATION** | See below |
+| `think()` | ✅ | Single LLM call + marshalling (decided: format validation is the type boundary, not orchestration) |
 | `invoke(name, args)` | ✅ | One flow call, returns result |
 | `read(handle)` | ✅ | One read operation |
 | `write(handle, content)` | ✅ | One write operation |
@@ -54,40 +54,15 @@ Cognos is a domain language for agents, not a general-purpose language. Resist a
 | `log(msg)` / `print(msg)` | ✅ | One stderr write |
 | `emit(value)` | ✅ | Alias for write(stdout, ...) |
 
-### P6 Violations
+### P6 Notes
 
 #### `think()` — format validation + schema injection
 
-`think()` currently does three things:
-1. **Call the LLM** — atomic ✅
-2. **Inject type schema into system prompt** (`format=`) — preparation, not I/O ⚠️
-3. **Parse + validate JSON response** (`format=`) — post-processing ⚠️
-
-Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in `.cog`:
-
-**Option A: Keep as-is (pragmatic)**
-- Schema injection is prompt construction, not a separate I/O operation
-- Validation is a check on the return value, not a loop or branch
-- Moving it to `.cog` would require exposing `type_schema()` as a builtin
-
-**Option B: Split (pure)**
-- `think()` only calls LLM, returns raw string
-- `type_schema(name)` builtin returns the JSON schema string
-- `validate(value, type_name)` builtin checks a value against a type
-- `formatted_think()` in `.cog` stdlib composes them
-
-**Recommendation:** Option A for now. The format/validation logic doesn't loop, doesn't call flows, and doesn't do I/O. It's data transformation on the builtin's return value. A strict reading of P6 says split it, but the pragmatic cost is high (3 new builtins, user complexity).
-
-**Decision needed from Reza.**
+**Decided:** `think()` format validation stays in Rust. It's the marshalling layer — the type boundary between LLM world (unstructured strings) and Cognos world (typed values). Schema injection, JSON parsing, and type validation are all part of the single atomic operation: "call LLM, return typed value." This extends naturally to multimodal: `think(audio_handle, format="Transcript")` — same boundary, different media.
 
 #### `think()` — tools= kwarg
 
-`think()` builds tool JSON schemas from flow signatures when `tools=` is passed. This is:
-- Reading flow definitions (data access, not I/O)
-- Building JSON (data transformation)
-- Passing to LLM call (part of the one I/O operation)
-
-**Verdict:** Acceptable. It's preparing the LLM request, not orchestrating.
+`think()` builds tool JSON schemas from flow signatures when `tools=` is passed. This is data preparation for the LLM request, not orchestration. Acceptable.
 
 ### Channel Agnosticism Audit (P2)
 
@@ -95,7 +70,7 @@ Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in
 |------|--------|
 | `read(stdin)` / `write(stdout, ...)` | ✅ Handle-based, channel-mapped |
 | Flow params bound from stdin in CLI | ✅ |
-| `print("> ")` for prompts | ⚠️ Leaks presentation into logic |
+| `print("> ")` for prompts | ✅ Removed |
 | `emit()` | ✅ Sugar for `write(stdout, ...)` |
 
 **Minor violation:** When `main()` has params, the interpreter prints `> ` before reading each one. This presentation detail should be the runtime's concern, not injected by the interpreter. Low priority.
@@ -133,7 +108,7 @@ Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in
 | Item | Status |
 |------|--------|
 | Mock environment | ✅ `cognos test --env mock.json` |
-| All I/O through Env | ⚠️ `save()`/`load()` bypass |
+| All I/O through Env | ✅ All routed through Env |
 | Deterministic mock replay | ✅ Traces → mocks → replay |
 | trace-to-mock CLI | ✅ `cognos trace-to-mock` |
 | CI-friendly | ✅ Zero external deps for mock tests |
@@ -147,7 +122,7 @@ Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in
 | Retry with validation | ✅ `lib/validated_think.cog` |
 | Shell sandboxing | ✅ User-defined `shell()` flow |
 | Memory strategy | ✅ Planned for `.cog` |
-| Format validation | ⚠️ In Rust (see think() discussion above) |
+| Format validation | ✅ In Rust — decided: marshalling layer, not orchestration |
 
 ---
 
