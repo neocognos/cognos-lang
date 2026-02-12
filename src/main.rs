@@ -3,6 +3,7 @@ mod lexer;
 mod ast;
 mod parser;
 mod pretty;
+mod oauth;
 mod interpreter;
 mod repl;
 mod environment;
@@ -46,13 +47,14 @@ fn main() {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "run" | "parse" | "tokens" | "repl" | "test" | "trace-to-mock" => command = match args[i].as_str() {
+            "run" | "parse" | "tokens" | "repl" | "test" | "trace-to-mock" | "login" => command = match args[i].as_str() {
                 "run" => "run",
                 "parse" => "parse",
                 "tokens" => "tokens",
                 "repl" => "repl",
                 "test" => "test",
                 "trace-to-mock" => "trace-to-mock",
+                "login" => "login",
                 _ => unreachable!(),
             },
             "-v" => verbosity = verbosity.max(1),
@@ -131,6 +133,17 @@ fn main() {
         .format_timestamp(None)
         .format_target(false)
         .init();
+
+    // Login command
+    if command == "login" {
+        match oauth::login() {
+            Ok(_) => std::process::exit(0),
+            Err(e) => {
+                eprintln!("Login failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     // REPL mode — no file needed
     if command == "repl" {
