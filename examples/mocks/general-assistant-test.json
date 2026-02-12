@@ -1,10 +1,10 @@
 {
     "stdin": [
-        "what time is it?",
+        "hello",
         "exit"
     ],
     "llm_responses": [
-        {"content": "It's Thursday, February 12th, 2026, 1:00 PM CET.", "tool_calls": null}
+        {"content": "Hi! How can I help?", "tool_calls": null}
     ],
     "shell": {},
     "files": {},

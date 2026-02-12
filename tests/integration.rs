@@ -3529,8 +3529,8 @@ flow main:
 fn test_mock_general_assistant() {
     let (out, _, code) = run_test("general-assistant.cog", "general-assistant-test.json");
     assert_eq!(code, 0);
-    assert!(out.contains("Responsive Assistant"));
-    assert!(out.contains("1:00 PM CET"));
+    assert!(out.contains("Assistant ready"));
+    assert!(out.contains("How can I help"));
     assert!(out.contains("Goodbye"));
     assert!(out.contains("Pass ✓"));
 }

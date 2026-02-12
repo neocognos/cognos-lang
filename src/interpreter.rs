@@ -1740,6 +1740,7 @@ impl Interpreter {
                 "--no-session-persistence",
                 "--model", model,
                 "--system-prompt", &full_system,
+                "--tools", "",
             ])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
