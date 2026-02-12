@@ -1,0 +1,125 @@
+# cognos-dev-agent.cog — A Cognos agent that helps develop Cognos
+# Run: cognos run --memory --allow-shell examples/cognos-dev-agent.cog
+
+import "lib/exec.cog"
+
+flow shell(command: String) -> String:
+    "Run a shell command in the cognos-lang repo"
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read contents of a file from the cognos-lang repo"
+    return __exec_shell__(f"cat {path}")
+
+flow run_tests() -> String:
+    "Run the Cognos test suite (cargo test)"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH cargo test 2>&1 | tail -5")
+
+flow run_harness() -> String:
+    "Run the integration test harness"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH bash test-harness.sh 2>&1 | tail -10")
+
+flow search_code(pattern: String) -> String:
+    "Search for a pattern in the Cognos source code"
+    return __exec_shell__(f"cd /home/reza/clawd/neocognos/cognos-lang && grep -rn '{pattern}' src/ --include='*.rs' | head -30")
+
+flow list_files() -> String:
+    "List source files in the Cognos repo"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && find src/ -name '*.rs' && find examples/ -name '*.cog' && find docs/ -name '*.md'")
+
+flow build() -> String:
+    "Build Cognos in release mode"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH cargo build --release 2>&1 | tail -5")
+
+flow git_log() -> String:
+    "Show recent git commits"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && git log --oneline -15")
+
+flow git_diff() -> String:
+    "Show current uncommitted changes"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && git diff --stat")
+
+flow bootstrap_memory():
+    "Load core knowledge about the Cognos language into memory"
+    # Language basics
+    remember("Cognos is an agentic programming language written in Rust")
+    remember("Cognos source files are in /home/reza/clawd/neocognos/cognos-lang/src/")
+    remember("Key source files: token.rs (lexer tokens), lexer.rs (tokenizer), ast.rs (AST nodes), parser.rs (recursive descent), interpreter.rs (tree-walking), memory.rs (semantic memory), main.rs (CLI)")
+    remember("Cognos uses indentation-based syntax like Python")
+    remember("Core types: String, Int, Float, Bool, List, Map, None, Handle, Module, Future")
+    remember("Core builtins: think(), remember(), recall(), forget(), read(), write(), save(), load(), exec()")
+    remember("LLM routing: claude-* -> CLI, deepseek-* -> DeepSeek API, gpt-*/o1-*/o3-* -> OpenAI, else -> Ollama")
+    remember("Default model: qwen2.5:7b (configurable via COGNOS_MODEL env var)")
+    remember("Concurrency: parallel: with branch:, async/await, select: (first-to-complete)")
+    remember("Design principle P11: Lean core runtime — think/act/observe/remember, nothing else")
+    remember("Always use PATH=$HOME/.cargo/bin:$PATH for cargo commands (Rust 1.93 via rustup)")
+    remember("Tests: 218 unit/integration tests via cargo test, 71 harness tests via test-harness.sh")
+    remember("Memory: remember()/recall()/forget() backed by SQLite + Ollama nomic-embed-text embeddings")
+    remember("Flows are tools: define a flow with typed params, pass to think(tools=[...]) for automatic schema")
+    remember("Error handling: try/catch, no Go-style tuple returns")
+    remember("Import system: import path relative to importing file, circular imports detected")
+
+flow respond(input: String, history: List) -> String:
+    # Recall relevant memories
+    facts = recall(input, limit=5)
+    recent = history[-6:]
+
+    context = "You are the Cognos Development Agent — an expert on the Cognos agentic programming language.\n"
+    context = context + "You help design, implement, debug, and test Cognos features.\n"
+    context = context + "The codebase is at /home/reza/clawd/neocognos/cognos-lang/\n\n"
+
+    if facts.length > 0:
+        context = context + "Relevant knowledge:\n"
+        for fact in facts:
+            context = context + f"- {fact}\n"
+        context = context + "\n"
+
+    if recent.length > 0:
+        context = context + "Recent conversation:\n"
+        for msg in recent:
+            context = context + f"{msg}\n"
+        context = context + "\n"
+
+    r = think(
+        f"{context}User: {input}",
+        model="deepseek-chat",
+        tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff"],
+        system="You are the Cognos Development Agent. You have deep knowledge of the Cognos language, its Rust implementation, and its design principles. Use tools to inspect code, run tests, and build. Be concise and technical. When you learn something new about the codebase, mention it so it can be remembered."
+    )
+
+    # Execute tool calls if any
+    if r.has_tool_calls:
+        result = exec(r, tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff"])
+        return result.content
+    return r.content
+
+flow main():
+    write(stdout, "Cognos Development Agent v1.0")
+    write(stdout, "I help develop the Cognos language. I can read code, run tests, search the codebase, and build.")
+    write(stdout, "Type 'exit' to quit.\n")
+
+    # Bootstrap memory with core knowledge
+    bootstrap_memory()
+    write(stdout, "Memory loaded with core Cognos knowledge.\n")
+
+    history = []
+    loop:
+        write(stdout, "cognos-dev> ")
+        input = read(stdin)
+        if input == none:
+            break
+        if input == "exit" or input == "quit":
+            break
+        if input.strip() == "":
+            continue
+
+        history = history + [f"User: {input}"]
+
+        response = respond(input, history)
+        write(stdout, f"\n{response}\n")
+
+        history = history + [f"Agent: {response}"]
+
+        # Remember important exchanges
+        if input.contains("bug") or input.contains("fix") or input.contains("design") or input.contains("decision"):
+            remember(f"Discussion: {input} -> {response}")
