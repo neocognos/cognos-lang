@@ -1707,6 +1707,12 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
+            let has_tools = tools.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+            if has_tools {
+                // OAuth token can't do tool_use — use CLI with clean system prompt
+                return self.call_claude_cli(model, system, prompt, tools);
+            }
+            // No tools: API is 2-3x faster than CLI
             return self.call_anthropic_api(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
@@ -1900,8 +1906,10 @@ impl Interpreter {
                     "input_schema": t["function"]["parameters"]
                 })
             }).collect();
+            log::debug!("API tools payload: {}", serde_json::to_string_pretty(&api_tools).unwrap_or_default());
             body["tools"] = serde_json::json!(api_tools);
         }
+        log::debug!("API request body: {}", serde_json::to_string(&body).unwrap_or_default());
 
         let client = reqwest::blocking::Client::new();
         let resp = client.post("https://api.anthropic.com/v1/messages")
