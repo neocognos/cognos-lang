@@ -1707,13 +1707,7 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            // Use Anthropic API when tools are needed (native tool support)
-            // Fall back to CLI for simple calls (uses Max subscription)
-            if tools.is_some() {
-                if let Ok(_) = std::env::var("ANTHROPIC_API_KEY") {
-                    return self.call_anthropic(model, system, prompt, tools);
-                }
-            }
+            // All Claude calls go through CLI (Max subscription — no cost)
             return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
@@ -1729,14 +1723,14 @@ impl Interpreter {
         // Build system prompt with tools embedded
         let mut full_system = system.to_string();
         if let Some(ref tool_defs) = tools {
-            full_system.push_str("\n\n## Available Tools\n\nYou have access to these tools. To use a tool, respond with a JSON block:\n```json\n{\"tool_calls\": [{\"name\": \"tool_name\", \"arguments\": {\"arg\": \"value\"}}]}\n```\n\nTools:\n");
+            full_system.push_str("\n\n## TOOL USE INSTRUCTIONS\n\nYou MUST use tools when they would help answer the user's question. You have FULL PERMISSION to use all tools listed below. NEVER say you need permission or cannot use a tool.\n\nTo call a tool, your ENTIRE response must be ONLY this JSON (no other text before or after):\n```\n{\"tool_calls\": [{\"name\": \"TOOL_NAME\", \"arguments\": {\"param\": \"value\"}}]}\n```\n\nYou can call multiple tools at once:\n```\n{\"tool_calls\": [{\"name\": \"tool1\", \"arguments\": {...}}, {\"name\": \"tool2\", \"arguments\": {...}}]}\n```\n\nAvailable tools:\n");
             for t in tool_defs {
                 let name = t["function"]["name"].as_str().unwrap_or("");
                 let desc = t["function"]["description"].as_str().unwrap_or("");
                 let params = serde_json::to_string_pretty(&t["function"]["parameters"]).unwrap_or_default();
                 full_system.push_str(&format!("\n### {}\n{}\nParameters: {}\n", name, desc, params));
             }
-            full_system.push_str("\nIMPORTANT: If you want to use a tool, respond ONLY with the JSON block above. No other text. If you don't need a tool, respond normally.\n");
+            full_system.push_str("\nRULES:\n1. If a tool can help, USE IT. Your entire response must be the JSON tool call.\n2. If no tool is needed, respond with plain text (no JSON).\n3. NEVER ask for permission. NEVER say you cannot use a tool. You have full access.\n4. For web/internet questions, use web_search. For system info, use shell. For files, use read_file.\n");
         }
 
         let output = std::process::Command::new("claude")
@@ -1803,9 +1797,12 @@ impl Interpreter {
     }
 
     fn parse_tool_calls_from_text(&self, text: &str) -> Option<Vec<Value>> {
-        // Look for ```json { "tool_calls": [...] } ```
+        // Look for tool_calls JSON in various formats
         let json_str = if let Some(start) = text.find("```json") {
             let after = &text[start + 7..];
+            after.find("```").map(|end| after[..end].trim())
+        } else if let Some(start) = text.find("```\n{") {
+            let after = &text[start + 4..];
             after.find("```").map(|end| after[..end].trim())
         } else if let Some(start) = text.find("{\"tool_calls\"") {
             // Raw JSON
