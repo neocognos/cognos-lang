@@ -14,6 +14,9 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 - **Environment agnostic.** Same `.cog` runs in production or against a mock.
 - **Sandboxed by design.** Only builtins can interact with the outside world.
 - **Builtins are atomic.** Rust builtins perform one I/O operation. Orchestration, loops, and decision-making belong in `.cog` flows.
+- **Behaviors in language, not runtime.** Agent behaviors (retry, tool loops, memory) are `.cog` flows, not Rust code.
+- **One feature, multiple use cases.** Prefer one general mechanism over multiple specialized ones.
+- **Testability first.** Every agent testable without LLM, network, or filesystem. Mocks are first-class.
 - **Platform portable.** `.cog` files run anywhere the interpreter compiles.
 
 ## 2. Types

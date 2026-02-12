@@ -276,7 +276,6 @@ impl Interpreter {
                 log::info!("Running flow '{}'", f.name);
                 for param in &f.params {
                     log::debug!("Reading param '{}' from stdin", param.name);
-                    self.env.write_stdout("> ")?;
                     let val = self.env.read_stdin()?;
                     log::debug!("  {} = {:?}", param.name, val);
                     self.vars.insert(param.name.clone(), Value::String(val));
@@ -890,22 +889,21 @@ impl Interpreter {
                 Ok(Value::String(result.stdout))
             }
             "save" => {
-                // save(path, value) — persist a value as JSON
+                // save(path, value) — persist a value as JSON via Env
                 if args.len() < 2 { bail!("save(path, value)"); }
                 let path = self.eval(&args[0])?.to_string();
                 let value = self.eval(&args[1])?;
                 let json = self.value_to_json(&value);
-                std::fs::write(&path, serde_json::to_string_pretty(&json)?)
-                    .map_err(|e| anyhow::anyhow!("save error: {}", e))?;
+                let content = serde_json::to_string_pretty(&json)?;
+                self.env.write_file(&path, &content)?;
                 log::info!("Saved to {}", path);
                 Ok(Value::None)
             }
             "load" => {
-                // load(path) — load a JSON file back to a Value
+                // load(path) — load a JSON file back to a Value via Env
                 if args.is_empty() { bail!("load(path)"); }
                 let path = self.eval(&args[0])?.to_string();
-                let content = std::fs::read_to_string(&path)
-                    .map_err(|e| anyhow::anyhow!("load error: {}", e))?;
+                let content = self.env.read_file(&path)?;
                 let json: serde_json::Value = serde_json::from_str(&content)
                     .map_err(|e| anyhow::anyhow!("load JSON error: {}", e))?;
                 log::info!("Loaded from {}", path);
