@@ -7,13 +7,16 @@ pub trait Env {
     fn read_stdin(&mut self) -> Result<String>;
     fn write_stdout(&mut self, content: &str) -> Result<()>;
     fn read_file(&self, path: &str) -> Result<String>;
-    fn write_file(&self, path: &str, content: &str) -> Result<()>;
+    fn write_file(&mut self, path: &str, content: &str) -> Result<()>;
     fn exec_shell(&mut self, command: &str) -> Result<ShellResult>;
     fn call_llm(&mut self, request: LlmRequest) -> Result<LlmResponse>;
     fn http_get(&self, url: &str) -> Result<String>;
     fn http_post(&self, url: &str, body: &str) -> Result<String>;
 
     fn allow_shell(&self) -> bool;
+
+    /// Returns true for mock/test environments.
+    fn is_mock(&self) -> bool { false }
 
     /// Collect stdout buffer (for testing). Returns None for real env.
     fn captured_stdout(&self) -> Option<Vec<String>> { None }
@@ -54,6 +57,7 @@ impl RealEnv {
 }
 
 impl Env for RealEnv {
+    fn is_mock(&self) -> bool { false }
     fn read_stdin(&mut self) -> Result<String> {
         use std::io::BufRead;
         let mut line = String::new();
@@ -72,7 +76,7 @@ impl Env for RealEnv {
             .map_err(|e| anyhow::anyhow!("cannot read '{}': {}", path, e))
     }
 
-    fn write_file(&self, path: &str, content: &str) -> Result<()> {
+    fn write_file(&mut self, path: &str, content: &str) -> Result<()> {
         std::fs::write(path, content)
             .map_err(|e| anyhow::anyhow!("cannot write '{}': {}", path, e))
     }
@@ -194,6 +198,8 @@ impl MockEnv {
 }
 
 impl Env for MockEnv {
+    fn is_mock(&self) -> bool { true }
+
     fn read_stdin(&mut self) -> Result<String> {
         if self.stdin_index >= self.stdin_lines.len() {
             anyhow::bail!("end of input");
@@ -214,9 +220,8 @@ impl Env for MockEnv {
             .ok_or_else(|| anyhow::anyhow!("cannot read '{}': No such file or directory (os error 2)", path))
     }
 
-    fn write_file(&self, path: &str, content: &str) -> Result<()> {
-        // MockEnv uses interior mutability would be cleaner, but HashMap works for now
-        // Files written in mock are just discarded
+    fn write_file(&mut self, path: &str, content: &str) -> Result<()> {
+        self.files.insert(path.to_string(), content.to_string());
         log::info!("MockEnv: write_file({}, {} bytes)", path, content.len());
         Ok(())
     }

@@ -133,6 +133,7 @@ pub struct Interpreter {
     types: HashMap<std::string::String, crate::ast::TypeDef>,
     env: Box<dyn Env>,
     tracer: Option<Arc<Tracer>>,
+    import_stack: Vec<std::string::String>,
 }
 
 impl Interpreter {
@@ -154,7 +155,7 @@ impl Interpreter {
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         vars.insert("math".to_string(), Value::Module("math".to_string()));
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer, import_stack: Vec::new() }
     }
 
     pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
@@ -223,6 +224,13 @@ impl Interpreter {
             } else {
                 std::path::PathBuf::from(import_path)
             };
+            let canonical = resolved.canonicalize()
+                .unwrap_or_else(|_| resolved.clone())
+                .to_string_lossy().to_string();
+            if self.import_stack.contains(&canonical) {
+                bail!("circular import detected: '{}' is already being imported", import_path);
+            }
+            self.import_stack.push(canonical.clone());
             log::info!("Importing {:?}", resolved);
             let source = std::fs::read_to_string(&resolved)
                 .map_err(|e| anyhow::anyhow!("cannot import '{}': {}", import_path, e))?;
@@ -242,6 +250,7 @@ impl Interpreter {
                 log::info!("Imported flow '{}'", flow.name);
                 self.flows.insert(flow.name.clone(), flow.clone());
             }
+            self.import_stack.pop();
         }
 
         // Register all types
@@ -590,16 +599,32 @@ impl Interpreter {
                 let val = self.eval(object)?;
                 let s = start.as_ref().map(|e| self.eval(e)).transpose()?;
                 let e = end.as_ref().map(|e| self.eval(e)).transpose()?;
-                let start_idx = match s { Some(Value::Int(i)) => i as usize, None => 0, _ => bail!("slice start must be Int") };
+
+                // Helper to resolve a slice index (supports negative)
+                fn resolve_slice_idx(idx: i64, len: usize) -> usize {
+                    if idx < 0 {
+                        let resolved = len as i64 + idx;
+                        if resolved < 0 { 0 } else { resolved as usize }
+                    } else {
+                        (idx as usize).min(len)
+                    }
+                }
+
                 match val {
                     Value::String(ref sv) => {
                         let chars: Vec<char> = sv.chars().collect();
-                        let end_idx = match e { Some(Value::Int(i)) => (i as usize).min(chars.len()), None => chars.len(), _ => bail!("slice end must be Int") };
-                        Ok(Value::String(chars[start_idx.min(chars.len())..end_idx].iter().collect()))
+                        let len = chars.len();
+                        let start_idx = match s { Some(Value::Int(i)) => resolve_slice_idx(i, len), None => 0, _ => bail!("slice start must be Int") };
+                        let end_idx = match e { Some(Value::Int(i)) => resolve_slice_idx(i, len), None => len, _ => bail!("slice end must be Int") };
+                        if start_idx >= end_idx { return Ok(Value::String(String::new())); }
+                        Ok(Value::String(chars[start_idx..end_idx].iter().collect()))
                     }
                     Value::List(ref items) => {
-                        let end_idx = match e { Some(Value::Int(i)) => (i as usize).min(items.len()), None => items.len(), _ => bail!("slice end must be Int") };
-                        Ok(Value::List(items[start_idx.min(items.len())..end_idx].to_vec()))
+                        let len = items.len();
+                        let start_idx = match s { Some(Value::Int(i)) => resolve_slice_idx(i, len), None => 0, _ => bail!("slice start must be Int") };
+                        let end_idx = match e { Some(Value::Int(i)) => resolve_slice_idx(i, len), None => len, _ => bail!("slice end must be Int") };
+                        if start_idx >= end_idx { return Ok(Value::List(vec![])); }
+                        Ok(Value::List(items[start_idx..end_idx].to_vec()))
                     }
                     other => bail!("cannot slice {} (type: {})", other, type_name(&other)),
                 }
@@ -1305,7 +1330,7 @@ impl Interpreter {
 
     fn call_llm(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         // Check if mock env handles LLM calls
-        if self.env.captured_stdout().is_some() {
+        if self.env.is_mock() {
             // Mock environment — use env.call_llm
             let request = crate::environment::LlmRequest {
                 model: model.to_string(), system: system.to_string(),

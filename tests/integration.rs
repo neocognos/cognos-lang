@@ -1479,3 +1479,385 @@ flow main():
     assert!(stdout.contains("score=8"), "got: {}", stdout);
     assert!(stdout.contains("summary=solid code"), "got: {}", stdout);
 }
+
+// ═══════════════════════════════════════════════════════
+// Edge case tests — hardening
+// ═══════════════════════════════════════════════════════
+
+// ─── Slicing edge cases ───
+
+#[test]
+fn test_slice_negative_indices() {
+    let out = expect_run_ok(r#"flow main():
+    s = "abcdef"
+    write(stdout, s[-3:])
+    write(stdout, s[1:-1])
+    items = [10, 20, 30, 40, 50]
+    write(stdout, f"{items[-2:]}")
+"#);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "def");
+    assert_eq!(lines[1], "bcde");
+    assert_eq!(lines[2], "[40, 50]");
+}
+
+#[test]
+fn test_slice_out_of_bounds() {
+    // Should clamp, not crash
+    let out = expect_run_ok(r#"flow main():
+    s = "abc"
+    write(stdout, s[0:100])
+    write(stdout, s[50:100])
+    items = [1, 2, 3]
+    write(stdout, f"{items[0:100]}")
+    write(stdout, f"{items[50:100]}")
+"#);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "abc");
+    assert_eq!(lines[1], "");
+    assert_eq!(lines[2], "[1, 2, 3]");
+    assert_eq!(lines[3], "[]");
+}
+
+#[test]
+fn test_slice_empty() {
+    let out = expect_run_ok(r#"flow main():
+    s = "hello"
+    write(stdout, f">{s[3:3]}<")
+    items = [1, 2, 3]
+    write(stdout, f"{items[2:2]}")
+"#);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "><");
+    assert_eq!(lines[1], "[]");
+}
+
+#[test]
+fn test_slice_on_empty() {
+    let out = expect_run_ok(r#"flow main():
+    s = ""
+    write(stdout, f">{s[0:]}<")
+    items = []
+    write(stdout, f"{items[0:]}")
+"#);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines[0], "><");
+    assert_eq!(lines[1], "[]");
+}
+
+// ─── For loop edge cases ───
+
+#[test]
+fn test_for_empty_map() {
+    let out = expect_run_ok(r#"flow main():
+    for k, v in {}:
+        write(stdout, "should not print")
+    write(stdout, "done")
+"#);
+    assert_eq!(out.trim(), "done");
+}
+
+#[test]
+fn test_for_empty_list() {
+    let out = expect_run_ok(r#"flow main():
+    for item in []:
+        write(stdout, "should not print")
+    write(stdout, "done")
+"#);
+    assert_eq!(out.trim(), "done");
+}
+
+#[test]
+fn test_for_kv_on_non_iterable() {
+    let err = expect_error(r#"flow main():
+    for k, v in 42:
+        pass
+"#);
+    assert!(err.contains("requires a Map or List") || err.contains("cannot iterate"), "got: {}", err);
+}
+
+// ─── Import edge cases ───
+
+#[test]
+fn test_circular_import() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a.cog");
+    let b = dir.path().join("b.cog");
+    std::fs::write(&a, format!("import \"{}\"\nflow a_flow():\n    pass\n", b.to_str().unwrap())).unwrap();
+    std::fs::write(&b, format!("import \"{}\"\nflow b_flow():\n    pass\n", a.to_str().unwrap())).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin).arg("run").arg(&a).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "circular import should fail");
+    assert!(stderr.contains("circular import"), "expected circular import error, got: {}", stderr);
+}
+
+#[test]
+fn test_import_not_found() {
+    let err = expect_error(r#"import "nonexistent_file_12345.cog"
+flow main():
+    pass
+"#);
+    assert!(err.contains("cannot import") || err.contains("No such file"), "got: {}", err);
+}
+
+// ─── Try/catch edge cases ───
+
+#[test]
+fn test_nested_try_catch() {
+    let out = expect_run_ok(r#"flow main():
+    try:
+        try:
+            x = 1 / 0
+        catch inner_err:
+            write(stdout, f"inner: {inner_err}")
+            y = 1 / 0
+    catch outer_err:
+        write(stdout, f"outer: {outer_err}")
+"#);
+    assert!(out.contains("inner: division by zero"), "got: {}", out);
+    assert!(out.contains("outer: division by zero"), "got: {}", out);
+}
+
+#[test]
+fn test_try_catch_in_loop_with_break() {
+    let out = expect_run_ok(r#"flow main():
+    i = 0
+    loop max=5:
+        try:
+            if i == 2:
+                break
+            write(stdout, f"{i}")
+        catch:
+            pass
+        i = i + 1
+"#);
+    assert_eq!(out.trim(), "0\n1");
+}
+
+// ─── Type validation edge cases ───
+
+#[test]
+fn test_format_validation_extra_fields_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Simple:
+    name: String
+
+flow main():
+    result = think("test", format="Simple")
+    write(stdout, f"name={result[\"name\"]}")
+"#).unwrap();
+    // Extra field "extra" should be fine
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"name\": \"test\", \"extra\": 42}"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert!(output.status.success(), "extra fields should pass, stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("name=test"));
+}
+
+#[test]
+fn test_format_json_no_type_validation() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Unused:
+    required_field: String
+
+flow main():
+    result = think("test", format="json")
+    write(stdout, f"got={result[\"anything\"]}")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"anything\": \"works\"}"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert!(output.status.success(), "format=json should not validate types, stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("got=works"));
+}
+
+// ─── Mock environment edge cases ───
+
+#[test]
+fn test_mock_no_llm_responses() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+flow main():
+    result = think("hello")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": []}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("no more LLM responses"), "got: {}", stderr);
+}
+
+#[test]
+fn test_mock_no_stdin() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+flow main():
+    x = read(stdin)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": []}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("end of input"), "got: {}", stderr);
+}
+
+#[test]
+fn test_mock_shell_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+flow shell(cmd: String) -> String:
+    "Run a shell command"
+    return __exec_shell__(cmd)
+
+flow main():
+    result = shell("unknown_cmd")
+    write(stdout, result)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": [], "shell": {}}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("not configured") || stdout.contains("mock"), "got: {}", stdout);
+}
+
+// ─── String/value edge cases ───
+
+#[test]
+fn test_unicode_in_fstrings_complex() {
+    let out = expect_run_ok("flow main():\n    emoji = \"\u{1f680}\"\n    write(stdout, f\"Launch {emoji} now!\")\n");
+    assert_eq!(out.trim(), "Launch \u{1f680} now!");
+}
+
+#[test]
+fn test_very_long_string() {
+    // Build a long string via concatenation
+    let out = expect_run_ok(r#"flow main():
+    s = "a"
+    i = 0
+    loop max=10:
+        s = s + s
+        i = i + 1
+    write(stdout, s.length)
+"#);
+    assert_eq!(out.trim(), "1024");
+}
+
+#[test]
+fn test_map_duplicate_keys() {
+    // Last value wins in source map literal
+    let out = expect_run_ok(r#"flow main():
+    m = {"a": 1, "b": 2, "a": 3}
+    write(stdout, m["a"])
+"#);
+    // Maps are ordered Vec, so both entries exist; index finds first
+    let val = out.trim();
+    // Either 1 or 3 is acceptable behavior, just shouldn't crash
+    assert!(val == "1" || val == "3", "got: {}", val);
+}
+
+#[test]
+fn test_nested_map_field_access() {
+    let out = expect_run_ok(r#"flow main():
+    m = {"a": {"b": "deep"}}
+    write(stdout, m["a"]["b"])
+"#);
+    assert_eq!(out.trim(), "deep");
+}
+
+#[test]
+fn test_list_of_maps_indexing() {
+    let out = expect_run_ok(r#"flow main():
+    items = [{"name": "first"}, {"name": "second"}]
+    write(stdout, items[0]["name"])
+    write(stdout, items[1]["name"])
+"#);
+    assert_eq!(out.trim(), "first\nsecond");
+}
+
+// ─── Session persistence edge cases ───
+
+#[test]
+fn test_session_nested_maps_and_lists() {
+    let dir = tempfile::tempdir().unwrap();
+    let session = dir.path().join("session.json");
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"
+flow main():
+    data = {"items": [1, 2, 3], "meta": {"version": "1.0"}}
+"#).unwrap();
+
+    let bin = cognos_bin();
+    Command::new(&bin)
+        .args(&["run", "--session", session.to_str().unwrap(), cog.to_str().unwrap()])
+        .output().unwrap();
+
+    assert!(session.exists());
+    let content = std::fs::read_to_string(&session).unwrap();
+    assert!(content.contains("items"), "session should contain nested data: {}", content);
+    assert!(content.contains("version"), "session should contain nested map: {}", content);
+}
+
+#[test]
+fn test_session_skips_handles_and_modules() {
+    let dir = tempfile::tempdir().unwrap();
+    let session = dir.path().join("session.json");
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"
+flow main():
+    x = 42
+"#).unwrap();
+
+    let bin = cognos_bin();
+    Command::new(&bin)
+        .args(&["run", "--session", session.to_str().unwrap(), cog.to_str().unwrap()])
+        .output().unwrap();
+
+    let content = std::fs::read_to_string(&session).unwrap();
+    // stdin/stdout/math/http should be filtered out
+    assert!(!content.contains("\"stdin\""), "session should not save stdin handle: {}", content);
+    assert!(!content.contains("\"stdout\""), "session should not save stdout handle: {}", content);
+}
+
+// ─── For key/value on list ───
+
+#[test]
+fn test_for_index_value_list() {
+    let out = expect_run_ok(r#"flow main():
+    for i, v in ["a", "b", "c"]:
+        write(stdout, f"{i}:{v}")
+"#);
+    assert_eq!(out.trim(), "0:a\n1:b\n2:c");
+}
