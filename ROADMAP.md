@@ -12,6 +12,8 @@
 ### Concurrency
 - [x] **`parallel:` blocks** — run N statements concurrently, wait for all, no shared mutable state
 - [x] **`async`/`await`** — fire off a flow, do other work, collect result later
+- [x] **`select:` blocks** — race N branches, first to complete wins, others cancelled
+- [x] **`cancel(handle)`** — cancel an async task by its future handle
 - [ ] _Future: inter-thread communication (channels) — post-1.0_
 
 ### Memory
@@ -24,6 +26,10 @@
 
 ### Agent Orchestration
 - [ ] **Agent-to-agent calls** — one agent invokes another as a tool
+
+### Data Operations
+- [x] **`remove(map, key)`** — remove a key from a map, return new map
+- [x] **Map key assignment** — `map[key] = value` syntax support
 
 ### Cleanup
 - [x] **Remove `math` module** — P11 violation (agents don't need trig)

@@ -621,3 +621,63 @@ result = await(handle)
 - The handle is a `Future` value — can be stored in variables, passed around
 - Each `await` consumes the handle — awaiting the same handle twice is an error
 - The background thread gets a snapshot of current variables and environment
+
+### `select:` Blocks
+
+Wait for the first event from multiple branches. Only one branch executes — whichever completes first.
+
+```cognos
+select:
+    branch:
+        input = read(stdin)
+        write(stdout, f"Got: {input}")
+    branch:
+        result = await(handle)
+        write(stdout, f"Task done: {result}")
+```
+
+**Semantics:**
+- Each `branch:` runs concurrently in its own thread
+- As soon as ONE branch completes all its statements, that branch wins
+- All other branches are cancelled/abandoned
+- Variables assigned in the winning branch are available after the select block
+- This is analogous to Go's `select {}` or tokio's `select!`
+
+### `cancel(handle)` Builtin
+
+Cancel an async task by its future handle.
+
+```cognos
+handle = async do_task("something")
+cancel(handle)
+```
+
+- Sets a cancellation flag on the async task
+- The task will stop at the next statement boundary
+- `await()` on a cancelled handle raises an error
+
+### `remove(map, key)` Builtin
+
+Remove a key from a map and return a new map without that key.
+
+```cognos
+tasks = {"a": 1, "b": 2}
+tasks = remove(tasks, "a")
+# tasks is now {"b": 2}
+```
+
+- Non-mutating — returns a new map (Cognos values are immutable)
+- Removing a non-existent key returns the map unchanged
+
+### Map Key Assignment
+
+Assign a value to a map key using index syntax:
+
+```cognos
+tasks = {}
+tasks["name"] = 42
+tasks[variable_key] = value
+```
+
+- Creates or updates the key in the map
+- Desugars to an internal `__map_set__` call that returns a new map

@@ -3314,3 +3314,216 @@ flow main():
     assert_eq!(output.status.code().unwrap(), 0, "stderr: {}", stderr);
     assert!(stdout.contains("answer1") && stdout.contains("answer2"), "got: {}", stdout);
 }
+
+// ═══════════════════════════════════════════════════════
+// Select, Cancel, Remove tests
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_select_basic_instant_wins() {
+    let src = r#"
+flow main:
+    select:
+        branch:
+            x = 1 + 2
+            write(stdout, f"branch1: {x}")
+        branch:
+            y = 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            y = y + 1
+            write(stdout, f"branch2: {y}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    // At least one branch should have completed
+    assert!(out.contains("branch1") || out.contains("branch2"), "got: {}", out);
+}
+
+#[test]
+fn test_select_variables_from_winning_branch() {
+    let src = r#"
+flow main:
+    select:
+        branch:
+            winner = "hello"
+        branch:
+            winner = "world"
+    write(stdout, winner)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("hello") || out.contains("world"), "got: {}", out);
+}
+
+#[test]
+fn test_select_single_branch() {
+    let src = r#"
+flow main:
+    select:
+        branch:
+            x = 42
+    write(stdout, f"x={x}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("x=42"), "got: {}", out);
+}
+
+#[test]
+fn test_select_parses() {
+    let src = r#"
+flow main:
+    select:
+        branch:
+            a = 1
+        branch:
+            b = 2
+        branch:
+            c = 3
+"#;
+    let (_, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+}
+
+#[test]
+fn test_select_with_computation() {
+    let src = r#"
+flow main:
+    select:
+        branch:
+            result = "fast"
+        branch:
+            x = 1
+            x = x + 1
+            x = x + 1
+            result = f"slow:{x}"
+    write(stdout, result)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("fast") || out.contains("slow"), "got: {}", out);
+}
+
+#[test]
+fn test_cancel_async_handle() {
+    let src = r#"
+flow slow_task:
+    x = 1
+    x = x + 1
+    return x
+
+flow main:
+    handle = async slow_task()
+    cancel(handle)
+    write(stdout, "cancelled ok")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("cancelled ok"), "got: {}", out);
+}
+
+#[test]
+fn test_await_cancelled_handle_errors() {
+    let src = r#"
+flow slow_task:
+    return 42
+
+flow main:
+    handle = async slow_task()
+    cancel(handle)
+    try:
+        result = await(handle)
+        write(stdout, "should not get here")
+    catch e:
+        write(stdout, f"error: {e}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("error:") || out.contains("cancelled") || out.contains("invalid"), "got: {} err: {}", out, err);
+}
+
+#[test]
+fn test_remove_key_from_map() {
+    let src = r#"
+flow main:
+    tasks = {"a": 1, "b": 2, "c": 3}
+    tasks = remove(tasks, "b")
+    write(stdout, f"keys={tasks.length}")
+    for k in tasks:
+        write(stdout, k)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("keys=2"), "got: {}", out);
+    assert!(out.contains("a"), "got: {}", out);
+    assert!(out.contains("c"), "got: {}", out);
+    assert!(!out.contains("\nb\n"), "b should be removed, got: {}", out);
+}
+
+#[test]
+fn test_remove_nonexistent_key() {
+    let src = r#"
+flow main:
+    m = {"x": 1}
+    m = remove(m, "y")
+    write(stdout, f"len={m.length}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("len=1"), "got: {}", out);
+}
+
+#[test]
+fn test_remove_from_empty_map() {
+    let src = r#"
+flow main:
+    m = {}
+    m = remove(m, "a")
+    write(stdout, f"len={m.length}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("len=0"), "got: {}", out);
+}
+
+#[test]
+fn test_map_key_assignment() {
+    let src = r#"
+flow main:
+    tasks = {"a": 1}
+    tasks["b"] = 2
+    tasks["a"] = 10
+    write(stdout, f"len={tasks.length}")
+    a_val = tasks["a"]
+    b_val = tasks["b"]
+    write(stdout, f"a={a_val}")
+    write(stdout, f"b={b_val}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("len=2"), "got: {}", out);
+    assert!(out.contains("a=10"), "got: {}", out);
+    assert!(out.contains("b=2"), "got: {}", out);
+}
+
+#[test]
+fn test_map_key_assignment_with_variable() {
+    let src = r#"
+flow main:
+    tasks = {}
+    name = "hello"
+    tasks[name] = 42
+    val = tasks["hello"]
+    write(stdout, f"val={val}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("val=42"), "got: {}", out);
+}

@@ -145,6 +145,15 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
                 for s in branch { pretty_stmt(out, s, level + 2); }
             }
         }
+        Stmt::Select { branches } => {
+            indent(out, level);
+            out.push_str("select:\n");
+            for branch in branches {
+                indent(out, level + 1);
+                out.push_str("branch:\n");
+                for s in branch { pretty_stmt(out, s, level + 2); }
+            }
+        }
         Stmt::Expr(expr) => {
             indent(out, level);
             out.push_str(&format!("{}\n", pretty_expr(expr)));

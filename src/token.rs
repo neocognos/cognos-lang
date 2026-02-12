@@ -28,6 +28,7 @@ pub enum Token {
     True,
     False,
     Pass,
+    Select,
 
     // Identifiers and literals
     Ident(String),
@@ -99,6 +100,7 @@ impl std::fmt::Display for Token {
             Token::True => write!(f, "'true'"),
             Token::False => write!(f, "'false'"),
             Token::Pass => write!(f, "'pass'"),
+            Token::Select => write!(f, "'select'"),
             Token::Ident(s) => write!(f, "'{}'", s),
             Token::StringLit(s) => write!(f, "\"{}\"", s),
             Token::FStringLit(s) => write!(f, "f\"{}\"", s),

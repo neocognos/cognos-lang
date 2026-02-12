@@ -100,6 +100,8 @@ pub enum Stmt {
     },
     /// `parallel:` with `branch:` sub-blocks — run all branches concurrently
     Parallel { branches: Vec<Vec<Stmt>> },
+    /// `select:` with `branch:` sub-blocks — run first completing branch
+    Select { branches: Vec<Vec<Stmt>> },
     /// Bare expression (function call as statement)
     Expr(Expr),
 }

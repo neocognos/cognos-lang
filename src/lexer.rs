@@ -295,6 +295,7 @@ impl Lexer {
             "true" => Token::True,
             "false" => Token::False,
             "pass" => Token::Pass,
+            "select" => Token::Select,
             _ => Token::Ident(s),
         };
         Spanned { token, line, col }

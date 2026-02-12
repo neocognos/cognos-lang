@@ -255,6 +255,7 @@ impl Parser {
             Token::Break => { self.advance(); self.skip_newlines(); return Ok(Stmt::Break); }
             Token::Continue => { self.advance(); self.skip_newlines(); return Ok(Stmt::Continue); }
             Token::Parallel => return self.parse_parallel(),
+            Token::Select => return self.parse_select(),
             Token::Pass => { self.advance(); self.skip_newlines(); return Ok(Stmt::Pass); }
             _ => {}
         }
@@ -262,15 +263,36 @@ impl Parser {
         // Assignment or bare expression
         let expr = self.parse_expr()?;
 
-        // Check for assignment: name = expr
+        // Check for assignment: name = expr or name[key] = expr
         if self.check(&Token::Eq) {
-            if let Expr::Ident(name) = expr {
-                self.advance(); // consume =
-                let value = self.parse_expr()?;
-                self.skip_newlines();
-                return Ok(Stmt::Assign { name, expr: value });
+            match expr {
+                Expr::Ident(name) => {
+                    self.advance(); // consume =
+                    let value = self.parse_expr()?;
+                    self.skip_newlines();
+                    return Ok(Stmt::Assign { name, expr: value });
+                }
+                Expr::Index { object, index } => {
+                    // map[key] = value → desugar to map = __map_set__(map, key, value)
+                    if let Expr::Ident(name) = *object {
+                        self.advance(); // consume =
+                        let value = self.parse_expr()?;
+                        self.skip_newlines();
+                        return Ok(Stmt::Assign {
+                            name: name.clone(),
+                            expr: Expr::Call {
+                                name: "__map_set__".to_string(),
+                                args: vec![Expr::Ident(name), *index, value],
+                                kwargs: vec![],
+                            },
+                        });
+                    }
+                    bail!("line {}: left side of indexed assignment must be a variable", self.current_line());
+                }
+                _ => {
+                    bail!("line {}: left side of assignment must be a name", self.current_line());
+                }
             }
-            bail!("line {}: left side of assignment must be a name", self.current_line());
         }
 
         self.skip_newlines();
@@ -420,6 +442,32 @@ impl Parser {
             bail!("parallel block requires at least one branch:");
         }
         Ok(Stmt::Parallel { branches })
+    }
+
+    fn parse_select(&mut self) -> Result<Stmt> {
+        self.expect(Token::Select)?;
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+        self.expect(Token::Indent)?;
+        let mut branches = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.check(&Token::Dedent) || self.is_at_end() {
+                break;
+            }
+            self.expect(Token::Branch)?;
+            self.expect(Token::Colon)?;
+            self.expect_newline()?;
+            let body = self.parse_block()?;
+            branches.push(body);
+        }
+        if self.check(&Token::Dedent) {
+            self.advance();
+        }
+        if branches.is_empty() {
+            bail!("select block requires at least one branch:");
+        }
+        Ok(Stmt::Select { branches })
     }
 
     // ─── Expressions ───

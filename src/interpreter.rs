@@ -2,7 +2,7 @@
 /// Executes a parsed AST directly — no kernel needed.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use crate::ast::*;
 use crate::environment::{Env, RealEnv};
 use crate::trace::{Tracer, TraceEvent};
@@ -140,7 +140,8 @@ pub struct Interpreter {
     import_stack: Vec<std::string::String>,
     conversation_history: Vec<(std::string::String, std::string::String)>,
     next_future_id: u64,
-    async_handles: HashMap<u64, std::thread::JoinHandle<Result<Value>>>,
+    async_handles: HashMap<u64, (std::thread::JoinHandle<Result<Value>>, Arc<AtomicBool>)>,
+    cancelled: Arc<AtomicBool>,
 }
 
 impl Interpreter {
@@ -162,7 +163,7 @@ impl Interpreter {
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         // math module removed (P11: lean core runtime)
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), env: Arc::from(Mutex::new(env)), tracer, import_stack: Vec::new(), conversation_history: Vec::new(), next_future_id: 0, async_handles: HashMap::new() }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env: Arc::from(Mutex::new(env)), tracer, import_stack: Vec::new(), conversation_history: Vec::new(), next_future_id: 0, async_handles: HashMap::new(), cancelled: Arc::new(AtomicBool::new(false)) }
     }
 
     pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
@@ -381,6 +382,9 @@ impl Interpreter {
 
     fn run_block(&mut self, stmts: &[Stmt]) -> Result<ControlFlow> {
         for stmt in stmts {
+            if self.cancelled.load(Ordering::Relaxed) {
+                return Ok(ControlFlow::Normal);
+            }
             match self.run_stmt(stmt)? {
                 ControlFlow::Normal => {}
                 other => return Ok(other),
@@ -511,6 +515,11 @@ impl Interpreter {
                 Ok(ControlFlow::Normal)
             }
 
+            Stmt::Select { branches } => {
+                self.run_select(branches)?;
+                Ok(ControlFlow::Normal)
+            }
+
             Stmt::Loop { max, body } => {
                 match max {
                     Some(limit) => {
@@ -568,6 +577,7 @@ impl Interpreter {
                         conversation_history: Vec::new(),
                         next_future_id: 0,
                         async_handles: HashMap::new(),
+                        cancelled: Arc::new(AtomicBool::new(false)),
                     };
                     interp.run_block(&branch)?;
                     // Return only new/changed vars
@@ -615,6 +625,90 @@ impl Interpreter {
         Ok(())
     }
 
+    fn run_select(&mut self, branches: &[Vec<Stmt>]) -> Result<()> {
+        let env = self.env.clone();
+        let flows = self.flows.clone();
+        let types = self.types.clone();
+        let vars = self.vars.clone();
+        let tracer = self.tracer.clone();
+        let cancelled = Arc::new(AtomicBool::new(false));
+
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let mut handles = Vec::new();
+        for (i, branch) in branches.iter().enumerate() {
+            let env = env.clone();
+            let flows = flows.clone();
+            let types = types.clone();
+            let vars = vars.clone();
+            let tracer = tracer.clone();
+            let branch = branch.clone();
+            let cancelled = cancelled.clone();
+            let tx = tx.clone();
+
+            let handle = std::thread::spawn(move || {
+                let mut interp = Interpreter {
+                    vars: vars.clone(),
+                    flows,
+                    types,
+                    env,
+                    tracer,
+                    import_stack: Vec::new(),
+                    conversation_history: Vec::new(),
+                    next_future_id: 0,
+                    async_handles: HashMap::new(),
+                    cancelled: cancelled.clone(),
+                };
+                for stmt in &branch {
+                    if cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    if let Err(_) = interp.run_stmt(stmt) {
+                        return;
+                    }
+                }
+                // Compute changed vars
+                let mut changed = HashMap::new();
+                for (k, v) in &interp.vars {
+                    match vars.get(k) {
+                        None => { changed.insert(k.clone(), v.clone()); }
+                        Some(old) => {
+                            if old.to_string() != v.to_string() {
+                                changed.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
+                }
+                let _ = tx.send((i, changed));
+            });
+            handles.push(handle);
+        }
+        drop(tx);
+
+        // Wait for first branch to complete
+        match rx.recv() {
+            Ok((_winner_idx, winner_vars)) => {
+                // Cancel all other branches
+                cancelled.store(true, Ordering::Relaxed);
+                // Merge winner vars
+                for (k, v) in winner_vars {
+                    self.vars.insert(k, v);
+                }
+            }
+            Err(_) => {
+                // All branches failed without sending
+            }
+        }
+
+        // Don't join — let threads die on their own (they check cancelled flag)
+        // They'll be cleaned up when handles are dropped
+        for h in handles {
+            let _ = h.join();
+        }
+
+        Ok(())
+    }
+
     fn eval(&mut self, expr: &Expr) -> Result<Value> {
         match expr {
             Expr::StringLit(s) => Ok(Value::String(s.clone())),
@@ -646,6 +740,8 @@ impl Interpreter {
                 let vars = self.vars.clone();
                 let tracer = self.tracer.clone();
                 let inner = (**inner).clone();
+                let cancel_token = Arc::new(AtomicBool::new(false));
+                let cancel_token2 = cancel_token.clone();
 
                 let handle = std::thread::spawn(move || {
                     let mut interp = Interpreter {
@@ -658,13 +754,14 @@ impl Interpreter {
                         conversation_history: Vec::new(),
                         next_future_id: 0,
                         async_handles: HashMap::new(),
+                        cancelled: cancel_token2,
                     };
                     interp.eval(&inner)
                 });
 
                 let id = self.next_future_id;
                 self.next_future_id += 1;
-                self.async_handles.insert(id, handle);
+                self.async_handles.insert(id, (handle, cancel_token));
                 Ok(Value::Future(id))
             }
 
@@ -1043,14 +1140,64 @@ impl Interpreter {
                 let val = self.eval(&args[0])?;
                 match val {
                     Value::Future(id) => {
-                        let handle = self.async_handles.remove(&id)
+                        let (handle, _cancel_token) = self.async_handles.remove(&id)
                             .ok_or_else(|| anyhow::anyhow!("invalid or already-consumed future handle {}", id))?;
+                        if _cancel_token.load(Ordering::Relaxed) {
+                            bail!("async task was cancelled");
+                        }
                         match handle.join() {
                             Ok(result) => result,
                             Err(_) => bail!("async task panicked"),
                         }
                     }
                     other => bail!("await() expects a Future, got {} (type: {})", other, type_name(&other)),
+                }
+            }
+            "cancel" => {
+                if args.is_empty() { bail!("cancel() requires a future handle"); }
+                let val = self.eval(&args[0])?;
+                match val {
+                    Value::Future(id) => {
+                        if let Some((_handle, cancel_token)) = self.async_handles.remove(&id) {
+                            cancel_token.store(true, Ordering::Relaxed);
+                        }
+                        Ok(Value::None)
+                    }
+                    other => bail!("cancel() expects a Future, got {} (type: {})", other, type_name(&other)),
+                }
+            }
+            "__map_set__" => {
+                if args.len() < 3 { bail!("__map_set__ requires 3 arguments"); }
+                let map_val = self.eval(&args[0])?;
+                let key_val = self.eval(&args[1])?;
+                let value = self.eval(&args[2])?;
+                match (map_val, key_val) {
+                    (Value::Map(mut entries), Value::String(key)) => {
+                        // Update existing or insert new
+                        if let Some(entry) = entries.iter_mut().find(|(k, _)| k == &key) {
+                            entry.1 = value;
+                        } else {
+                            entries.push((key, value));
+                        }
+                        Ok(Value::Map(entries))
+                    }
+                    (Value::Map(_), other) => bail!("map key must be a String, got {}", type_name(&other)),
+                    (other, _) => bail!("cannot index-assign on {} (type: {})", other, type_name(&other)),
+                }
+            }
+            "remove" => {
+                if args.len() < 2 { bail!("remove(map, key) requires two arguments"); }
+                let map_val = self.eval(&args[0])?;
+                let key_val = self.eval(&args[1])?;
+                match (map_val, key_val) {
+                    (Value::Map(entries), Value::String(key)) => {
+                        let new_entries: Vec<(std::string::String, Value)> = entries.into_iter()
+                            .filter(|(k, _)| k != &key)
+                            .collect();
+                        Ok(Value::Map(new_entries))
+                    }
+                    (Value::Map(_), other) => bail!("remove() key must be a String, got {}", type_name(&other)),
+                    (other, _) => bail!("remove() first argument must be a Map, got {}", type_name(&other)),
                 }
             }
             "log" => {
