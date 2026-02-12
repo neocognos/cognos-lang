@@ -1,0 +1,70 @@
+# slack-agent.cog — A Cognos agent connected to Slack
+# Run: SLACK_BOT_TOKEN=xoxb-... cognos run --memory --allow-shell examples/slack-agent.cog
+#
+# Or pass token inline:
+#   cognos run --memory --allow-shell examples/slack-agent.cog
+#   (set SLACK_BOT_TOKEN env var)
+
+import "lib/exec.cog"
+
+flow shell(command: String) -> String:
+    "Run a shell command"
+    return __exec_shell__(command)
+
+flow respond(input: String, history: List) -> String:
+    facts = recall(input, limit=5)
+    recent = history[-6:]
+
+    context = ""
+    if facts.length > 0:
+        context = "Known facts:\n"
+        for fact in facts:
+            context = context + f"- {fact}\n"
+        context = context + "\n"
+
+    if recent.length > 0:
+        context = context + "Recent:\n"
+        for msg in recent:
+            context = context + f"{msg}\n"
+        context = context + "\n"
+
+    r = think(
+        f"{context}User: {input}",
+        model="deepseek-chat",
+        tools=["shell"],
+        system="You are a helpful assistant connected to Slack. Be concise. Use tools when needed."
+    )
+
+    if r.has_tool_calls:
+        result = exec(r, tools=["shell"])
+        return result.content
+    return r.content
+
+flow main():
+    # Connect to Slack channel
+    slack = channel("slack", channel="C0ADYPS7YTE")
+
+    write(stdout, "Slack agent connected. Listening for messages...")
+
+    history = []
+    loop:
+        msg = read(slack)
+        input = msg.text
+        user = msg.user
+        write(stdout, f"[{user}]: {input}")
+
+        # Skip empty messages
+        if input.strip() == "":
+            continue
+
+        history = history + [f"User ({user}): {input}"]
+
+        response = respond(input, history)
+        write(slack, response)
+        write(stdout, f"[bot]: {response}")
+
+        history = history + [f"Assistant: {response}"]
+
+        # Remember important things
+        if input.contains("remember"):
+            remember(f"User {user} said: {input}")

@@ -29,6 +29,10 @@ pub enum Handle {
     Stdin,
     Stdout,
     File(std::string::String),
+    Channel {
+        provider: std::string::String,
+        config: HashMap<std::string::String, std::string::String>,
+    },
 }
 
 impl std::fmt::Display for Value {
@@ -58,6 +62,7 @@ impl std::fmt::Display for Value {
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
+            Value::Handle(Handle::Channel { ref provider, .. }) => write!(f, "channel(\"{}\")", provider),
             Value::Future(id) => write!(f, "<future:{}>", id),
             Value::None => write!(f, "none"),
         }
@@ -742,7 +747,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "__exec_shell__", "history", "clear_history"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "channel", "__exec_shell__", "history", "clear_history"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -1036,6 +1041,34 @@ impl Interpreter {
                 let path = self.eval(&args[0])?.to_string();
                 Ok(Value::Handle(Handle::File(path)))
             }
+            "channel" => {
+                // channel("slack", token="xoxb-...", channel="#general")
+                if args.is_empty() { bail!("channel() requires a provider name: channel(\"slack\", token=\"...\", channel=\"...\")"); }
+                let provider = self.eval(&args[0])?.to_string();
+                let mut config = HashMap::new();
+                for (k, v) in kwargs {
+                    config.insert(k.clone(), self.eval(v)?.to_string());
+                }
+                // Validate provider-specific config
+                match provider.as_str() {
+                    "slack" => {
+                        if !config.contains_key("token") {
+                            // Try env var
+                            if let Ok(token) = std::env::var("SLACK_BOT_TOKEN") {
+                                config.insert("token".to_string(), token);
+                            } else {
+                                bail!("slack channel requires token= or SLACK_BOT_TOKEN env var");
+                            }
+                        }
+                        if !config.contains_key("channel") {
+                            bail!("slack channel requires channel= parameter");
+                        }
+                    }
+                    other => bail!("unknown channel provider: '{}'. Supported: slack", other),
+                }
+                log::info!("channel: created {} handle", provider);
+                Ok(Value::Handle(Handle::Channel { provider, config }))
+            }
             "read" => {
                 // read() or read(handle) — default: stdin
                 let handle = if args.is_empty() {
@@ -1083,6 +1116,12 @@ impl Interpreter {
                         });
                         Ok(Value::String(content))
                     }
+                    Handle::Channel { ref provider, ref config } => {
+                        match provider.as_str() {
+                            "slack" => self.read_slack_channel(config),
+                            _ => bail!("read() not supported for channel provider '{}'", provider),
+                        }
+                    }
                 }
             }
             "write" => {
@@ -1113,6 +1152,12 @@ impl Interpreter {
                             content: if full { Some(content) } else { None },
                         });
                         Ok(Value::None)
+                    }
+                    Handle::Channel { ref provider, ref config } => {
+                        match provider.as_str() {
+                            "slack" => self.write_slack_channel(config, &content),
+                            _ => bail!("write() not supported for channel provider '{}'", provider),
+                        }
                     }
                 }
             }
@@ -2528,6 +2573,102 @@ impl Interpreter {
             _ => bail!("cannot {} {} {} — {} {} {} not supported",
                 type_name(left), op_str(op), type_name(right),
                 type_name(left), op_str(op), type_name(right)),
+        }
+    }
+
+    // --- Channel I/O: Slack ---
+
+    fn write_slack_channel(&self, config: &HashMap<std::string::String, std::string::String>, text: &str) -> Result<Value> {
+        let token = config.get("token").ok_or_else(|| anyhow::anyhow!("slack: missing token"))?;
+        let channel = config.get("channel").ok_or_else(|| anyhow::anyhow!("slack: missing channel"))?;
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client.post("https://slack.com/api/chat.postMessage")
+            .bearer_auth(token)
+            .json(&serde_json::json!({
+                "channel": channel,
+                "text": text,
+            }))
+            .send()
+            .map_err(|e| anyhow::anyhow!("slack write failed: {}", e))?;
+
+        let json: serde_json::Value = resp.json()?;
+        if json["ok"].as_bool() != Some(true) {
+            bail!("slack write error: {}", json["error"].as_str().unwrap_or("unknown"));
+        }
+        log::info!("slack: sent message to {}", channel);
+        Ok(Value::None)
+    }
+
+    fn read_slack_channel(&mut self, config: &HashMap<std::string::String, std::string::String>) -> Result<Value> {
+        let token = config.get("token").ok_or_else(|| anyhow::anyhow!("slack: missing token"))?;
+        let channel = config.get("channel").ok_or_else(|| anyhow::anyhow!("slack: missing channel"))?;
+        let poll_interval: u64 = config.get("poll_interval")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(2);
+        let bot_id = config.get("bot_id").cloned().unwrap_or_default();
+
+        // Track last seen timestamp to only get new messages
+        let last_ts_key = format!("__slack_last_ts_{}", channel);
+        let mut last_ts = match self.vars.get(&last_ts_key) {
+            Some(Value::String(ts)) => ts.clone(),
+            _ => "0".to_string(),
+        };
+
+        let client = reqwest::blocking::Client::new();
+        loop {
+            let mut url = format!(
+                "https://slack.com/api/conversations.history?channel={}&limit=5",
+                channel
+            );
+            if last_ts != "0" {
+                url = format!("{}&oldest={}", url, last_ts);
+            }
+
+            let resp = client.get(&url)
+                .bearer_auth(token)
+                .send()
+                .map_err(|e| anyhow::anyhow!("slack read failed: {}", e))?;
+
+            let json: serde_json::Value = resp.json()?;
+            if json["ok"].as_bool() != Some(true) {
+                bail!("slack read error: {}", json["error"].as_str().unwrap_or("unknown"));
+            }
+
+            if let Some(messages) = json["messages"].as_array() {
+                // Messages are newest-first; find oldest new message
+                for msg in messages.iter().rev() {
+                    let ts = msg["ts"].as_str().unwrap_or("0");
+                    if ts <= last_ts.as_str() {
+                        continue;
+                    }
+                    // Skip bot's own messages
+                    if !bot_id.is_empty() {
+                        if let Some(uid) = msg["bot_id"].as_str() {
+                            if uid == bot_id { continue; }
+                        }
+                    }
+                    // Skip non-user messages (subtypes like join, leave, etc)
+                    if msg.get("subtype").is_some() {
+                        continue;
+                    }
+                    let text = msg["text"].as_str().unwrap_or("").to_string();
+                    let user = msg["user"].as_str().unwrap_or("unknown").to_string();
+                    last_ts = ts.to_string();
+                    self.vars.insert(last_ts_key, Value::String(last_ts));
+
+                    log::info!("slack: received message from {} in {}", user, channel);
+                    // Return as a Map with text, user, ts
+                    return Ok(Value::Map(vec![
+                        ("text".to_string(), Value::String(text)),
+                        ("user".to_string(), Value::String(user)),
+                        ("ts".to_string(), Value::String(ts.to_string())),
+                    ]));
+                }
+            }
+
+            // No new messages — poll again
+            std::thread::sleep(std::time::Duration::from_secs(poll_interval));
         }
     }
 }
