@@ -9,7 +9,7 @@
 
 ## Agent Intelligence
 - [x] **Automatic tool loop** — `think()` with `auto_exec=true` handles multi-step tool chains
-- [ ] **Conversation compaction** — summarize old history to prevent token bloat
+- [x] **Conversation compaction** — `history()`, `clear_history()` builtins + `lib/compact.cog` stdlib flow
 - [ ] **Streaming output** — token-by-token `think()` output for responsiveness
 - [ ] **Parallel/async** — `parallel:` blocks and `async`/`await` for concurrent tool calls
 - [ ] **Agent-to-agent calls** — one agent invokes another as a tool
@@ -21,7 +21,7 @@
 - [ ] **Union types** — `String | Int` for flexible parameters
 
 ## Runtime & Platform
-- [ ] **OpenAI provider** — `model="gpt-4o"` alongside Claude and Ollama
+- [x] **OpenAI provider** — `model="gpt-4o"` alongside Claude and Ollama (gpt-*, o1-*, o3-*)
 - [ ] **Readline/rustyline** — arrow keys, history in REPL
 - [ ] **`cargo install cognos`** — publish to crates.io
 - [ ] **WASM target** — run .cog files in the browser

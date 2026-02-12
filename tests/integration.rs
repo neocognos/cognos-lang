@@ -2291,3 +2291,538 @@ fn test_mock_devops_agent() {
     assert!(out.contains("Phase 3: Analysis"));
     assert!(out.contains("Pass ✓"));
 }
+
+// ═══════════════════════════════════════════════════════
+// Type system improvements — Feature 1: Generic validation
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_list_inner_type_validation_valid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Insight:
+    text: String
+    score: Int
+
+type Review:
+    insights: List[Insight]
+
+flow main():
+    result = think("review", format="Review")
+    emit(result.insights.length)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"insights\": [{\"text\": \"good\", \"score\": 9}, {\"text\": \"bad\", \"score\": 2}]}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(stdout.trim(), "2");
+}
+
+#[test]
+fn test_list_inner_type_validation_invalid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Insight:
+    text: String
+    score: Int
+
+type Review:
+    insights: List[Insight]
+
+flow main():
+    result = think("review", format="Review")
+"#).unwrap();
+    // Second element is just a string, not an Insight object
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"insights\": [{\"text\": \"good\", \"score\": 9}, \"just a string\"]}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("element [1]"), "got: {}", stderr);
+}
+
+#[test]
+fn test_map_inner_type_validation_valid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Config:
+    settings: Map[String, Int]
+
+flow main():
+    result = think("config", format="Config")
+    emit("ok")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"settings\": {\"timeout\": 30, \"retries\": 3}}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
+fn test_map_inner_type_validation_invalid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Config:
+    settings: Map[String, Int]
+
+flow main():
+    result = think("config", format="Config")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"settings\": {\"timeout\": 30, \"retries\": \"three\"}}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("key 'retries'"), "got: {}", stderr);
+}
+
+#[test]
+fn test_untyped_list_no_validation() {
+    // List without inner type should accept anything
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Review:
+    tags: List
+
+flow main():
+    result = think("review", format="Review")
+    emit(result.tags.length)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"tags\": [\"a\", 1, true]}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "3");
+}
+
+// ═══════════════════════════════════════════════════════
+// Type system improvements — Feature 2: Optional fields
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_optional_field_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Config:
+    name: String
+    description?: String
+    timeout?: Int
+
+flow main():
+    result = think("config", format="Config")
+    emit(result.name)
+"#).unwrap();
+    // Only name is provided, optional fields missing
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"name\": \"test\"}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test");
+}
+
+#[test]
+fn test_optional_field_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Config:
+    name: String
+    description?: String
+
+flow main():
+    result = think("config", format="Config")
+    emit(result.description)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"name\": \"test\", \"description\": \"a config\"}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "a config");
+}
+
+#[test]
+fn test_required_field_still_enforced_with_optionals() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Config:
+    name: String
+    description?: String
+
+flow main():
+    result = think("config", format="Config")
+"#).unwrap();
+    // Missing required field 'name'
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"description\": \"oops\"}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("missing field 'name'"), "got: {}", stderr);
+}
+
+// ═══════════════════════════════════════════════════════
+// Type system improvements — Feature 3: Enum types
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_enum_type_valid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Severity: "low" | "medium" | "high" | "critical"
+
+type Issue:
+    title: String
+    severity: Severity
+
+flow main():
+    result = think("issue", format="Issue")
+    emit(result.severity)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"title\": \"bug\", \"severity\": \"high\"}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "high");
+}
+
+#[test]
+fn test_enum_type_invalid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Severity: "low" | "medium" | "high" | "critical"
+
+type Issue:
+    title: String
+    severity: Severity
+
+flow main():
+    result = think("issue", format="Issue")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"title\": \"bug\", \"severity\": \"extreme\"}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("not one of"), "got: {}", stderr);
+}
+
+#[test]
+fn test_enum_parses_inline() {
+    let out = expect_run_ok(r#"
+type Status: "active" | "inactive" | "pending"
+
+flow main():
+    emit("enum parsed")
+"#);
+    assert_eq!(out.trim(), "enum parsed");
+}
+
+// ═══════════════════════════════════════════════════════
+// Nested: List[Issue] where Issue has enum field
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_nested_list_with_enum_valid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Severity: "low" | "medium" | "high"
+
+type Issue:
+    title: String
+    severity: Severity
+
+type Report:
+    issues: List[Issue]
+
+flow main():
+    result = think("report", format="Report")
+    emit(result.issues.length)
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"issues\": [{\"title\": \"bug1\", \"severity\": \"low\"}, {\"title\": \"bug2\", \"severity\": \"high\"}]}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "2");
+}
+
+#[test]
+fn test_nested_list_with_enum_invalid() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Severity: "low" | "medium" | "high"
+
+type Issue:
+    title: String
+    severity: Severity
+
+type Report:
+    issues: List[Issue]
+
+flow main():
+    result = think("report", format="Report")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"issues\": [{\"title\": \"bug1\", \"severity\": \"extreme\"}]}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("not one of"), "got: {}", stderr);
+}
+
+// ═══════════════════════════════════════════════════════
+// Schema generation tests
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_optional_field_schema_generation() {
+    // Optional fields should have ? in schema hint
+    let out = expect_run_ok(r#"
+type Config:
+    name: String
+    desc?: String
+
+flow main():
+    emit("schema ok")
+"#);
+    assert_eq!(out.trim(), "schema ok");
+}
+
+#[test]
+fn test_generic_list_parses() {
+    let out = expect_run_ok(r#"
+type Item:
+    name: String
+
+type Container:
+    items: List[Item]
+    tags: List
+    meta: Map[String, Int]
+
+flow main():
+    emit("generics parse")
+"#);
+    assert_eq!(out.trim(), "generics parse");
+}
+
+// ═══════════════════════════════════════════════════════
+// Mock agent test with all new features
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_full_type_system_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Priority: "low" | "medium" | "high"
+
+type Task:
+    title: String
+    priority: Priority
+    notes?: String
+
+type Sprint:
+    name: String
+    tasks: List[Task]
+    config: Map[String, Int]
+
+flow main():
+    result = think("plan sprint", format="Sprint")
+    emit(result.name)
+    for task in result.tasks:
+        emit(f"{task.title} [{task.priority}]")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"name\": \"Sprint 1\", \"tasks\": [{\"title\": \"Fix bug\", \"priority\": \"high\"}, {\"title\": \"Add feature\", \"priority\": \"medium\", \"notes\": \"needs design\"}], \"config\": {\"velocity\": 10, \"days\": 14}}"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(stdout.contains("Sprint 1"));
+    assert!(stdout.contains("Fix bug [high]"));
+    assert!(stdout.contains("Add feature [medium]"));
+}
+
+// ─── History & Clear History tests ───
+
+#[test]
+fn test_history_empty() {
+    let src = r#"
+flow main():
+    h = history()
+    print(h.length)
+"#;
+    let (out, _, code) = run_inline(src, "");
+    assert_eq!(code, 0);
+    assert!(out.trim().contains("0"));
+}
+
+#[test]
+fn test_history_after_think() {
+    // Use mock env via cognos test command
+    // Instead, test history() builtin directly with inline + mock
+    // We'll create a .cog + mock json for this
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"
+flow main():
+    result = think("hello", model="mock-model")
+    h = history()
+    print(h.length)
+    print(h[0]["role"])
+    print(h[0]["content"])
+    print(h[1]["role"])
+"#).unwrap();
+    let env_json = dir.path().join("env.json");
+    std::fs::write(&env_json, r#"{"llm_responses": ["Hi there!"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", env_json.to_str().unwrap()])
+        .output().unwrap();
+    let out = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(out.contains("2"), "expected 2 history entries, got: {}", out);
+    assert!(out.contains("user"));
+    assert!(out.contains("hello"));
+    assert!(out.contains("assistant"));
+}
+
+#[test]
+fn test_clear_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    std::fs::write(&cog, r#"
+flow main():
+    result = think("hello", model="mock-model")
+    h1 = history()
+    print(h1.length)
+    clear_history()
+    h2 = history()
+    print(h2.length)
+"#).unwrap();
+    let env_json = dir.path().join("env.json");
+    std::fs::write(&env_json, r#"{"llm_responses": ["Hi there!"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", env_json.to_str().unwrap()])
+        .output().unwrap();
+    let out = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let lines: Vec<&str> = out.trim().lines().collect();
+    // First print should show 2, second should show 0
+    assert!(lines.iter().any(|l| l.trim() == "2"), "expected '2' in output: {:?}", lines);
+    assert!(lines.iter().any(|l| l.trim() == "0"), "expected '0' in output: {:?}", lines);
+}
+
+#[test]
+fn test_compact_history_no_compaction_needed() {
+    // Test compact_history when history is small — should return "No compaction needed"
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    // Copy lib/compact.cog to temp dir
+    let lib_src = std::fs::read_to_string("lib/compact.cog").unwrap();
+    let lib_path = dir.path().join("compact.cog");
+    std::fs::write(&lib_path, &lib_src).unwrap();
+    std::fs::write(&cog, format!(r#"
+import "{}"
+
+flow main():
+    result = think("hello", model="mock-model")
+    summary = compact_history(max_turns=10, model="mock-model")
+    print(summary)
+"#, lib_path.to_str().unwrap())).unwrap();
+    let env_json = dir.path().join("env.json");
+    std::fs::write(&env_json, r#"{"llm_responses": ["Hi there!"]}"#).unwrap();
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", env_json.to_str().unwrap()])
+        .output().unwrap();
+    let out = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(out.contains("No compaction needed"), "expected 'No compaction needed', got: {}", out);
+}
+
+#[test]
+fn test_openai_provider_routing() {
+    // Test that gpt-*, o1-*, o3-* models are recognized as OpenAI
+    // We can't call the real API, but we test that the model name check works
+    // by verifying the error message mentions OpenAI
+    let src = r#"
+flow main():
+    result = think("hello", model="gpt-4o")
+"#;
+    let (_, err, code) = run_inline(src, "");
+    // Should fail because no OPENAI_API_KEY is set (or no network)
+    // But the error should mention OpenAI, proving routing worked
+    assert_ne!(code, 0);
+    assert!(err.contains("OPENAI_API_KEY") || err.contains("OpenAI"),
+        "expected OpenAI-related error, got: {}", err);
+}
+
+#[test]
+fn test_openai_provider_routing_o1() {
+    let src = r#"
+flow main():
+    result = think("hello", model="o1-preview")
+"#;
+    let (_, err, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+    assert!(err.contains("OPENAI_API_KEY") || err.contains("OpenAI"),
+        "expected OpenAI-related error for o1 model, got: {}", err);
+}
+
+#[test]
+fn test_openai_provider_routing_o3() {
+    let src = r#"
+flow main():
+    result = think("hello", model="o3-mini")
+"#;
+    let (_, err, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+    assert!(err.contains("OPENAI_API_KEY") || err.contains("OpenAI"),
+        "expected OpenAI-related error for o3 model, got: {}", err);
+}
