@@ -5,7 +5,7 @@
 - [x] **Multi-line expressions** — implicit continuation inside `()`, `[]`, `{}`
 - [x] **String `*` repeat** — `"=" * 50` for formatting
 - [x] **Default parameter values** — `flow greet(name: String, greeting: String = "Hello"):`
-- [ ] **Nested List types** — `List[Insight]` validation, not just `List`
+- [x] **Nested List types** — `List[Insight]` validation, not just `List`
 
 ## Agent Intelligence
 - [x] **Automatic tool loop** — `think()` with `auto_exec=true` handles multi-step tool chains
@@ -15,9 +15,9 @@
 - [ ] **Agent-to-agent calls** — one agent invokes another as a tool
 
 ## Type System
-- [ ] **Generic type validation** — `List[Int]`, `Map[String, Float]` checked at runtime
-- [ ] **Optional fields** — `field?: Type` for non-required fields in type definitions
-- [ ] **Enum types** — `type Status: "active" | "inactive" | "pending"`
+- [x] **Generic type validation** — `List[Int]`, `Map[String, Float]` checked at runtime
+- [x] **Optional fields** — `field?: Type` for non-required fields in type definitions
+- [x] **Enum types** — `type Status: "active" | "inactive" | "pending"`
 - [ ] **Union types** — `String | Int` for flexible parameters
 
 ## Runtime & Platform

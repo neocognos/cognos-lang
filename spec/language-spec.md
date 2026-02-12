@@ -57,6 +57,51 @@ type Review:
 
 Used with `think(input, format="Review")` to get structured LLM output.
 
+### 2.4.1 Generic Type Validation
+
+List and Map types support inner type parameters for validation:
+
+```cognos
+type Insight:
+    text: String
+    score: Int
+
+type Review:
+    score: Int
+    insights: List[Insight]    # each element validated as Insight
+    tags: List                  # unvalidated (any list)
+    metadata: Map[String, Int]  # values validated as Int
+```
+
+When `think(input, format="Review")` returns data, `List[Insight]` validates every element against the `Insight` type definition. `Map[String, Int]` validates all values are integers.
+
+### 2.4.2 Optional Fields
+
+Fields can be marked optional with `?` — they may be absent from LLM responses:
+
+```cognos
+type Config:
+    name: String
+    description?: String    # may be missing
+    timeout?: Int           # may be missing
+```
+
+Optional fields are not included in the "required" set during validation. If present, they are still type-checked.
+
+### 2.4.3 Enum Types
+
+Enum types restrict a field to a fixed set of string values:
+
+```cognos
+type Severity: "low" | "medium" | "high" | "critical"
+
+type Issue:
+    title: String
+    severity: Severity
+```
+
+Enum values are validated — if the LLM returns a value not in the set, validation fails.
+
 ### 2.5 Truthiness
 
 | Falsy | Truthy |
@@ -448,8 +493,10 @@ Program <- Import* TypeDef* Flow*
 
 Import <- "import" StringLiteral NEWLINE
 
-TypeDef <- "type" Identifier ":" NEWLINE INDENT TypeField* DEDENT
-TypeField <- Identifier ":" Type NEWLINE
+TypeDef <- StructDef | EnumDef
+StructDef <- "type" Identifier ":" NEWLINE INDENT TypeField* DEDENT
+EnumDef <- "type" Identifier ":" StringLit ("|" StringLit)*
+TypeField <- Identifier "?"? ":" Type NEWLINE
 
 Flow <- "flow" Identifier "(" ParameterList? ")" ("->" Type)? ":" NEWLINE INDENT Statement* DEDENT
 
