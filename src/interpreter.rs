@@ -154,7 +154,7 @@ impl Interpreter {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
-        vars.insert("math".to_string(), Value::Module("math".to_string()));
+        // math module removed (P11: lean core runtime)
         vars.insert("http".to_string(), Value::Module("http".to_string()));
         Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer, import_stack: Vec::new(), conversation_history: Vec::new() }
     }
@@ -177,7 +177,7 @@ impl Interpreter {
         for (k, v) in &self.vars {
             // Skip builtins
             match k.as_str() {
-                "stdin" | "stdout" | "math" | "http" => continue,
+                "stdin" | "stdout" | "http" => continue,
                 _ => {}
             }
             map.insert(k.clone(), self.value_to_json(v));
@@ -351,7 +351,7 @@ impl Interpreter {
         let saved_vars = self.vars.clone();
         let mut new_vars = HashMap::new();
         // Preserve builtins
-        for key in &["stdin", "stdout", "math", "http"] {
+        for key in &["stdin", "stdout", "http"] {
             if let Some(v) = saved_vars.get(*key) {
                 new_vars.insert(key.to_string(), v.clone());
             }
@@ -588,9 +588,7 @@ impl Interpreter {
                 // Module constants: math.pi, math.e
                 if let Value::Module(ref mod_name) = val {
                     return match (mod_name.as_str(), field.as_str()) {
-                        ("math", "pi") => Ok(Value::Float(std::f64::consts::PI)),
-                        ("math", "e") => Ok(Value::Float(std::f64::consts::E)),
-                        ("math", "inf") => Ok(Value::Float(f64::INFINITY)),
+                        // math module removed (P11)
                         _ => bail!("{} has no constant '{}'", mod_name, field),
                     };
                 }
@@ -963,7 +961,7 @@ impl Interpreter {
 
     fn call_module(&mut self, module: &str, method: &str, args: Vec<Value>) -> Result<Value> {
         match module {
-            "math" => self.call_math(method, args),
+            "math" => bail!("math module was removed (P11: lean core runtime). Use shell() for math operations."),
             "http" => self.call_http(method, args),
             _ => bail!("unknown module '{}'", module),
         }
@@ -977,56 +975,7 @@ impl Interpreter {
         }
     }
 
-    fn call_math(&self, method: &str, args: Vec<Value>) -> Result<Value> {
-        match method {
-            // Trig
-            "sin" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.sin())) }
-            "cos" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.cos())) }
-            "tan" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.tan())) }
-            "asin" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.asin())) }
-            "acos" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.acos())) }
-            "atan" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.atan())) }
-            "atan2" => { let y = Self::to_float(&args[0])?; let x = Self::to_float(&args[1])?; Ok(Value::Float(y.atan2(x))) }
-
-            // Powers & roots
-            "sqrt" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.sqrt())) }
-            "pow" => { let x = Self::to_float(&args[0])?; let y = Self::to_float(&args[1])?; Ok(Value::Float(x.powf(y))) }
-            "exp" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.exp())) }
-            "log" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.ln())) }
-            "log2" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.log2())) }
-            "log10" => { let x = Self::to_float(&args[0])?; Ok(Value::Float(x.log10())) }
-
-            // Rounding
-            "floor" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.floor() as i64)) }
-            "ceil" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.ceil() as i64)) }
-            "round" => { let x = Self::to_float(&args[0])?; Ok(Value::Int(x.round() as i64)) }
-            "abs" => {
-                match &args[0] {
-                    Value::Int(n) => Ok(Value::Int(n.abs())),
-                    Value::Float(n) => Ok(Value::Float(n.abs())),
-                    other => bail!("math.abs() expects a number, got {}", type_name(other)),
-                }
-            }
-
-            // Min/Max
-            "min" => {
-                let a = Self::to_float(&args[0])?;
-                let b = Self::to_float(&args[1])?;
-                Ok(Value::Float(a.min(b)))
-            }
-            "max" => {
-                let a = Self::to_float(&args[0])?;
-                let b = Self::to_float(&args[1])?;
-                Ok(Value::Float(a.max(b)))
-            }
-
-            // Constants (called as functions for now: math.pi())
-            "pi" => Ok(Value::Float(std::f64::consts::PI)),
-            "e" => Ok(Value::Float(std::f64::consts::E)),
-
-            _ => bail!("math has no function '{}'", method),
-        }
-    }
+    // math module removed — P11: lean core runtime
 
     fn call_http(&mut self, method: &str, args: Vec<Value>) -> Result<Value> {
         match method {

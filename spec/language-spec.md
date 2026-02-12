@@ -307,26 +307,7 @@ Alias for `log()`.
 
 ## 6. Native Modules
 
-### 6.1 `math`
-
-| Function | Description |
-|----------|-------------|
-| `math.sin(x)`, `math.cos(x)`, `math.tan(x)` | Trigonometric |
-| `math.asin(x)`, `math.acos(x)`, `math.atan(x)` | Inverse trig |
-| `math.atan2(y, x)` | Two-argument arctangent |
-| `math.sqrt(x)`, `math.pow(x, y)` | Roots and powers |
-| `math.exp(x)`, `math.log(x)`, `math.log2(x)`, `math.log10(x)` | Exponential/logarithmic |
-| `math.floor(x)`, `math.ceil(x)`, `math.round(x)` | Rounding |
-| `math.abs(x)` | Absolute value |
-| `math.min(a, b)`, `math.max(a, b)` | Min/max |
-
-| Constant | Value |
-|----------|-------|
-| `math.pi` | 3.14159... |
-| `math.e` | 2.71828... |
-| `math.inf` | Infinity |
-
-### 6.2 `http`
+### 6.1 `http`
 
 | Function | Description |
 |----------|-------------|
