@@ -1,0 +1,13 @@
+{
+  "stdin": [
+    "What is Rust?",
+    "How does its borrow checker work?",
+    "quit"
+  ],
+  "llm_responses": [
+    "Rust is a systems programming language that focuses on safety, speed, and concurrency. It was developed by Mozilla and is known for its unique ownership model and borrowing system, which helps prevent bugs like null pointer dereferencing and race conditions.",
+    "Rust's borrow checker ensures memory safety by tracking the lifetime of data and preventing concurrent access to mutable data. It uses ownership rules and lifetimes to manage how data is shared or borrowed, ensuring that references are valid and not invalidated before use. This helps catch many common bugs at compile-time, such as race conditions and dangling pointers."
+  ],
+  "shell": {},
+  "files": {}
+}

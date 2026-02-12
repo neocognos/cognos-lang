@@ -1,0 +1,10 @@
+{
+  "stdin": [
+    "def fibonacci(n): if n <= 1: return n; return fibonacci(n-1) + fibonacci(n-2)"
+  ],
+  "llm_responses": [
+    "```json\n{\n  \"score\": 4,\n  \"summary\": \"Basic recursive Fibonacci implementation that works correctly but has significant performance issues due to exponential time complexity and lacks proper input validation.\",\n  \"strengths\": [\n    \"Mathematically correct implementation of the Fibonacci sequence\",\n    \"Clean and readable code structure\",\n    \"Proper handling of base cases (n <= 1)\",\n    \"Follows the mathematical definition directly\"\n  ],\n  \"weaknesses\": [\n    \"Exponential time complexity O(2^n) makes it impractical for larger inputs\",\n    \"No input validation for negative numbers or non-integers\",\n    \"Lacks documentation or comments explaining the function\",\n    \"No error handling for edge cases\",\n    \"Inefficient due to redundant calculations of the same subproblems\",\n    \"Could cause stack overflow for large inputs due to deep recursion\"\n  ]\n}\n```"
+  ],
+  "shell": {},
+  "files": {}
+}

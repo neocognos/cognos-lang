@@ -1,0 +1,17 @@
+type Review:
+    score: Int
+    summary: String
+    strengths: List
+    weaknesses: List
+
+flow main():
+    input = read(stdin)
+    review = think(input, format="Review", model="claude-sonnet-4-20250514", system="You are a code reviewer. Rate code from 1-10.")
+    write(stdout, f"Score: {review[\"score\"]}/10")
+    write(stdout, f"Summary: {review[\"summary\"]}")
+    write(stdout, "Strengths:")
+    for s in review["strengths"]:
+        write(stdout, f"  + {s}")
+    write(stdout, "Weaknesses:")
+    for w in review["weaknesses"]:
+        write(stdout, f"  - {w}")
