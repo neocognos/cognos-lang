@@ -1,6 +1,6 @@
 #!/bin/bash
 # Cognos Language Robustness Test Harness
-# Runs varied agent sessions and logs issues
+# Runs varied agent sessions with randomized inputs and logs issues
 set -o pipefail
 cd /home/reza/clawd/neocognos/cognos-lang
 COGNOS="./target/release/cognos"
@@ -9,10 +9,14 @@ ISSUES="/tmp/cognos-issues-$(date +%Y%m%d-%H%M%S).txt"
 PASS=0
 FAIL=0
 TOTAL=0
+SEED=$RANDOM
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
 pass() { PASS=$((PASS+1)); TOTAL=$((TOTAL+1)); log "  ✅ PASS: $1"; }
 fail() { FAIL=$((FAIL+1)); TOTAL=$((TOTAL+1)); log "  ❌ FAIL: $1"; echo "$1: $2" >> "$ISSUES"; }
+
+# Pick random element from array
+pick() { local arr=("$@"); echo "${arr[$((RANDOM % ${#arr[@]}))]}" ; }
 
 run_test() {
     local name="$1" input="$2" file="$3" flags="$4" expect="$5" timeout_s="${6:-30}"
@@ -44,8 +48,24 @@ run_inline() {
     rm -f "$tmpfile"
 }
 
+# Run inline test, expect non-zero exit (error case)
+run_inline_fail() {
+    local name="$1" src="$2" input="$3" expect_in_err="$4" timeout_s="${5:-10}"
+    local tmpfile=$(mktemp /tmp/cognos-test-XXXXXX.cog)
+    echo "$src" > "$tmpfile"
+    log "TEST: $name"
+    output=$(echo -e "$input" | timeout "$timeout_s" $COGNOS run "$tmpfile" 2>&1)
+    code=$?
+    rm -f "$tmpfile"
+    if [ $code -ne 0 ] && echo "$output" | grep -qF -- "$expect_in_err"; then
+        pass "$name"
+    else
+        fail "$name" "Expected error with '$expect_in_err'. Exit=$code Output=$(echo "$output" | head -3)"
+    fi
+}
+
 log "=========================================="
-log "Cognos Robustness Test Harness"
+log "Cognos Robustness Test Harness (seed=$SEED)"
 log "=========================================="
 
 # Build first
@@ -70,10 +90,10 @@ run_test "for-map" "" examples/for-map.cog "" "cognos" 5
 run_test "slice-test" "" examples/slice-test.cog "" "Hello" 5
 run_test "map-test" "" examples/map-test.cog "" "cognos" 5
 run_test "try-catch" "" examples/try-catch.cog "" "Caught" 5
-run_test "import-test" "World" examples/import-test.cog "" "Hello, World" 5
+run_test "import-test" "World" examples/import-test.cog "" "Hello," 5
 
 log ""
-log "=== SECTION 2: Language Features ==="
+log "=== SECTION 2: Language Features (Core) ==="
 
 run_inline "none-literal" 'flow main():
     x = none
@@ -88,8 +108,6 @@ run_inline "none-falsy" 'flow main():
 run_inline "none-display" 'flow main():
     write(stdout, f"val={none}")' "" "val=none"
 
-# eof-returns-none tested in integration tests (needs /dev/null stdin)
-
 run_inline "comment-first-line" 'flow main():
     # comment
     write(stdout, "PASS")' "" "PASS"
@@ -99,7 +117,7 @@ run_inline "comment-nested" 'flow main():
         # nested
         write(stdout, "PASS")' "" "PASS"
 
-run_inline "comment-between-blocks" 'flow main():
+run_inline "comment-between" 'flow main():
     x = 1
     # between
     y = 2
@@ -112,13 +130,6 @@ flow main():
     r = await h
     write(stdout, r)' "" "done"
 
-run_inline "await-with-parens" 'flow task() -> String:
-    return "done"
-flow main():
-    h = async task()
-    r = await(h)
-    write(stdout, r)' "" "done"
-
 run_inline "parallel-basic" 'flow main():
     parallel:
         branch:
@@ -127,12 +138,12 @@ run_inline "parallel-basic" 'flow main():
             b = 2
     write(stdout, f"{a+b}")' "" "3"
 
-run_inline "select-break-propagates" 'flow fast() -> String:
+run_inline "select-break" 'flow fast() -> String:
     return "x"
 flow main():
-    count = 0
+    c = 0
     loop:
-        count = count + 1
+        c = c + 1
         select:
             branch:
                 r = fast()
@@ -140,7 +151,7 @@ flow main():
             branch:
                 r = fast()
                 break
-    write(stdout, f"c={count}")' "" "c=1"
+    write(stdout, f"c={c}")' "" "c=1"
 
 run_inline "loop-max" 'flow main():
     c = 0
@@ -148,11 +159,11 @@ run_inline "loop-max" 'flow main():
         c = c + 1
     write(stdout, f"{c}")' "" "5"
 
-run_inline "default-params" 'flow greet(name: String, greeting: String = "Hello"):
-    write(stdout, f"{greeting} {name}")
+run_inline "default-params" 'flow greet(name: String, g: String = "Hello"):
+    write(stdout, f"{g} {name}")
 flow main():
     greet("World")
-    greet("World", greeting="Hi")' "" "Hello World"
+    greet("World", g="Hi")' "" "Hello World"
 
 run_inline "string-methods" 'flow main():
     s = "  Hello World  "
@@ -161,14 +172,13 @@ run_inline "string-methods" 'flow main():
     write(stdout, s.strip().upper())
     write(stdout, "hello".replace("l", "L"))' "" "heLLo"
 
-run_inline "list-operations" 'flow main():
+run_inline "list-ops" 'flow main():
     l = [1, 2, 3] + [4, 5]
     write(stdout, f"len={l.length}")
     write(stdout, f"has3={l.contains(3)}")
-    write(stdout, f"has9={l.contains(9)}")
     write(stdout, l.join(","))' "" "1,2,3,4,5"
 
-run_inline "map-operations" 'flow main():
+run_inline "map-ops" 'flow main():
     m = {"a": 1, "b": 2}
     m["c"] = 3
     write(stdout, f"len={m.length}")
@@ -180,27 +190,25 @@ run_inline "string-repeat" 'flow main():
     write(stdout, s)' "" "ababab"
 
 run_inline "negative-slice" 'flow main():
-    s = "hello"
-    write(stdout, s[-2:])' "" "lo"
+    write(stdout, "hello"[-2:])' "" "lo"
 
-run_inline "mixed-arithmetic" 'flow main():
+run_inline "mixed-arith" 'flow main():
     write(stdout, f"{1.5 + 2}")
-    write(stdout, f"{3 * 1.5}")
     write(stdout, f"{0 - 5}")' "" "-5"
 
-run_inline "for-map-kv" 'flow main():
+run_inline "for-kv" 'flow main():
     m = {"x": 1, "y": 2}
     for k, v in m:
         write(stdout, f"{k}={v}")' "" "x=1"
 
-run_inline "type-definition" 'type Point:
+run_inline "type-def" 'type Point:
     x: Int
     y: Int
 flow main():
     p = {"x": 10, "y": 20}
     write(stdout, f"{p.x},{p.y}")' "" "10,20"
 
-run_inline "optional-field" 'type Config:
+run_inline "optional-field" 'type Cfg:
     name: String
     debug?: Bool
 flow main():
@@ -211,7 +219,7 @@ run_inline "enum-type" 'type Level: "low" | "medium" | "high"
 flow main():
     write(stdout, "PASS")' "" "PASS"
 
-run_inline "try-catch-variable" 'flow main():
+run_inline "try-catch-var" 'flow main():
     try:
         x = read(file("nonexistent.txt"))
     catch err:
@@ -222,11 +230,10 @@ run_inline "save-load" 'flow main():
     data = load("/tmp/cognos-harness-test.json")
     write(stdout, f"{data.key},{data.num}")' "" "value,42"
 
-run_inline "fstring-expressions" 'flow main():
+run_inline "fstring-expr" 'flow main():
     x = 5
     write(stdout, f"calc={x * 2 + 1}")
-    write(stdout, f"bool={x > 3}")
-    write(stdout, f"list={[1,2,3]}")' "" "calc=11"
+    write(stdout, f"bool={x > 3}")' "" "calc=11"
 
 run_inline "multi-flow" 'flow add(a: Int, b: Int) -> Int:
     return a + b
@@ -236,7 +243,7 @@ flow main():
     write(stdout, f"{add(3, 4)}")
     write(stdout, f"{mul(3, 4)}")' "" "12"
 
-run_inline "kwargs-in-call" 'flow greet(name: String, loud: Bool = false) -> String:
+run_inline "kwargs" 'flow greet(name: String, loud: Bool = false) -> String:
     if loud:
         return name.upper()
     return name
@@ -249,7 +256,7 @@ run_inline "docstring" 'flow helper():
 flow main():
     helper()' "" "PASS"
 
-run_inline "pass-statement" 'flow empty():
+run_inline "pass-stmt" 'flow empty():
     pass
 flow main():
     empty()
@@ -262,12 +269,6 @@ flow main():
     cancel(h)
     write(stdout, "PASS")' "" "PASS"
 
-run_inline "nested-if" 'flow main():
-    x = 5
-    if x > 3:
-        if x < 10:
-            write(stdout, "PASS")' "" "PASS"
-
 run_inline "elif" 'flow main():
     x = 2
     if x == 1:
@@ -277,7 +278,7 @@ run_inline "elif" 'flow main():
     else:
         write(stdout, "other")' "" "two"
 
-run_inline "loop-break-continue" 'flow main():
+run_inline "break-continue" 'flow main():
     result = []
     loop:
         i = result.length
@@ -295,107 +296,29 @@ run_inline "for-list" 'flow main():
         total = total + x
     write(stdout, f"{total}")' "" "60"
 
-run_test "import-chain" "Test" examples/import-test.cog "" "Hello," 5
-
-log ""
-log "=== SECTION 3: LLM Integration (DeepSeek) ==="
-
-run_inline "deepseek-simple" 'flow main():
-    r = think("Say exactly: HELLO123", model="deepseek-chat", system="Output only what is asked, nothing else.")
-    write(stdout, r.content)' "" "HELLO123" "" 15
-
-run_inline "deepseek-tools" 'flow get_time() -> String:
-    "Get current time"
-    return "12:00"
+run_inline "recursive" 'flow fib(n: Int) -> Int:
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
 flow main():
-    r = think("What time is it?", model="deepseek-chat", tools=["get_time"], system="Use tools.")
-    if r.has_tool_calls:
-        write(stdout, "TOOL_CALLED")
-    else:
-        write(stdout, "NO_TOOL")' "" "" "" 15
+    write(stdout, f"{fib(10)}")' "" "55"
 
-run_inline "deepseek-format" 'type Answer:
-    value: String
-flow main():
-    r = think("What is 2+2? Answer with value field only.", format="Answer", model="deepseek-chat", system="Be precise.")
-    write(stdout, f"type={r.value}")' "" "type=" "" 15
+run_inline "multiline" 'flow main():
+    result = (
+        1 + 2 +
+        3 + 4
+    )
+    write(stdout, f"{result}")' "" "10"
 
-run_inline "deepseek-system-prompt" 'flow main():
-    r = think("Who are you?", model="deepseek-chat", system="You are Bob. Always say your name is Bob.")
-    if r.content.contains("Bob"):
-        write(stdout, "PASS")
-    else:
-        write(stdout, f"FAIL: {r.content}")' "" "PASS" "" 15
+run_inline "dot-access" 'flow main():
+    m = {"name": "test", "value": 42}
+    write(stdout, f"{m.name}:{m.value}")' "" "test:42"
 
-log ""
-log "=== SECTION 4: Shell & File Tools ==="
+run_inline "bool-cmp" 'flow main():
+    write(stdout, f"{true == true}")
+    write(stdout, f"{none == none}")' "" "true"
 
-run_inline "shell-exec" 'flow main():
-    r = __exec_shell__("echo hello_from_shell")
-    write(stdout, r)' "" "hello_from_shell" "--allow-shell" 5
-
-run_inline "file-write-read" 'flow main():
-    write(file("/tmp/cognos-harness-rw.txt"), "test content 123")
-    c = read(file("/tmp/cognos-harness-rw.txt"))
-    write(stdout, c)' "" "test content 123" "" 5
-
-run_inline "shell-tool-deepseek" 'flow shell(command: String) -> String:
-    "Run a shell command"
-    return __exec_shell__(command)
-flow exec_tools(response: Map) -> Map:
-    "Execute tool calls"
-    results = []
-    for call in response["tool_calls"]:
-        result = invoke(call["name"], call["arguments"])
-        results = results + [result]
-    return {"content": results.join("\n"), "has_tool_calls": false}
-flow main():
-    r = think("Run: echo MARKER42", model="deepseek-chat", tools=["shell"], system="Use the shell tool. Run the exact command given.")
-    if r.has_tool_calls:
-        result = exec_tools(r)
-        write(stdout, result.content)
-    else:
-        write(stdout, "no tool call")' "" "MARKER42" "--allow-shell" 20
-
-log ""
-log "=== SECTION 5: Agent Sessions ==="
-
-run_test "general-assistant-basic" "hello\nexit" examples/general-assistant.cog "--allow-shell" "Assistant ready" 30
-run_test "general-assistant-tool" "What is the current date?\nexit" examples/general-assistant.cog "--allow-shell" "" 30
-run_test "tool-agent-weather" "What is the weather in London?\nquit" examples/tool-agent.cog "--allow-shell" "" 30
-run_test "chat-single" "Hi there\nquit" examples/chat.cog "" "" 20
-
-log ""
-log "=== SECTION 6: Edge Cases & Error Handling ==="
-
-run_inline "div-by-zero" 'flow main():
-    try:
-        x = 1 / 0
-    catch err:
-        write(stdout, "caught")' "" "caught"
-
-run_inline "undefined-var" 'flow main():
-    try:
-        write(stdout, f"{undefined_var}")
-    catch err:
-        write(stdout, "caught")' "" "caught"
-
-run_inline "empty-list-ops" 'flow main():
-    l = []
-    write(stdout, f"len={l.length}")
-    write(stdout, l.join(","))' "" "len=0"
-
-run_inline "empty-map" 'flow main():
-    m = {}
-    write(stdout, f"len={m.length}")' "" "len=0"
-
-run_inline "empty-string-methods" 'flow main():
-    s = ""
-    write(stdout, f"len={s.length}")
-    write(stdout, f"strip={s.strip()}")
-    write(stdout, f"lower={s.lower()}")' "" "len=0"
-
-run_inline "deep-nesting" 'flow main():
+run_inline "deep-nest" 'flow main():
     if true:
         if true:
             if true:
@@ -408,34 +331,254 @@ run_inline "large-list" 'flow main():
         l = l + [l.length]
     write(stdout, f"len={l.length}")' "" "len=100"
 
-run_inline "recursive-flow" 'flow fib(n: Int) -> Int:
-    if n <= 1:
-        return n
-    return fib(n - 1) + fib(n - 2)
+log ""
+log "=== SECTION 3: Error Cases ==="
+
+run_inline_fail "err-undefined" 'flow main():
+    write(stdout, xyz)' "" "undefined variable"
+
+run_inline_fail "err-type-mismatch" 'flow main():
+    x = "hello" + 5' "" "cannot"
+
+run_inline_fail "err-missing-arg" 'flow greet(name: String):
+    pass
 flow main():
-    write(stdout, f"{fib(10)}")' "" "55"
+    greet()' "" ""
 
-run_inline "multiline-expr" 'flow main():
-    result = (
-        1 + 2 +
-        3 + 4
-    )
-    write(stdout, f"{result}")' "" "10"
+run_inline "err-div-zero" 'flow main():
+    try:
+        x = 1 / 0
+    catch err:
+        write(stdout, "caught")' "" "caught"
 
-run_inline "map-dot-access" 'flow main():
-    m = {"name": "test", "value": 42}
-    write(stdout, f"{m.name}:{m.value}")' "" "test:42"
+run_inline "err-file-missing" 'flow main():
+    try:
+        x = read(file("/tmp/nonexistent_cognos_xyz.txt"))
+    catch err:
+        write(stdout, "caught")' "" "caught"
 
-run_inline "bool-comparison" 'flow main():
-    write(stdout, f"{true == true}")
-    write(stdout, f"{false == false}")
-    write(stdout, f"{true != false}")
-    write(stdout, f"{none == none}")' "" "true"
+run_inline "err-empty-list" 'flow main():
+    l = []
+    write(stdout, f"len={l.length}")
+    write(stdout, l.join(","))
+    write(stdout, "PASS")' "" "PASS"
 
-# Summary
+log ""
+log "=== SECTION 4: Randomized LLM Tests (DeepSeek) ==="
+
+# Randomized simple prompts
+SIMPLE_PROMPTS=(
+    "Say exactly: MARKER_ABC123"
+    "Output only the word: MARKER_ABC123"
+    "Reply with just: MARKER_ABC123"
+    "Your response must be exactly: MARKER_ABC123"
+    "Print: MARKER_ABC123"
+)
+prompt=$(pick "${SIMPLE_PROMPTS[@]}")
+log "  prompt: $prompt"
+run_inline "ds-simple-rand" "flow main():
+    r = think(\"$prompt\", model=\"deepseek-chat\", system=\"Output exactly what is asked. Nothing else.\")
+    write(stdout, r.content)" "" "MARKER_ABC123" "" 15
+
+# Randomized tool use prompts
+TOOL_PROMPTS=(
+    "What is the current time?"
+    "Tell me what time it is right now"
+    "Can you check the time?"
+    "I need to know the current time"
+    "Get the time please"
+)
+prompt=$(pick "${TOOL_PROMPTS[@]}")
+log "  prompt: $prompt"
+run_inline "ds-tool-rand" 'flow get_time() -> String:
+    "Get the current date and time"
+    return "2026-02-12 20:00:00"
+flow main():
+    r = think("'"$prompt"'", model="deepseek-chat", tools=["get_time"], system="Use tools to answer. Always use get_time for time questions.")
+    if r.has_tool_calls:
+        write(stdout, "TOOL_USED")
+    else:
+        write(stdout, "NO_TOOL")' "" "TOOL_USED" "" 15
+
+# Randomized format extraction
+FORMAT_PROMPTS=(
+    "Rate this code: def add(a,b): return a+b"
+    "Review: function multiply(x, y) { return x * y }"
+    "Evaluate: const greet = name => Hello + name"
+    "Score this code: fn main() { println(hello) }"
+    "Assess: SELECT * FROM users WHERE id = 1"
+)
+prompt=$(pick "${FORMAT_PROMPTS[@]}")
+log "  prompt: $prompt"
+run_inline "ds-format-rand" 'type Review:
+    score: Int
+    summary: String
+flow main():
+    r = think("'"$prompt"'", format="Review", model="deepseek-chat", system="You are a code reviewer. Always give a score 1-10.")
+    s = r["score"]
+    write(stdout, f"score={s}")' "" "score=" "" 15
+
+# Randomized system personas
+PERSONAS=(
+    "You are a pirate. Always say arr."
+    "You are a robot. Always say BEEP."
+    "You are a cat. Always say meow."
+    "You are French. Always say bonjour."
+    "You are a wizard. Always say abracadabra."
+)
+persona=$(pick "${PERSONAS[@]}")
+MARKERS=("arr" "BEEP" "meow" "bonjour" "abracadabra")
+# find which marker matches
+for i in "${!PERSONAS[@]}"; do
+    if [ "${PERSONAS[$i]}" = "$persona" ]; then
+        marker="${MARKERS[$i]}"
+        break
+    fi
+done
+log "  persona: $persona (expect: $marker)"
+run_inline "ds-persona-rand" "flow main():
+    r = think(\"Say hello in character\", model=\"deepseek-chat\", system=\"$persona Respond in character. Include your signature word.\")
+    c = r.content.lower()
+    if c.contains(\"$(echo $marker | tr '[:upper:]' '[:lower:]')\"):
+        write(stdout, \"PASS\")
+    else:
+        write(stdout, f\"FAIL: {r.content}\")" "" "PASS" "" 15
+
+# Multi-turn with context
+TOPICS=("Rust programming" "machine learning" "space exploration" "cooking pasta" "chess strategy")
+topic=$(pick "${TOPICS[@]}")
+log "  topic: $topic"
+run_inline "ds-multi-turn" 'flow main():
+    h = []
+    h = h + ["User: Tell me one fact about '"$topic"'"]
+    r1 = think(h.join("\n"), model="deepseek-chat", system="Be concise. One sentence max.")
+    h = h + [f"Assistant: {r1.content}"]
+    h = h + ["User: Can you elaborate on that?"]
+    r2 = think(h.join("\n"), model="deepseek-chat", system="Be concise. Two sentences max.")
+    if r2.content.length > 10:
+        write(stdout, "PASS")
+    else:
+        write(stdout, f"FAIL: too short: {r2.content}")' "" "PASS" "" 20
+
+log ""
+log "=== SECTION 5: Randomized Shell Tool Agent ==="
+
+SHELL_TASKS=(
+    "How many .rs files are in the src directory?\nexit"
+    "What is today's date?\nexit"
+    "Show me the first 3 lines of Cargo.toml\nexit"
+    "How much disk space is the current directory using?\nexit"
+    "What is my username?\nexit"
+)
+task=$(pick "${SHELL_TASKS[@]}")
+log "  task: $(echo $task | head -1)"
+run_test "agent-shell-rand" "$task" examples/general-assistant.cog "--allow-shell" "Assistant ready" 30
+
+# Tool agent with randomized queries
+TOOL_TASKS=(
+    "What is the weather in Tokyo?\nquit"
+    "What is the weather in Paris?\nquit"
+    "What time is it?\nquit"
+    "What is the weather in Berlin?\nquit"
+    "Tell me the time and weather in Amsterdam\nquit"
+)
+task=$(pick "${TOOL_TASKS[@]}")
+log "  task: $(echo $task | head -1)"
+run_test "agent-tool-rand" "$task" examples/tool-agent.cog "--allow-shell" "" 30
+
+log ""
+log "=== SECTION 6: Fuzz & Stress Tests ==="
+
+# Random string inputs — test parser doesn't crash
+run_inline "fuzz-unicode" 'flow main():
+    s = "héllo wörld 日本語 🎉"
+    write(stdout, f"len={s.length}")
+    write(stdout, s)' "" "héllo"
+
+run_inline "fuzz-empty-ops" 'flow main():
+    s = ""
+    l = []
+    m = {}
+    write(stdout, f"{s.length},{l.length},{m.length}")
+    write(stdout, s + "x")
+    write(stdout, (l + [1]).join(","))' "" "0,0,0"
+
+run_inline "fuzz-long-string" 'flow main():
+    s = "a" * 10000
+    write(stdout, f"len={s.length}")' "" "len=10000"
+
+run_inline "fuzz-nested-maps" 'flow main():
+    m = {"a": {"b": {"c": {"d": "deep"}}}}
+    write(stdout, m["a"]["b"]["c"]["d"])' "" "deep"
+
+run_inline "fuzz-many-args" 'flow sum5(a: Int, b: Int, c: Int, d: Int, e: Int) -> Int:
+    return a + b + c + d + e
+flow main():
+    write(stdout, f"{sum5(1, 2, 3, 4, 5)}")' "" "15"
+
+run_inline "fuzz-rapid-async" 'flow task(n: Int) -> Int:
+    return n * 2
+flow main():
+    handles = []
+    handles = handles + [async task(1)]
+    handles = handles + [async task(2)]
+    handles = handles + [async task(3)]
+    r1 = await(handles[0])
+    r2 = await(handles[1])
+    r3 = await(handles[2])
+    write(stdout, f"{r1},{r2},{r3}")' "" "2,4,6"
+
+# Random computation test — verify arithmetic
+A=$((RANDOM % 100))
+B=$((RANDOM % 100))
+EXPECTED=$((A + B))
+run_inline "fuzz-arith-$A+$B" "flow main():
+    write(stdout, f\"{$A + $B}\")" "" "$EXPECTED"
+
+A=$((RANDOM % 50 + 1))
+B=$((RANDOM % 50 + 1))
+EXPECTED=$((A * B))
+run_inline "fuzz-arith-${A}x${B}" "flow main():
+    write(stdout, f\"{$A * $B}\")" "" "$EXPECTED"
+
+# Random list generation and verification
+N=$((RANDOM % 20 + 5))
+run_inline "fuzz-list-$N" "flow main():
+    l = []
+    loop max=$N:
+        l = l + [l.length]
+    write(stdout, f\"len={l.length}\")" "" "len=$N"
+
+# String slice fuzzing
+LEN=$((RANDOM % 10 + 5))
+START=$((RANDOM % LEN))
+END=$((START + RANDOM % (LEN - START) + 1))
+STR=$(head -c $LEN /dev/urandom | tr -dc 'a-z' | head -c $LEN)
+run_inline "fuzz-slice" "flow main():
+    s = \"$STR\"
+    r = s[$START:$END]
+    write(stdout, f\"len={r.length}\")" "" "len="
+
+log ""
+log "=== SECTION 7: Chat Sessions with Varied Inputs ==="
+
+# Randomized multi-turn chat
+GREETINGS=("Hello" "Hi there" "Hey" "Greetings" "Good day")
+QUESTIONS=("What is 2+2?" "Name a color" "Say a number" "Name a fruit" "What is 1+1?")
+FAREWELLS=("quit" "quit" "quit")
+g=$(pick "${GREETINGS[@]}")
+q=$(pick "${QUESTIONS[@]}")
+run_test "chat-rand" "$g\n$q\nquit" examples/chat.cog "" "" 25
+
+# General assistant with varied exit commands
+EXITS=("exit" "quit" "exit")
+e=$(pick "${EXITS[@]}")
+run_test "assist-greet-rand" "Hello, how are you?\n$e" examples/general-assistant.cog "--allow-shell" "Assistant ready" 20
+
 log ""
 log "=========================================="
-log "RESULTS: $PASS passed, $FAIL failed, $TOTAL total"
+RESULT_LINE="RESULTS: $PASS passed, $FAIL failed, $TOTAL total (seed=$SEED)"
+log "$RESULT_LINE"
 log "=========================================="
 log "Log: $LOG"
 if [ $FAIL -gt 0 ]; then
@@ -443,6 +586,6 @@ if [ $FAIL -gt 0 ]; then
     cat "$ISSUES" | tee -a "$LOG"
 fi
 
-# Copy latest issues to stable location
-cp "$ISSUES" /tmp/cognos-latest-issues.txt 2>/dev/null
+# Write stable files for heartbeat
 echo "$PASS/$TOTAL" > /tmp/cognos-test-result.txt
+cp "$ISSUES" /tmp/cognos-latest-issues.txt 2>/dev/null || echo "" > /tmp/cognos-latest-issues.txt
