@@ -516,8 +516,7 @@ impl Interpreter {
             }
 
             Stmt::Select { branches } => {
-                self.run_select(branches)?;
-                Ok(ControlFlow::Normal)
+                self.run_select(branches)
             }
 
             Stmt::Loop { max, body } => {
@@ -625,7 +624,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn run_select(&mut self, branches: &[Vec<Stmt>]) -> Result<()> {
+    fn run_select(&mut self, branches: &[Vec<Stmt>]) -> Result<ControlFlow> {
         let env = self.env.clone();
         let flows = self.flows.clone();
         let types = self.types.clone();
@@ -659,12 +658,15 @@ impl Interpreter {
                     async_handles: HashMap::new(),
                     cancelled: cancelled.clone(),
                 };
+                let mut flow = ControlFlow::Normal;
                 for stmt in &branch {
                     if cancelled.load(Ordering::Relaxed) {
                         return;
                     }
-                    if let Err(_) = interp.run_stmt(stmt) {
-                        return;
+                    match interp.run_stmt(stmt) {
+                        Ok(ControlFlow::Normal) => {}
+                        Ok(cf) => { flow = cf; break; }
+                        Err(_) => return,
                     }
                 }
                 // Compute changed vars
@@ -679,21 +681,23 @@ impl Interpreter {
                         }
                     }
                 }
-                let _ = tx.send((i, changed));
+                let _ = tx.send((i, changed, flow));
             });
             handles.push(handle);
         }
         drop(tx);
 
         // Wait for first branch to complete
+        let mut result_flow = ControlFlow::Normal;
         match rx.recv() {
-            Ok((_winner_idx, winner_vars)) => {
+            Ok((_winner_idx, winner_vars, flow)) => {
                 // Cancel all other branches
                 cancelled.store(true, Ordering::Relaxed);
                 // Merge winner vars
                 for (k, v) in winner_vars {
                     self.vars.insert(k, v);
                 }
+                result_flow = flow;
             }
             Err(_) => {
                 // All branches failed without sending
@@ -706,7 +710,7 @@ impl Interpreter {
             let _ = h.join();
         }
 
-        Ok(())
+        Ok(result_flow)
     }
 
     fn eval(&mut self, expr: &Expr) -> Result<Value> {
@@ -925,7 +929,8 @@ impl Interpreter {
                 }
                 let context = self.eval(&args[0])?;
 
-                let mut model = "qwen2.5:1.5b".to_string();
+                let default_model = std::env::var("COGNOS_MODEL").unwrap_or_else(|_| "qwen2.5:7b".to_string());
+                let mut model = default_model;
                 let mut system = std::string::String::new();
                 let mut format_type: Option<std::string::String> = None;
                 let mut tool_names: Vec<std::string::String> = Vec::new();

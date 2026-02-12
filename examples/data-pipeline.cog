@@ -41,7 +41,7 @@ flow main():
     report = validated_think(
         data,
         "Report",
-        "claude-sonnet-4-20250514",
+        "deepseek-chat",
         "Analyze this git repository data. Provide actionable insights. Rate significance 1-10.",
         "qwen2.5:1.5b"
     )

@@ -43,7 +43,7 @@ flow main():
     
     health = think(
         health_data,
-        model="claude-sonnet-4-20250514",
+        model="deepseek-chat",
         system="Analyze system health. Be specific about values.",
         format="HealthReport"
     )
@@ -87,7 +87,7 @@ flow main():
 
     analysis = think(
         quality_data,
-        model="claude-sonnet-4-20250514",
+        model="deepseek-chat",
         system="You are a senior developer reviewing code quality. Be actionable and specific. Focus on reliability risks."
     )
 

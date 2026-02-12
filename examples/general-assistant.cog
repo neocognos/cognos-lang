@@ -18,13 +18,15 @@ flow do_research(query: String) -> String:
     write(stdout, "  🧠 Synthesizing...\n")
     return think(f"Query: {query}\n\nSearch results:\n{results}", model="deepseek-chat", system="Summarize these search results clearly. Include source URLs.")
 
-flow respond(input: String, tasks: Map) -> Map:
+flow respond(input: String, tasks: Map, history: List) -> Map:
     "Handle a user message"
-    response = think(input, model="deepseek-chat", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
+    context = history.join("\n")
+    prompt = f"{context}\nUser: {input}"
+    response = think(prompt, model="deepseek-chat", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
     if response.has_tool_calls:
         write(stdout, "🔧 Running tools...\n")
         executed = exec(response, tools=["shell", "read_file", "web_search"])
-        final = think(f"User: {input}\nResults:\n{executed.content}", model="deepseek-chat", system="Answer concisely based on these results.")
+        final = think(f"{prompt}\nTool results:\n{executed.content}", model="deepseek-chat", system="Answer concisely based on these results.")
         write(stdout, f"{final.content}\n")
     else:
         write(stdout, f"{response.content}\n")
@@ -34,6 +36,7 @@ flow main():
     write(stdout, "🤖 Assistant ready.\n")
     write(stdout, "Prefix with 'bg:' to run in background. 'status'/'cancel'/'exit' for control.\n\n")
     tasks = {}
+    history = []
     loop:
         write(stdout, "> ")
         if tasks.length == 0:
@@ -49,7 +52,8 @@ flow main():
                 write(stdout, f"⚡ Research started. Keep talking.\n")
             if input != "status":
                 if input.starts_with("bg:") == false:
-                    tasks = respond(input, tasks)
+                    history = history + [f"User: {input}"]
+                    tasks = respond(input, tasks, history)
         else:
             select:
                 branch:

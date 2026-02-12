@@ -6,7 +6,7 @@ type Review:
 
 flow main():
     input = read(stdin)
-    review = think(input, format="Review", model="claude-sonnet-4-20250514", system="You are a code reviewer. Rate code from 1-10.")
+    review = think(input, format="Review", model="deepseek-chat", system="You are a code reviewer. Rate code from 1-10.")
     write(stdout, f"Score: {review[\"score\"]}/10")
     write(stdout, f"Summary: {review[\"summary\"]}")
     write(stdout, "Strengths:")

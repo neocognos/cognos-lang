@@ -3776,3 +3776,29 @@ flow main():
     assert_eq!(code, 0, "stderr: {}", err);
     assert!(out.contains("eof"), "got: {}", out);
 }
+
+// ── BUG-8: break in select propagates to outer loop ──
+
+#[test]
+fn test_select_break_propagates() {
+    let src = r#"
+flow fast() -> String:
+    return "done"
+
+flow main():
+    count = 0
+    loop:
+        count = count + 1
+        select:
+            branch:
+                result = fast()
+                break
+            branch:
+                result = fast()
+                break
+    write(stdout, f"count={count}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("count=1"), "expected count=1, got: {}", out);
+}

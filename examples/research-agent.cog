@@ -44,7 +44,7 @@ flow main():
 
         response = think(
             context,
-            model="claude-sonnet-4-20250514",
+            model="deepseek-chat",
             system="You are a research assistant exploring a codebase. Use tools to investigate. When you find something important, include NOTE: <finding> in your response.",
             tools=["shell", "read_file", "write_file"]
         )
