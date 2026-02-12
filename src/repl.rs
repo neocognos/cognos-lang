@@ -209,7 +209,7 @@ fn parse_and_register_type(interp: &mut Interpreter, input: &str) -> Result<Stri
     let program = parser.parse_program()?;
 
     if let Some(td) = program.types.first() {
-        let name = td.name.clone();
+        let name = td.name().to_string();
         interp.register_type(td.clone());
         Ok(name)
     } else {

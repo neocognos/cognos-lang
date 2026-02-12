@@ -32,6 +32,9 @@ Prefer a single general mechanism over multiple specialized ones. Example: `type
 ### P10: Testability first
 Every agent must be testable without LLM calls, network, or filesystem. Mock environments are a first-class concept, not an afterthought.
 
+### P11: Lean core runtime
+Cognos is a domain language for agents, not a general-purpose language. Resist adding features that exist in Python/JS/Go. If you need a hash map library, data science toolkit, or web framework — use a real language. Cognos handles the agent loop: think, act, observe, remember. Everything else is out of scope.
+
 ---
 
 ## Architecture Review

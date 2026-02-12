@@ -50,6 +50,8 @@ pub enum Token {
     Colon,      // :
     Arrow,      // ->
     FatArrow,   // =>
+    Question,   // ?
+    Pipe,       // |
 
     // Delimiters
     LParen,     // (
@@ -112,6 +114,8 @@ impl std::fmt::Display for Token {
             Token::Colon => write!(f, "':'"),
             Token::Arrow => write!(f, "'->'"),
             Token::FatArrow => write!(f, "'=>'"),
+            Token::Question => write!(f, "'?'"),
+            Token::Pipe => write!(f, "'|'"),
             Token::LParen => write!(f, "'('"),
             Token::RParen => write!(f, "')'"),
             Token::LBracket => write!(f, "'['"),

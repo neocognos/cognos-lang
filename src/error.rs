@@ -222,6 +222,14 @@ pub fn unexpected_token(line: usize, got: &Token, context: &str) -> CognosError 
             format!("unexpected {} {}", got, context),
             None,
         ),
+        Token::Question => (
+            "unexpected '?' — use after field name for optional: field?: Type".into(),
+            None,
+        ),
+        Token::Pipe => (
+            "unexpected '|' — use in enum definitions: \"a\" | \"b\"".into(),
+            None,
+        ),
     };
 
     CognosError {

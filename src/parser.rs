@@ -99,19 +99,46 @@ impl Parser {
         self.expect(Token::Type)?;
         let name = self.expect_ident()?;
         self.expect(Token::Colon)?;
+
+        // Check if this is an enum type: `type Name: "val1" | "val2" | ...`
+        // Enum values can be on the same line as the colon or on the next line after indent
+        if let Token::StringLit(_) = self.peek_token() {
+            // Inline enum: type Name: "a" | "b" | "c"
+            let variants = self.parse_enum_variants()?;
+            self.skip_newlines();
+            return Ok(TypeDef::Enum { name, variants });
+        }
+
         self.expect_newline()?;
 
-        let mut fields = Vec::new();
+        // Check if first token after indent is a string literal (enum on next line)
         self.expect(Token::Indent)?;
-        loop {
+        self.skip_newlines();
+        if let Token::StringLit(_) = self.peek_token() {
+            let variants = self.parse_enum_variants()?;
             self.skip_newlines();
+            if self.check(&Token::Dedent) {
+                self.advance();
+            }
+            return Ok(TypeDef::Enum { name, variants });
+        }
+
+        let mut fields = Vec::new();
+        loop {
             if self.check(&Token::Dedent) || self.is_at_end() {
                 break;
             }
             let fname = self.expect_ident()?;
+            let optional = if self.check(&Token::Question) {
+                self.advance();
+                true
+            } else {
+                false
+            };
             self.expect(Token::Colon)?;
             let ty = self.parse_type()?;
-            fields.push(TypeField { name: fname, ty });
+            fields.push(TypeField { name: fname, ty, optional });
+            self.skip_newlines();
         }
         if self.check(&Token::Dedent) {
             self.advance();
@@ -121,7 +148,27 @@ impl Parser {
             bail!("type '{}' must have at least one field", name);
         }
 
-        Ok(TypeDef { name, fields })
+        Ok(TypeDef::Struct { name, fields })
+    }
+
+    fn parse_enum_variants(&mut self) -> Result<Vec<String>> {
+        let mut variants = Vec::new();
+        if let Token::StringLit(s) = self.peek_token() {
+            variants.push(s);
+            self.advance();
+        } else {
+            bail!("expected string literal for enum variant");
+        }
+        while self.check(&Token::Pipe) {
+            self.advance();
+            if let Token::StringLit(s) = self.peek_token() {
+                variants.push(s);
+                self.advance();
+            } else {
+                bail!("expected string literal after '|' in enum definition");
+            }
+        }
+        Ok(variants)
     }
 
     // ─── Flow ───

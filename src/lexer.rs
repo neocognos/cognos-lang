@@ -143,6 +143,8 @@ impl Lexer {
                 ')' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RParen },
                 '[' => { self.bracket_depth += 1; Token::LBracket },
                 ']' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RBracket },
+                '?' => Token::Question,
+                '|' => Token::Pipe,
                 '{' => { self.bracket_depth += 1; Token::LBrace },
                 '}' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RBrace },
                 _ => {

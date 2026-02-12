@@ -17,6 +17,7 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 - **Behaviors in language, not runtime.** Agent behaviors (retry, tool loops, memory) are `.cog` flows, not Rust code.
 - **One feature, multiple use cases.** Prefer one general mechanism over multiple specialized ones.
 - **Testability first.** Every agent testable without LLM, network, or filesystem. Mocks are first-class.
+- **Lean core runtime.** Cognos is a domain language for agents, not a general-purpose language. Think, act, observe, remember — everything else is out of scope.
 - **Platform portable.** `.cog` files run anywhere the interpreter compiles.
 
 ## 2. Types

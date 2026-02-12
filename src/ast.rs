@@ -9,15 +9,31 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeDef {
-    pub name: String,
-    pub fields: Vec<TypeField>,
+pub enum TypeDef {
+    Struct {
+        name: String,
+        fields: Vec<TypeField>,
+    },
+    Enum {
+        name: String,
+        variants: Vec<String>,
+    },
+}
+
+impl TypeDef {
+    pub fn name(&self) -> &str {
+        match self {
+            TypeDef::Struct { name, .. } => name,
+            TypeDef::Enum { name, .. } => name,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct TypeField {
     pub name: String,
     pub ty: TypeExpr,
+    pub optional: bool,
 }
 
 #[derive(Debug, Clone)]

@@ -1,0 +1,16 @@
+flow compact_history(max_turns: Int = 10, model: String = "qwen2.5:1.5b") -> String:
+    "Compact conversation history beyond max_turns into a summary"
+    h = history()
+    if h.length <= max_turns * 2:
+        return "No compaction needed"
+    old = h[:h.length - max_turns * 2]
+    old_text = ""
+    for msg in old:
+        old_text = old_text + msg["role"] + ": " + msg["content"] + "\n"
+    summary = think(
+        "Summarize this conversation concisely, preserving key facts and decisions:\n" + old_text,
+        model=model,
+        system="You are a conversation summarizer. Be concise. Preserve facts, decisions, and context."
+    )
+    clear_history()
+    return summary

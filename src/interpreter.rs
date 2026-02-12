@@ -134,6 +134,7 @@ pub struct Interpreter {
     env: Box<dyn Env>,
     tracer: Option<Arc<Tracer>>,
     import_stack: Vec<std::string::String>,
+    conversation_history: Vec<(std::string::String, std::string::String)>,
 }
 
 impl Interpreter {
@@ -155,7 +156,7 @@ impl Interpreter {
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         vars.insert("math".to_string(), Value::Module("math".to_string()));
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer, import_stack: Vec::new() }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer, import_stack: Vec::new(), conversation_history: Vec::new() }
     }
 
     pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
@@ -255,8 +256,8 @@ impl Interpreter {
 
         // Register all types
         for td in &program.types {
-            log::info!("Registered type '{}'", td.name);
-            self.types.insert(td.name.clone(), td.clone());
+            log::info!("Registered type '{}'", td.name());
+            self.types.insert(td.name().to_string(), td.clone());
         }
 
         // Register all flows
@@ -289,7 +290,7 @@ impl Interpreter {
 
     /// Register a type (for REPL use)
     pub fn register_type(&mut self, td: crate::ast::TypeDef) {
-        self.types.insert(td.name.clone(), td);
+        self.types.insert(td.name().to_string(), td);
     }
 
     /// Register a flow (for REPL use)
@@ -538,7 +539,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "read", "write", "file", "__exec_shell__", "history", "clear_history"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -764,7 +765,20 @@ impl Interpreter {
                     None
                 };
 
-                let result = self.call_llm(&model, &system, &context.to_string(), tool_defs.clone())?;
+                let prompt_text = context.to_string();
+                let result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone())?;
+
+                // Track conversation history
+                self.conversation_history.push(("user".to_string(), prompt_text.clone()));
+                let response_text = match &result {
+                    Value::String(s) => s.clone(),
+                    Value::Map(entries) => entries.iter()
+                        .find(|(k, _)| k == "content")
+                        .map(|(_, v)| v.to_string())
+                        .unwrap_or_default(),
+                    other => other.to_string(),
+                };
+                self.conversation_history.push(("assistant".to_string(), response_text));
 
                 // If format= specified, parse JSON and validate against type
                 if let Some(ref tn) = format_type {
@@ -914,6 +928,19 @@ impl Interpreter {
                     let val = self.eval(arg)?;
                     eprintln!("[log] {}", val);
                 }
+                Ok(Value::None)
+            }
+            "history" => {
+                let entries: Vec<Value> = self.conversation_history.iter().map(|(role, content)| {
+                    Value::Map(vec![
+                        ("role".to_string(), Value::String(role.clone())),
+                        ("content".to_string(), Value::String(content.clone())),
+                    ])
+                }).collect();
+                Ok(Value::List(entries))
+            }
+            "clear_history" => {
+                self.conversation_history.clear();
                 Ok(Value::None)
             }
             _ => {
@@ -1112,22 +1139,33 @@ impl Interpreter {
     }
 
     fn type_to_schema(&self, td: &TypeDef) -> std::string::String {
-        let fields: Vec<std::string::String> = td.fields.iter().map(|f| {
-            let ty_str = self.type_expr_to_json_type(&f.ty);
-            format!("  \"{}\": {}", f.name, ty_str)
-        }).collect();
-        format!("{{\n{}\n}}", fields.join(",\n"))
+        match td {
+            TypeDef::Struct { fields, .. } => {
+                let field_strs: Vec<std::string::String> = fields.iter().map(|f| {
+                    let ty_str = self.type_expr_to_json_type(&f.ty);
+                    if f.optional {
+                        format!("  \"{}\"?: {}", f.name, ty_str)
+                    } else {
+                        format!("  \"{}\": {}", f.name, ty_str)
+                    }
+                }).collect();
+                format!("{{\n{}\n}}", field_strs.join(",\n"))
+            }
+            TypeDef::Enum { variants, .. } => {
+                let quoted: Vec<std::string::String> = variants.iter().map(|v| format!("\"{}\"", v)).collect();
+                format!("one of: {}", quoted.join(", "))
+            }
+        }
     }
 
     fn type_expr_to_json_type(&self, ty: &TypeExpr) -> std::string::String {
         match ty {
             TypeExpr::Named(n) => match n.as_str() {
-                "String" => "<string>".to_string(),
+                "String" | "Text" => "<string>".to_string(),
                 "Int" => "<integer>".to_string(),
                 "Float" => "<number>".to_string(),
                 "Bool" => "<boolean>".to_string(),
                 other => {
-                    // Check if it's a nested type
                     if let Some(td) = self.types.get(other) {
                         self.type_to_schema(td)
                     } else {
@@ -1140,7 +1178,15 @@ impl Interpreter {
                     let inner = args.first().map(|a| self.type_expr_to_json_type(a)).unwrap_or("<any>".to_string());
                     format!("[{}, ...]", inner)
                 }
-                "Map" => "<object>".to_string(),
+                "Map" => {
+                    if args.len() >= 2 {
+                        let key = self.type_expr_to_json_type(&args[0]);
+                        let val = self.type_expr_to_json_type(&args[1]);
+                        format!("{{{}: {}, ...}}", key, val)
+                    } else {
+                        "<object>".to_string()
+                    }
+                }
                 _ => format!("<{}>", name),
             }
             TypeExpr::Struct(_) => "<object>".to_string(),
@@ -1148,46 +1194,110 @@ impl Interpreter {
     }
 
     fn validate_type(&self, val: &Value, td: &crate::ast::TypeDef) -> Result<()> {
-        let map = match val {
-            Value::Map(entries) => entries,
-            other => bail!("expected {} (Map), got {}", td.name, type_name(other)),
-        };
-
-        let mut errors = Vec::new();
-
-        // Check all required fields exist and have correct type
-        for field in &td.fields {
-            match map.iter().find(|(k, _)| k == &field.name) {
-                None => errors.push(format!("missing field '{}'", field.name)),
-                Some((_, val)) => {
-                    let expected = match &field.ty {
-                        crate::ast::TypeExpr::Named(name) => name.as_str(),
-                        crate::ast::TypeExpr::Generic(name, _) => name.as_str(),
-                        crate::ast::TypeExpr::Struct(_) => continue,
-                    };
-                    let ok = match expected {
-                        "Int" => matches!(val, Value::Int(_)),
-                        "Float" => matches!(val, Value::Float(_) | Value::Int(_)),
-                        "String" => matches!(val, Value::String(_)),
-                        "Bool" => matches!(val, Value::Bool(_)),
-                        "List" => matches!(val, Value::List(_)),
-                        "Map" => matches!(val, Value::Map(_)),
-                        _ => true, // unknown types pass (custom nested types)
-                    };
-                    if !ok {
-                        errors.push(format!(
-                            "field '{}': expected {}, got {} ({})",
-                            field.name, expected, type_name(val), val
-                        ));
+        match td {
+            TypeDef::Enum { name, variants } => {
+                match val {
+                    Value::String(s) => {
+                        if !variants.contains(s) {
+                            bail!("type {} validation failed: '{}' is not one of [{}]",
+                                name, s, variants.join(", "));
+                        }
+                        Ok(())
                     }
+                    other => bail!("expected {} (String enum), got {}", name, type_name(other)),
+                }
+            }
+            TypeDef::Struct { name, fields } => {
+                let map = match val {
+                    Value::Map(entries) => entries,
+                    other => bail!("expected {} (Map), got {}", name, type_name(other)),
+                };
+
+                let mut errors = Vec::new();
+
+                for field in fields {
+                    match map.iter().find(|(k, _)| k == &field.name) {
+                        None => {
+                            if !field.optional {
+                                errors.push(format!("missing field '{}'", field.name));
+                            }
+                        }
+                        Some((_, val)) => {
+                            if let Err(e) = self.validate_field_value(val, &field.ty) {
+                                errors.push(format!("field '{}': {}", field.name, e));
+                            }
+                        }
+                    }
+                }
+
+                if errors.is_empty() {
+                    Ok(())
+                } else {
+                    bail!("type {} validation failed:\n  {}\nLLM response: {}", name, errors.join("\n  "), val)
                 }
             }
         }
+    }
 
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            bail!("type {} validation failed:\n  {}\nLLM response: {}", td.name, errors.join("\n  "), val)
+    fn validate_field_value(&self, val: &Value, ty: &crate::ast::TypeExpr) -> Result<()> {
+        match ty {
+            crate::ast::TypeExpr::Named(name) => {
+                let ok = match name.as_str() {
+                    "Int" => matches!(val, Value::Int(_)),
+                    "Float" => matches!(val, Value::Float(_) | Value::Int(_)),
+                    "String" | "Text" => matches!(val, Value::String(_)),
+                    "Bool" => matches!(val, Value::Bool(_)),
+                    "List" => matches!(val, Value::List(_)),
+                    "Map" => matches!(val, Value::Map(_)),
+                    other => {
+                        // Check for user-defined type (struct or enum)
+                        if let Some(td) = self.types.get(other) {
+                            return self.validate_type(val, td);
+                        }
+                        true
+                    }
+                };
+                if !ok {
+                    bail!("expected {}, got {} ({})", name, type_name(val), val);
+                }
+                Ok(())
+            }
+            crate::ast::TypeExpr::Generic(name, args) => {
+                match name.as_str() {
+                    "List" => {
+                        let items = match val {
+                            Value::List(items) => items,
+                            other => bail!("expected List, got {}", type_name(other)),
+                        };
+                        // Validate inner type if specified
+                        if let Some(inner_ty) = args.first() {
+                            for (i, item) in items.iter().enumerate() {
+                                if let Err(e) = self.validate_field_value(item, inner_ty) {
+                                    bail!("element [{}]: {}", i, e);
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    "Map" => {
+                        let entries = match val {
+                            Value::Map(entries) => entries,
+                            other => bail!("expected Map, got {}", type_name(other)),
+                        };
+                        if args.len() >= 2 {
+                            let val_ty = &args[1];
+                            for (k, v) in entries {
+                                if let Err(e) = self.validate_field_value(v, val_ty) {
+                                    bail!("key '{}': {}", k, e);
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    _ => Ok(()),
+                }
+            }
+            crate::ast::TypeExpr::Struct(_) => Ok(()),
         }
     }
 
@@ -1325,6 +1435,9 @@ impl Interpreter {
         if model.starts_with("claude") {
             return self.call_claude_cli(model, system, prompt, tools);
         }
+        if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
+            return self.call_openai(model, system, prompt, tools);
+        }
         self.call_ollama(model, system, prompt, tools)
     }
 
@@ -1447,6 +1560,101 @@ impl Interpreter {
         }).collect();
 
         Some(result)
+    }
+
+    fn call_openai(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        let api_key = std::env::var("OPENAI_API_KEY")
+            .or_else(|_| {
+                let env_path = std::path::Path::new(".env");
+                if env_path.exists() {
+                    std::fs::read_to_string(env_path).ok().and_then(|content| {
+                        content.lines().find_map(|line| {
+                            let line = line.trim();
+                            line.strip_prefix("OPENAI_API_KEY=")
+                                .map(|val| val.trim_matches('"').trim_matches('\'').to_string())
+                        })
+                    }).ok_or_else(|| std::env::VarError::NotPresent)
+                } else { Err(std::env::VarError::NotPresent) }
+            })
+            .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set. Set it in env or .env file."))?;
+
+        log::info!("Calling OpenAI: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+        let call_start = std::time::Instant::now();
+
+        let mut messages = Vec::new();
+        if !system.is_empty() {
+            messages.push(serde_json::json!({"role": "system", "content": system}));
+        }
+        messages.push(serde_json::json!({"role": "user", "content": prompt}));
+
+        let mut body = serde_json::json!({
+            "model": model,
+            "messages": messages
+        });
+
+        if let Some(ref tool_defs) = tools {
+            body["tools"] = serde_json::json!(tool_defs);
+            body["tool_choice"] = serde_json::json!("auto");
+        }
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()?;
+
+        let resp = client.post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("OpenAI error: {}", e))?;
+
+        let json: serde_json::Value = resp.json()
+            .map_err(|e| anyhow::anyhow!("OpenAI JSON error: {}", e))?;
+
+        if let Some(err) = json.get("error") {
+            bail!("OpenAI API error: {}", err);
+        }
+
+        let choice = &json["choices"][0]["message"];
+        let content = choice["content"].as_str().unwrap_or("").to_string();
+
+        // Check for tool calls
+        if let Some(tool_calls_arr) = choice.get("tool_calls").and_then(|v| v.as_array()) {
+            if !tool_calls_arr.is_empty() {
+                let tc: Vec<Value> = tool_calls_arr.iter().map(|c| {
+                    let func = &c["function"];
+                    let name = func["name"].as_str().unwrap_or("").to_string();
+                    let args_str = func["arguments"].as_str().unwrap_or("{}");
+                    let arguments = serde_json::from_str::<serde_json::Value>(args_str)
+                        .map(|v| self.json_to_value(v))
+                        .unwrap_or(Value::Map(vec![]));
+                    Value::Map(vec![
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ])
+                }).collect();
+
+                let latency = call_start.elapsed().as_millis() as u64;
+                self.trace_llm(model, "openai", latency, prompt, system, &content, true);
+                return Ok(Value::Map(vec![
+                    ("content".to_string(), Value::String(content)),
+                    ("tool_calls".to_string(), Value::List(tc)),
+                    ("has_tool_calls".to_string(), Value::Bool(true)),
+                ]));
+            }
+        }
+
+        let latency = call_start.elapsed().as_millis() as u64;
+        self.trace_llm(model, "openai", latency, prompt, system, &content, false);
+
+        if tools.is_some() {
+            Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]))
+        } else {
+            Ok(Value::String(content))
+        }
     }
 
     fn call_anthropic(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {

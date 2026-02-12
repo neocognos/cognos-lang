@@ -5,9 +5,18 @@ use crate::ast::*;
 pub fn pretty_program(prog: &Program) -> String {
     let mut out = String::new();
     for td in &prog.types {
-        out.push_str(&format!("type {}:\n", td.name));
-        for f in &td.fields {
-            out.push_str(&format!("    {}: {}\n", f.name, pretty_type(&f.ty)));
+        match td {
+            TypeDef::Struct { name, fields } => {
+                out.push_str(&format!("type {}:\n", name));
+                for f in fields {
+                    let opt = if f.optional { "?" } else { "" };
+                    out.push_str(&format!("    {}{}: {}\n", f.name, opt, pretty_type(&f.ty)));
+                }
+            }
+            TypeDef::Enum { name, variants } => {
+                let quoted: Vec<String> = variants.iter().map(|v| format!("\"{}\"", v)).collect();
+                out.push_str(&format!("type {}: {}\n", name, quoted.join(" | ")));
+            }
         }
         out.push('\n');
     }
