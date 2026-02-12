@@ -114,6 +114,7 @@ cognos repl                         # interactive REPL
 | `--trace <path>` | Write JSONL trace events to file |
 | `--trace-level metrics\|full` | Trace detail level (default: metrics) |
 | `--env <mock.json>` | Mock environment file (for `cognos test`) |
+| `--session <path>` | Auto-save/load variables between runs |
 | `-v` / `-vv` / `-vvv` | Log verbosity (info/debug/trace) |
 
 ## LLM Providers
