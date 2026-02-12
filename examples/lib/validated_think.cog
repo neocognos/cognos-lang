@@ -2,19 +2,25 @@
 #
 # Usage:
 #   import "lib/validated_think.cog"
-#   result = validated_think("review this code",
-#       format="Review", model="claude-sonnet-4-20250514", system="Be thorough.")
+#   result = validated_think("review this code", format="Review",
+#       model="claude-sonnet-4-20250514", fix_model="qwen2.5:1.5b")
+#
+# On validation failure, sends the error + bad response to fix_model
+# to correct the structure. Cheap model is enough — just fixing JSON.
 
-flow validated_think(input: String, format: String, model: String, system: String) -> Map:
-    "Think with strict schema validation and auto-retry on failure."
-    last_error = ""
-    loop max=3:
+flow validated_think(input: String, format: String, model: String, system: String, fix_model: String) -> Map:
+    "Think with strict schema validation. Uses fix_model for retries."
+    # First attempt: main model
+    try:
+        return think(input, format=format, model=model, system=system)
+    catch first_error:
+        pass
+
+    # Retries: use fix_model (cheap, fast — just fixing structure)
+    last_error = f"{first_error}"
+    loop max=2:
         try:
-            if last_error == "":
-                return think(input, format=format, model=model, system=system)
-            else:
-                return think(last_error, format=format, model=model,
-                    system="Fix the JSON to match the required schema exactly.")
+            return think(last_error, format=format, model=fix_model, system="Fix the JSON to match the required schema exactly.")
         catch err:
             last_error = f"{err}"
     return {"_error": last_error}
