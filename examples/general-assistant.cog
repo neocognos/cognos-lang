@@ -21,14 +21,26 @@ flow write_file(path: String, content: String) -> String:
 flow do_task(description: String) -> String:
     "Execute a complex task in the background"
     tools = ["shell", "read_file", "web_search"]
-    response = think(description, model="claude-sonnet-4-20250514", system="Complete this task thoroughly. Use tools as needed.", tools=tools)
+    response = think(
+        description,
+        model="claude-sonnet-4-20250514",
+        system="Complete this task thoroughly. Use the tools available to you: shell() for commands, read_file() for file contents, web_search() for web research. Always use tools — don't say you can't.",
+        tools=tools
+    )
     if response.has_tool_calls:
         executed = exec(response, tools=tools)
         response = think(
             f"Task: {description}\nTool results:\n{executed.content}",
             model="claude-sonnet-4-20250514",
-            system="Synthesize into a clear answer."
+            system="Synthesize the tool results into a clear, comprehensive answer."
         )
+        if response.has_tool_calls:
+            executed = exec(response, tools=tools)
+            response = think(
+                f"Task: {description}\nMore results:\n{executed.content}",
+                model="claude-sonnet-4-20250514",
+                system="Give the final answer based on all results."
+            )
     return response.content
 
 flow handle_input(input: String, tasks: Map) -> Map:
@@ -52,7 +64,7 @@ flow handle_input(input: String, tasks: Map) -> Map:
         f"User said: \"{input}\"",
         format="Action",
         model="claude-sonnet-4-20250514",
-        system="Classify intent. type='respond' for quick answers, type='spawn' for background tasks. task_name is a short label or empty string."
+        system="Classify the user's intent into exactly one type.\n\ntype='spawn' — use for: research, analysis, long investigations, multi-step tasks, anything involving web search or reading multiple files. Give a short task_name like 'research' or 'analysis'.\n\ntype='respond' — use ONLY for: simple factual questions, greetings, math, or quick shell commands (date, time, disk space). task_name should be empty string.\n\nWhen in doubt, use 'spawn'."
     )
     if action.type == "spawn":
         name = action.task_name
@@ -60,13 +72,15 @@ flow handle_input(input: String, tasks: Map) -> Map:
         tasks[name] = handle
         write(stdout, f"⚡ Started '{name}' in background. Keep talking.\n")
         return tasks
+    write(stdout, "🔍 Thinking...\n")
     response = think(
         input,
         model="claude-sonnet-4-20250514",
-        system="Be concise and helpful. Use tools when needed.",
+        system="Be concise and helpful. You have tools available — use them when they can help answer the question. For date/time use shell('date'), for web info use web_search().",
         tools=tools
     )
     if response.has_tool_calls:
+        write(stdout, "🔧 Using tools...\n")
         executed = exec(response, tools=tools)
         final = think(
             f"User asked: {input}\n\nTool results:\n{executed.content}\n\nAnswer the user's question based on these results.",
