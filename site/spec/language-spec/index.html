@@ -377,6 +377,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#241-generic-type-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.1 Generic Type Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#242-optional-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.2 Optional Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#243-enum-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.3 Enum Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#25-truthiness" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -711,21 +744,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#61-math" class="md-nav__link">
+  <a href="#61-http" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6.1 math
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62-http" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 http
+        6.1 http
       
     </span>
   </a>
@@ -1011,6 +1033,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Concurrency
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="16. Concurrency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parallel-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parallel: Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#async-await" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        async / await
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1506,6 +1567,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#241-generic-type-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.1 Generic Type Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#242-optional-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.2 Optional Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#243-enum-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4.3 Enum Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#25-truthiness" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1840,21 +1934,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#61-math" class="md-nav__link">
+  <a href="#61-http" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6.1 math
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62-http" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 http
+        6.1 http
       
     </span>
   </a>
@@ -2143,6 +2226,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#16-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Concurrency
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="16. Concurrency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parallel-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parallel: Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#async-await" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        async / await
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2175,6 +2297,7 @@
 <li><strong>Behaviors in language, not runtime.</strong> Agent behaviors (retry, tool loops, memory) are <code>.cog</code> flows, not Rust code.</li>
 <li><strong>One feature, multiple use cases.</strong> Prefer one general mechanism over multiple specialized ones.</li>
 <li><strong>Testability first.</strong> Every agent testable without LLM, network, or filesystem. Mocks are first-class.</li>
+<li><strong>Lean core runtime.</strong> Cognos is a domain language for agents, not a general-purpose language. Think, act, observe, remember — everything else is out of scope.</li>
 <li><strong>Platform portable.</strong> <code>.cog</code> files run anywhere the interpreter compiles.</li>
 </ul>
 <h2 id="2-types">2. Types</h2>
@@ -2251,7 +2374,7 @@
 </tr>
 <tr>
 <td><code>Module</code></td>
-<td>Built-in module: <code>math</code>, <code>http</code></td>
+<td>Built-in module: <code>http</code></td>
 </tr>
 </tbody>
 </table>
@@ -2262,6 +2385,36 @@
     tags: List
 </code></pre></div>
 <p>Used with <code>think(input, format="Review")</code> to get structured LLM output.</p>
+<h3 id="241-generic-type-validation">2.4.1 Generic Type Validation</h3>
+<p>List and Map types support inner type parameters for validation:</p>
+<div class="highlight"><pre><span></span><code>type Insight:
+    text: String
+    score: Int
+
+type Review:
+    score: Int
+    insights: List[Insight]    # each element validated as Insight
+    tags: List                  # unvalidated (any list)
+    metadata: Map[String, Int]  # values validated as Int
+</code></pre></div>
+<p>When <code>think(input, format="Review")</code> returns data, <code>List[Insight]</code> validates every element against the <code>Insight</code> type definition. <code>Map[String, Int]</code> validates all values are integers.</p>
+<h3 id="242-optional-fields">2.4.2 Optional Fields</h3>
+<p>Fields can be marked optional with <code>?</code> — they may be absent from LLM responses:</p>
+<div class="highlight"><pre><span></span><code>type Config:
+    name: String
+    description?: String    # may be missing
+    timeout?: Int           # may be missing
+</code></pre></div>
+<p>Optional fields are not included in the "required" set during validation. If present, they are still type-checked.</p>
+<h3 id="243-enum-types">2.4.3 Enum Types</h3>
+<p>Enum types restrict a field to a fixed set of string values:</p>
+<div class="highlight"><pre><span></span><code>type Severity: &quot;low&quot; | &quot;medium&quot; | &quot;high&quot; | &quot;critical&quot;
+
+type Issue:
+    title: String
+    severity: Severity
+</code></pre></div>
+<p>Enum values are validated — if the LLM returns a value not in the set, validation fails.</p>
 <h3 id="25-truthiness">2.5 Truthiness</h3>
 <table>
 <thead>
@@ -2445,11 +2598,6 @@ content = read(file(&quot;input.txt&quot;))
 <td>Standard output handle</td>
 </tr>
 <tr>
-<td><code>math</code></td>
-<td>Module</td>
-<td>Math functions and constants</td>
-</tr>
-<tr>
 <td><code>http</code></td>
 <td>Module</td>
 <td>HTTP client</td>
@@ -2457,72 +2605,7 @@ content = read(file(&quot;input.txt&quot;))
 </tbody>
 </table>
 <h2 id="6-native-modules">6. Native Modules</h2>
-<h3 id="61-math">6.1 <code>math</code></h3>
-<table>
-<thead>
-<tr>
-<th>Function</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>math.sin(x)</code>, <code>math.cos(x)</code>, <code>math.tan(x)</code></td>
-<td>Trigonometric</td>
-</tr>
-<tr>
-<td><code>math.asin(x)</code>, <code>math.acos(x)</code>, <code>math.atan(x)</code></td>
-<td>Inverse trig</td>
-</tr>
-<tr>
-<td><code>math.atan2(y, x)</code></td>
-<td>Two-argument arctangent</td>
-</tr>
-<tr>
-<td><code>math.sqrt(x)</code>, <code>math.pow(x, y)</code></td>
-<td>Roots and powers</td>
-</tr>
-<tr>
-<td><code>math.exp(x)</code>, <code>math.log(x)</code>, <code>math.log2(x)</code>, <code>math.log10(x)</code></td>
-<td>Exponential/logarithmic</td>
-</tr>
-<tr>
-<td><code>math.floor(x)</code>, <code>math.ceil(x)</code>, <code>math.round(x)</code></td>
-<td>Rounding</td>
-</tr>
-<tr>
-<td><code>math.abs(x)</code></td>
-<td>Absolute value</td>
-</tr>
-<tr>
-<td><code>math.min(a, b)</code>, <code>math.max(a, b)</code></td>
-<td>Min/max</td>
-</tr>
-</tbody>
-</table>
-<table>
-<thead>
-<tr>
-<th>Constant</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>math.pi</code></td>
-<td>3.14159...</td>
-</tr>
-<tr>
-<td><code>math.e</code></td>
-<td>2.71828...</td>
-</tr>
-<tr>
-<td><code>math.inf</code></td>
-<td>Infinity</td>
-</tr>
-</tbody>
-</table>
-<h3 id="62-http">6.2 <code>http</code></h3>
+<h3 id="61-http">6.1 <code>http</code></h3>
 <table>
 <thead>
 <tr>
@@ -2752,8 +2835,10 @@ x = 42  # end-of-line comment
 
 <span class="nc">Import</span> <span class="o">&lt;-</span> <span class="s2">&quot;import&quot;</span> <span class="nc">StringLiteral</span> <span class="nc">NEWLINE</span>
 
-<span class="nc">TypeDef</span> <span class="o">&lt;-</span> <span class="s2">&quot;type&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">TypeField</span><span class="o">*</span> <span class="nc">DEDENT</span>
-<span class="nc">TypeField</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Type</span> <span class="nc">NEWLINE</span>
+<span class="nc">TypeDef</span> <span class="o">&lt;-</span> <span class="nc">StructDef</span> <span class="o">|</span> <span class="nc">EnumDef</span>
+<span class="nc">StructDef</span> <span class="o">&lt;-</span> <span class="s2">&quot;type&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">TypeField</span><span class="o">*</span> <span class="nc">DEDENT</span>
+<span class="nc">EnumDef</span> <span class="o">&lt;-</span> <span class="s2">&quot;type&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">StringLit</span> <span class="p">(</span><span class="s2">&quot;|&quot;</span> <span class="nc">StringLit</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">TypeField</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="s2">&quot;?&quot;</span><span class="o">?</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Type</span> <span class="nc">NEWLINE</span>
 
 <span class="nc">Flow</span> <span class="o">&lt;-</span> <span class="s2">&quot;flow&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;(&quot;</span> <span class="nc">ParameterList</span><span class="o">?</span> <span class="s2">&quot;)&quot;</span> <span class="p">(</span><span class="s2">&quot;-&gt;&quot;</span> <span class="nc">Type</span><span class="p">)</span><span class="o">?</span> <span class="s2">&quot;:&quot;</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">Statement</span><span class="o">*</span> <span class="nc">DEDENT</span>
 
@@ -2874,6 +2959,41 @@ Error: cannot String + Int — String + Int not supported
 </tbody>
 </table>
 <p>See <a href="../../docs/environments/">Environments docs</a> for mock file format.</p>
+<h2 id="16-concurrency">16. Concurrency</h2>
+<h3 id="parallel-blocks"><code>parallel:</code> Blocks</h3>
+<p>Run multiple statements concurrently. All branches execute in parallel threads and the block waits for all to complete before continuing.</p>
+<div class="highlight"><pre><span></span><code>parallel:
+    branch:
+        code = read(file(&quot;src/main.rs&quot;))
+        review = think(code, model=&quot;claude-sonnet-4-20250514&quot;)
+    branch:
+        tests = shell(&quot;cargo test 2&gt;&amp;1&quot;)
+        analysis = think(tests, system=&quot;Analyze&quot;)
+    branch:
+        metrics = shell(&quot;tokei src/&quot;)
+# review, analysis, metrics all available here
+</code></pre></div>
+<p>Each <code>branch:</code> is an indented block of N statements. All branches run concurrently.</p>
+<p><strong>Semantics:</strong>
+- Each <code>branch:</code> block runs in its own OS thread
+- Block waits for ALL branches to complete
+- Variables assigned inside branches are available after the parallel block
+- No shared mutable state between branches — each gets a snapshot of current vars
+- Errors in any branch propagate after all branches finish</p>
+<h3 id="async-await"><code>async</code> / <code>await</code></h3>
+<p>Fire-and-forget with later collection. <code>async</code> starts an expression in a background thread and returns a future handle. <code>await(handle)</code> blocks until the result is ready.</p>
+<div class="highlight"><pre><span></span><code>handle = async deep_research(&quot;quantum computing&quot;)
+# do other work while deep_research runs...
+quick = think(&quot;what&#39;s 2+2?&quot;)
+# now collect the result
+result = await(handle)
+</code></pre></div>
+<p><strong>Semantics:</strong>
+- <code>async expr</code> spawns <code>expr</code> evaluation in a background thread, returns a <code>Future</code> handle
+- <code>await(handle)</code> blocks until the async operation completes, returns the result
+- The handle is a <code>Future</code> value — can be stored in variables, passed around
+- Each <code>await</code> consumes the handle — awaiting the same handle twice is an error
+- The background thread gets a snapshot of current variables and environment</p>
 
 
 

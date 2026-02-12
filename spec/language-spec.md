@@ -44,7 +44,7 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 |------|-------------|
 | `None` | Returned by `write()`, `log()`, `save()`. No literal. |
 | `Handle` | I/O endpoint: `stdin`, `stdout`, or `file("path")` |
-| `Module` | Built-in module: `math`, `http` |
+| `Module` | Built-in module: `http` |
 
 ### 2.4 Custom Types
 
@@ -302,7 +302,6 @@ Alias for `log()`.
 |----------|------|-------------|
 | `stdin` | Handle | Standard input handle |
 | `stdout` | Handle | Standard output handle |
-| `math` | Module | Math functions and constants |
 | `http` | Module | HTTP client |
 
 ## 6. Native Modules
