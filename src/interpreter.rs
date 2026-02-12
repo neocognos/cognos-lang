@@ -1847,6 +1847,7 @@ impl Interpreter {
         let home = std::env::var("HOME").unwrap_or_default();
         let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
         let mut token: Option<String> = None;
+        let mut token_source = "none";
         if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
             for entry in entries.flatten() {
                 let auth_path = entry.path().join("agent/auth-profiles.json");
@@ -1854,7 +1855,9 @@ impl Interpreter {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
                         if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
                             if !t.is_empty() {
+                                log::info!("Using Anthropic token from {:?} ({}...)", auth_path, &t[..t.len().min(20)]);
                                 token = Some(t.to_string());
+                                token_source = "openclaw-auth-profiles";
                                 break;
                             }
                         }
@@ -1863,11 +1866,18 @@ impl Interpreter {
             }
         }
         if token.is_none() {
-            token = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+            if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+                if !key.is_empty() {
+                    log::info!("Using ANTHROPIC_API_KEY env var ({}...)", &key[..key.len().min(20)]);
+                    token = Some(key);
+                    token_source = "env-var";
+                }
+            }
         }
         let token = token.ok_or_else(|| anyhow::anyhow!(
             "No Anthropic token found. Run 'openclaw configure' or set ANTHROPIC_API_KEY."
         ))?;
+        log::info!("Token source: {}, prefix: {}...", token_source, &token[..token.len().min(20)]);
 
         log::info!("Calling Anthropic API: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
 
