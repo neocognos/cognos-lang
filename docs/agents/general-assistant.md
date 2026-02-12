@@ -91,8 +91,11 @@ Using `--session state.json`, the assistant preserves variables between runs. Us
 
 ```cognos
 import "lib/exec.cog"
-import "lib/compact.cog"
-import "lib/web_search.cog"
+import "../lib/web_search.cog"
+
+type Action:
+    type: String
+    task_name: String
 
 flow shell(command: String) -> String:
     "Run a shell command. Output limited to 50 lines."
@@ -107,62 +110,87 @@ flow write_file(path: String, content: String) -> String:
     write(file(path), content)
     return f"Wrote {content.length} chars to {path}"
 
-flow http_fetch(url: String) -> String:
-    "Fetch content from a URL"
-    return http.get(url)
+flow do_task(description: String) -> String:
+    "Execute a complex task in the background"
+    tools = ["shell", "read_file", "web_search"]
+    response = think(description, model="claude-sonnet-4-20250514", system="Complete this task thoroughly.", tools=tools)
+    if response.has_tool_calls:
+        executed = exec(response, tools=tools)
+        response = think(
+            f"Task: {description}\nTool results:\n{executed.content}",
+            model="claude-sonnet-4-20250514",
+            system="Synthesize into a clear answer."
+        )
+    return response.content
+
+flow handle_input(input: String, tasks: Map) -> Map:
+    tools = ["shell", "read_file", "write_file", "web_search"]
+    if input == "status":
+        if tasks.length == 0:
+            write(stdout, "No tasks running.\n")
+        for name, handle in tasks:
+            write(stdout, f"  ⏳ {name}: running\n")
+        return tasks
+    if input.starts_with("cancel "):
+        name = input[7:].strip()
+        try:
+            cancel(tasks[name])
+            tasks = remove(tasks, name)
+            write(stdout, f"🛑 Cancelled '{name}'.\n")
+        catch err:
+            write(stdout, f"No task named '{name}'.\n")
+        return tasks
+    action = think(
+        f"User said: \"{input}\"",
+        format="Action",
+        model="claude-sonnet-4-20250514",
+        system="Classify intent. type='respond' for quick answers, type='spawn' for background tasks."
+    )
+    if action.type == "spawn":
+        handle = async do_task(input)
+        tasks[action.task_name] = handle
+        write(stdout, f"⚡ Started '{action.task_name}' in background. Keep talking.\n")
+        return tasks
+    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful.", tools=tools)
+    if response.has_tool_calls:
+        executed = exec(response, tools=tools)
+        final = think(f"Tool results:\n{executed.content}", model="claude-sonnet-4-20250514", system="Answer concisely.")
+        write(stdout, f"{final.content}\n")
+    else:
+        write(stdout, f"{response.content}\n")
+    return tasks
 
 flow main():
-    system = "You are a helpful assistant. Be direct and concise. If you don't know something, say so. Use tools when they can help answer the question."
-    model = "claude-sonnet-4-20250514"
-    tools = ["shell", "read_file", "write_file", "http_fetch", "web_search"]
-    max_history = 20
-
-    write(stdout, "Assistant ready. Type your message.\n")
-
+    write(stdout, "🤖 Responsive Assistant\n")
+    write(stdout, "Commands: status, cancel <name>, exit\n\n")
+    tasks = {}
     loop:
-        input = read(stdin)
-        if input == "exit" or input == "quit":
-            write(stdout, "Goodbye.")
-            break
-
-        # Compact history if it's getting long
-        h = history()
-        if h.length > max_history * 2:
-            summary = compact_history(max_turns=max_history)
-            write(stdout, "(context compacted)\n")
-
-        # Think with tools — LLM decides which to use
-        response = think(
-            input,
-            model=model,
-            system=system,
-            tools=tools
-        )
-
-        # Handle tool calls
-        if response["has_tool_calls"]:
-            # Execute tools and get final response
-            executed = exec(response, tools=tools)
-            # Feed results back to LLM for final answer
-            final = think(
-                f"Tool results:\n{executed[\"content\"]}",
-                model=model,
-                system=system,
-                tools=tools
-            )
-            if final["has_tool_calls"]:
-                # Second round of tools (max 2 rounds)
-                executed2 = exec(final, tools=tools)
-                final = think(
-                    f"Tool results:\n{executed2[\"content\"]}",
-                    model=model,
-                    system=system
-                )
-            write(stdout, final["content"])
+        write(stdout, "> ")
+        if tasks.length == 0:
+            input = read(stdin)
+            if input == "exit":
+                break
+            tasks = handle_input(input, tasks)
         else:
-            write(stdout, response["content"])
-
-        write(stdout, "\n")
+            select:
+                branch:
+                    input = read(stdin)
+                    if input == "exit":
+                        for name, handle in tasks:
+                            cancel(handle)
+                        break
+                    tasks = handle_input(input, tasks)
+                branch:
+                    first_name = ""
+                    first_handle = None
+                    for name, handle in tasks:
+                        if first_name == "":
+                            first_name = name
+                            first_handle = handle
+                    result = await(first_handle)
+                    write(stdout, f"\n✅ Task '{first_name}' complete:\n{result}\n")
+                    tasks = remove(tasks, first_name)
+    write(stdout, "Goodbye! 👋\n")
 ```
 
 ### Usage

@@ -2,7 +2,7 @@ import "lib/exec.cog"
 import "../lib/web_search.cog"
 
 type Action:
-    kind: String
+    type: String
     task_name: String
 
 flow shell(command: String) -> String:
@@ -22,12 +22,14 @@ flow do_task(description: String) -> String:
     "Execute a complex task in the background"
     tools = ["shell", "read_file", "web_search"]
     response = think(description, model="claude-sonnet-4-20250514", system="Complete this task thoroughly. Use tools as needed.", tools=tools)
-    if response["has_tool_calls"]:
+    if response.has_tool_calls:
         executed = exec(response, tools=tools)
-        response = think(f"Task: {description}\nTool results:\n{executed[\"content\"]}", model="claude-sonnet-4-20250514", system="Synthesize into a clear answer.")
-    if response["has_tool_calls"] == false:
-        return response["content"]
-    return response["content"]
+        response = think(
+            f"Task: {description}\nTool results:\n{executed.content}",
+            model="claude-sonnet-4-20250514",
+            system="Synthesize into a clear answer."
+        )
+    return response.content
 
 flow handle_input(input: String, tasks: Map) -> Map:
     tools = ["shell", "read_file", "write_file", "web_search"]
@@ -37,8 +39,8 @@ flow handle_input(input: String, tasks: Map) -> Map:
         for name, handle in tasks:
             write(stdout, f"  ⏳ {name}: running\n")
         return tasks
-    if input[:7] == "cancel ":
-        name = input[7:]
+    if input.starts_with("cancel "):
+        name = input[7:].strip()
         try:
             cancel(tasks[name])
             tasks = remove(tasks, name)
@@ -46,20 +48,34 @@ flow handle_input(input: String, tasks: Map) -> Map:
         catch err:
             write(stdout, f"No task named '{name}'.\n")
         return tasks
-    action = think(f"User said: \"{input}\"", format="Action", model="claude-sonnet-4-20250514", system="Classify intent. kind='respond' for quick answers, kind='spawn' for background tasks. task_name is a short label or empty string.")
-    if action["kind"] == "spawn":
-        name = action["task_name"]
+    action = think(
+        f"User said: \"{input}\"",
+        format="Action",
+        model="claude-sonnet-4-20250514",
+        system="Classify intent. type='respond' for quick answers, type='spawn' for background tasks. task_name is a short label or empty string."
+    )
+    if action.type == "spawn":
+        name = action.task_name
         handle = async do_task(input)
         tasks[name] = handle
         write(stdout, f"⚡ Started '{name}' in background. Keep talking.\n")
         return tasks
-    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful. Use tools when needed.", tools=tools)
-    if response["has_tool_calls"]:
+    response = think(
+        input,
+        model="claude-sonnet-4-20250514",
+        system="Be concise and helpful. Use tools when needed.",
+        tools=tools
+    )
+    if response.has_tool_calls:
         executed = exec(response, tools=tools)
-        final = think(f"Tool results:\n{executed[\"content\"]}", model="claude-sonnet-4-20250514", system="Answer based on these results. Be concise.")
-        write(stdout, f"{final[\"content\"]}\n")
+        final = think(
+            f"Tool results:\n{executed.content}",
+            model="claude-sonnet-4-20250514",
+            system="Answer based on these results. Be concise."
+        )
+        write(stdout, f"{final.content}\n")
     else:
-        write(stdout, f"{response[\"content\"]}\n")
+        write(stdout, f"{response.content}\n")
     return tasks
 
 flow main():

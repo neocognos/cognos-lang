@@ -1313,8 +1313,11 @@ type Priority: &quot;high&quot; | &quot;medium&quot; | &quot;low&quot;
 <hr />
 <h2 id="implementation">Implementation</h2>
 <div class="highlight"><pre><span></span><code>import &quot;lib/exec.cog&quot;
-import &quot;lib/compact.cog&quot;
-import &quot;lib/web_search.cog&quot;
+import &quot;../lib/web_search.cog&quot;
+
+type Action:
+    type: String
+    task_name: String
 
 flow shell(command: String) -&gt; String:
     &quot;Run a shell command. Output limited to 50 lines.&quot;
@@ -1329,62 +1332,87 @@ flow write_file(path: String, content: String) -&gt; String:
     write(file(path), content)
     return f&quot;Wrote {content.length} chars to {path}&quot;
 
-flow http_fetch(url: String) -&gt; String:
-    &quot;Fetch content from a URL&quot;
-    return http.get(url)
+flow do_task(description: String) -&gt; String:
+    &quot;Execute a complex task in the background&quot;
+    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;web_search&quot;]
+    response = think(description, model=&quot;claude-sonnet-4-20250514&quot;, system=&quot;Complete this task thoroughly.&quot;, tools=tools)
+    if response.has_tool_calls:
+        executed = exec(response, tools=tools)
+        response = think(
+            f&quot;Task: {description}\nTool results:\n{executed.content}&quot;,
+            model=&quot;claude-sonnet-4-20250514&quot;,
+            system=&quot;Synthesize into a clear answer.&quot;
+        )
+    return response.content
+
+flow handle_input(input: String, tasks: Map) -&gt; Map:
+    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;write_file&quot;, &quot;web_search&quot;]
+    if input == &quot;status&quot;:
+        if tasks.length == 0:
+            write(stdout, &quot;No tasks running.\n&quot;)
+        for name, handle in tasks:
+            write(stdout, f&quot;  ⏳ {name}: running\n&quot;)
+        return tasks
+    if input.starts_with(&quot;cancel &quot;):
+        name = input[7:].strip()
+        try:
+            cancel(tasks[name])
+            tasks = remove(tasks, name)
+            write(stdout, f&quot;🛑 Cancelled &#39;{name}&#39;.\n&quot;)
+        catch err:
+            write(stdout, f&quot;No task named &#39;{name}&#39;.\n&quot;)
+        return tasks
+    action = think(
+        f&quot;User said: \&quot;{input}\&quot;&quot;,
+        format=&quot;Action&quot;,
+        model=&quot;claude-sonnet-4-20250514&quot;,
+        system=&quot;Classify intent. type=&#39;respond&#39; for quick answers, type=&#39;spawn&#39; for background tasks.&quot;
+    )
+    if action.type == &quot;spawn&quot;:
+        handle = async do_task(input)
+        tasks[action.task_name] = handle
+        write(stdout, f&quot;⚡ Started &#39;{action.task_name}&#39; in background. Keep talking.\n&quot;)
+        return tasks
+    response = think(input, model=&quot;claude-sonnet-4-20250514&quot;, system=&quot;Be concise and helpful.&quot;, tools=tools)
+    if response.has_tool_calls:
+        executed = exec(response, tools=tools)
+        final = think(f&quot;Tool results:\n{executed.content}&quot;, model=&quot;claude-sonnet-4-20250514&quot;, system=&quot;Answer concisely.&quot;)
+        write(stdout, f&quot;{final.content}\n&quot;)
+    else:
+        write(stdout, f&quot;{response.content}\n&quot;)
+    return tasks
 
 flow main():
-    system = &quot;You are a helpful assistant. Be direct and concise. If you don&#39;t know something, say so. Use tools when they can help answer the question.&quot;
-    model = &quot;claude-sonnet-4-20250514&quot;
-    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;write_file&quot;, &quot;http_fetch&quot;, &quot;web_search&quot;]
-    max_history = 20
-
-    write(stdout, &quot;Assistant ready. Type your message.\n&quot;)
-
+    write(stdout, &quot;🤖 Responsive Assistant\n&quot;)
+    write(stdout, &quot;Commands: status, cancel &lt;name&gt;, exit\n\n&quot;)
+    tasks = {}
     loop:
-        input = read(stdin)
-        if input == &quot;exit&quot; or input == &quot;quit&quot;:
-            write(stdout, &quot;Goodbye.&quot;)
-            break
-
-        # Compact history if it&#39;s getting long
-        h = history()
-        if h.length &gt; max_history * 2:
-            summary = compact_history(max_turns=max_history)
-            write(stdout, &quot;(context compacted)\n&quot;)
-
-        # Think with tools — LLM decides which to use
-        response = think(
-            input,
-            model=model,
-            system=system,
-            tools=tools
-        )
-
-        # Handle tool calls
-        if response[&quot;has_tool_calls&quot;]:
-            # Execute tools and get final response
-            executed = exec(response, tools=tools)
-            # Feed results back to LLM for final answer
-            final = think(
-                f&quot;Tool results:\n{executed[\&quot;content\&quot;]}&quot;,
-                model=model,
-                system=system,
-                tools=tools
-            )
-            if final[&quot;has_tool_calls&quot;]:
-                # Second round of tools (max 2 rounds)
-                executed2 = exec(final, tools=tools)
-                final = think(
-                    f&quot;Tool results:\n{executed2[\&quot;content\&quot;]}&quot;,
-                    model=model,
-                    system=system
-                )
-            write(stdout, final[&quot;content&quot;])
+        write(stdout, &quot;&gt; &quot;)
+        if tasks.length == 0:
+            input = read(stdin)
+            if input == &quot;exit&quot;:
+                break
+            tasks = handle_input(input, tasks)
         else:
-            write(stdout, response[&quot;content&quot;])
-
-        write(stdout, &quot;\n&quot;)
+            select:
+                branch:
+                    input = read(stdin)
+                    if input == &quot;exit&quot;:
+                        for name, handle in tasks:
+                            cancel(handle)
+                        break
+                    tasks = handle_input(input, tasks)
+                branch:
+                    first_name = &quot;&quot;
+                    first_handle = None
+                    for name, handle in tasks:
+                        if first_name == &quot;&quot;:
+                            first_name = name
+                            first_handle = handle
+                    result = await(first_handle)
+                    write(stdout, f&quot;\n✅ Task &#39;{first_name}&#39; complete:\n{result}\n&quot;)
+                    tasks = remove(tasks, first_name)
+    write(stdout, &quot;Goodbye! 👋\n&quot;)
 </code></pre></div>
 <h3 id="usage">Usage</h3>
 <div class="highlight"><pre><span></span><code><span class="c1"># Interactive conversation</span>
