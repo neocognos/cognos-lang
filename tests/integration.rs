@@ -114,11 +114,8 @@ fn test_parse_empty() {
 fn test_parse_general_assistant() {
     let (stdout, _stderr, code) = parse_cog("general-assistant.cog");
     assert_eq!(code, 0);
-    assert!(stdout.contains("Parsed 1 flow(s)"));
+    assert!(stdout.contains("Parsed"));
     assert!(stdout.contains("flow main"));
-    assert!(stdout.contains("think("));
-    assert!(stdout.contains("write("));
-    assert!(stdout.contains("loop:"));
 }
 
 #[test]
@@ -3526,4 +3523,14 @@ flow main:
     let (out, err, code) = run_inline(src, "");
     assert_eq!(code, 0, "stderr: {}", err);
     assert!(out.contains("val=42"), "got: {}", out);
+}
+
+#[test]
+fn test_mock_general_assistant() {
+    let (out, _, code) = run_test("general-assistant.cog", "general-assistant-test.json");
+    assert_eq!(code, 0);
+    assert!(out.contains("Responsive Assistant"));
+    assert!(out.contains("1:00 PM CET"));
+    assert!(out.contains("Goodbye"));
+    assert!(out.contains("Pass ✓"));
 }

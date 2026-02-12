@@ -1070,6 +1070,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#select-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        select: Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancelhandle-builtin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cancel(handle) Builtin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removemap-key-builtin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove(map, key) Builtin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map-key-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Map Key Assignment
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2377,6 +2421,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#select-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        select: Blocks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancelhandle-builtin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cancel(handle) Builtin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removemap-key-builtin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove(map, key) Builtin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map-key-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Map Key Assignment
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3111,6 +3199,52 @@ result = await(handle)
 - The handle is a <code>Future</code> value — can be stored in variables, passed around
 - Each <code>await</code> consumes the handle — awaiting the same handle twice is an error
 - The background thread gets a snapshot of current variables and environment</p>
+<h3 id="select-blocks"><code>select:</code> Blocks</h3>
+<p>Wait for the first event from multiple branches. Only one branch executes — whichever completes first.</p>
+<div class="highlight"><pre><span></span><code>select:
+    branch:
+        input = read(stdin)
+        write(stdout, f&quot;Got: {input}&quot;)
+    branch:
+        result = await(handle)
+        write(stdout, f&quot;Task done: {result}&quot;)
+</code></pre></div>
+<p><strong>Semantics:</strong>
+- Each <code>branch:</code> runs concurrently in its own thread
+- As soon as ONE branch completes all its statements, that branch wins
+- All other branches are cancelled/abandoned
+- Variables assigned in the winning branch are available after the select block
+- This is analogous to Go's <code>select {}</code> or tokio's <code>select!</code></p>
+<h3 id="cancelhandle-builtin"><code>cancel(handle)</code> Builtin</h3>
+<p>Cancel an async task by its future handle.</p>
+<div class="highlight"><pre><span></span><code>handle = async do_task(&quot;something&quot;)
+cancel(handle)
+</code></pre></div>
+<ul>
+<li>Sets a cancellation flag on the async task</li>
+<li>The task will stop at the next statement boundary</li>
+<li><code>await()</code> on a cancelled handle raises an error</li>
+</ul>
+<h3 id="removemap-key-builtin"><code>remove(map, key)</code> Builtin</h3>
+<p>Remove a key from a map and return a new map without that key.</p>
+<div class="highlight"><pre><span></span><code>tasks = {&quot;a&quot;: 1, &quot;b&quot;: 2}
+tasks = remove(tasks, &quot;a&quot;)
+# tasks is now {&quot;b&quot;: 2}
+</code></pre></div>
+<ul>
+<li>Non-mutating — returns a new map (Cognos values are immutable)</li>
+<li>Removing a non-existent key returns the map unchanged</li>
+</ul>
+<h3 id="map-key-assignment">Map Key Assignment</h3>
+<p>Assign a value to a map key using index syntax:</p>
+<div class="highlight"><pre><span></span><code>tasks = {}
+tasks[&quot;name&quot;] = 42
+tasks[variable_key] = value
+</code></pre></div>
+<ul>
+<li>Creates or updates the key in the map</li>
+<li>Desugars to an internal <code>__map_set__</code> call that returns a new map</li>
+</ul>
 
 
 
