@@ -1256,8 +1256,13 @@
 </tr>
 <tr>
 <td><code>http_fetch</code></td>
-<td>Fetch web content</td>
+<td>Fetch content from a specific URL</td>
 <td><code>http_fetch("https://api.example.com/data")</code></td>
+</tr>
+<tr>
+<td><code>web_search</code></td>
+<td>Search the web for information</td>
+<td><code>web_search("cognos language")</code>, <code>web_search("rust async", engine="duckduckgo")</code></td>
 </tr>
 </tbody>
 </table>
@@ -1309,6 +1314,7 @@ type Priority: &quot;high&quot; | &quot;medium&quot; | &quot;low&quot;
 <h2 id="implementation">Implementation</h2>
 <div class="highlight"><pre><span></span><code>import &quot;lib/exec.cog&quot;
 import &quot;lib/compact.cog&quot;
+import &quot;lib/web_search.cog&quot;
 
 flow shell(command: String) -&gt; String:
     &quot;Run a shell command. Output limited to 50 lines.&quot;
@@ -1330,7 +1336,7 @@ flow http_fetch(url: String) -&gt; String:
 flow main():
     system = &quot;You are a helpful assistant. Be direct and concise. If you don&#39;t know something, say so. Use tools when they can help answer the question.&quot;
     model = &quot;claude-sonnet-4-20250514&quot;
-    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;write_file&quot;, &quot;http_fetch&quot;]
+    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;write_file&quot;, &quot;http_fetch&quot;, &quot;web_search&quot;]
     max_history = 20
 
     write(stdout, &quot;Assistant ready. Type your message.\n&quot;)

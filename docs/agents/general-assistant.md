@@ -21,7 +21,8 @@ The general assistant is helpful, direct, and honest about what it knows and doe
 | `shell` | Run commands, check system state, process data | `shell("date")`, `shell("wc -l *.py")` |
 | `read_file` | Read file contents for context | `read_file("README.md")` |
 | `write_file` | Create or update files | `write_file("notes.md", content)` |
-| `http_fetch` | Fetch web content | `http_fetch("https://api.example.com/data")` |
+| `http_fetch` | Fetch content from a specific URL | `http_fetch("https://api.example.com/data")` |
+| `web_search` | Search the web for information | `web_search("cognos language")`, `web_search("rust async", engine="duckduckgo")` |
 
 The assistant doesn't decide which tools to use — the LLM does. The assistant defines which tools are *available*. The `think()` call with `tools=[...]` lets the LLM choose.
 
@@ -91,6 +92,7 @@ Using `--session state.json`, the assistant preserves variables between runs. Us
 ```cognos
 import "lib/exec.cog"
 import "lib/compact.cog"
+import "lib/web_search.cog"
 
 flow shell(command: String) -> String:
     "Run a shell command. Output limited to 50 lines."
@@ -112,7 +114,7 @@ flow http_fetch(url: String) -> String:
 flow main():
     system = "You are a helpful assistant. Be direct and concise. If you don't know something, say so. Use tools when they can help answer the question."
     model = "claude-sonnet-4-20250514"
-    tools = ["shell", "read_file", "write_file", "http_fetch"]
+    tools = ["shell", "read_file", "write_file", "http_fetch", "web_search"]
     max_history = 20
 
     write(stdout, "Assistant ready. Type your message.\n")

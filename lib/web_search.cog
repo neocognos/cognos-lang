@@ -1,0 +1,9 @@
+flow web_search(query: String, engine: String = "google") -> String:
+    "Search the web for a query. Engines: google, duckduckgo, brave"
+    if engine == "google":
+        return __exec_shell__(f"curl -sL 'https://www.google.com/search?q={query}&num=5' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
+    if engine == "duckduckgo":
+        return __exec_shell__(f"curl -sL 'https://html.duckduckgo.com/html/?q={query}' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
+    if engine == "brave":
+        return __exec_shell__(f"curl -sL 'https://search.brave.com/search?q={query}' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
+    return f"Unknown search engine: {engine}"
