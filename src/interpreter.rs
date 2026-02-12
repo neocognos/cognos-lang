@@ -506,8 +506,8 @@ impl Interpreter {
                 Ok(ControlFlow::Normal)
             }
 
-            Stmt::Parallel { body } => {
-                self.run_parallel(body)?;
+            Stmt::Parallel { branches } => {
+                self.run_parallel(branches)?;
                 Ok(ControlFlow::Normal)
             }
 
@@ -539,26 +539,27 @@ impl Interpreter {
         }
     }
 
-    fn run_parallel(&mut self, stmts: &[Stmt]) -> Result<()> {
-        // Each statement runs concurrently. We extract assignments, eval RHS in threads.
+    fn run_parallel(&mut self, branches: &[Vec<Stmt>]) -> Result<()> {
+        // Each branch runs concurrently as a block of statements.
+        // Each branch gets a snapshot of current vars; new/changed vars are merged back.
         let env = self.env.clone();
         let flows = self.flows.clone();
         let types = self.types.clone();
         let vars = self.vars.clone();
         let tracer = self.tracer.clone();
 
-        // Collect results: Vec<(Option<String>, Result<Value>)>
-        let results: Vec<(Option<String>, Result<Value>)> = std::thread::scope(|s| {
-            let handles: Vec<_> = stmts.iter().map(|stmt| {
+        // Each branch returns its final vars (new/changed only)
+        let results: Vec<Result<HashMap<String, Value>>> = std::thread::scope(|s| {
+            let handles: Vec<_> = branches.iter().map(|branch| {
                 let env = env.clone();
                 let flows = flows.clone();
                 let types = types.clone();
                 let vars = vars.clone();
                 let tracer = tracer.clone();
-                let stmt = stmt.clone();
+                let branch = branch.clone();
                 s.spawn(move || {
                     let mut interp = Interpreter {
-                        vars,
+                        vars: vars.clone(),
                         flows,
                         types,
                         env,
@@ -568,35 +569,38 @@ impl Interpreter {
                         next_future_id: 0,
                         async_handles: HashMap::new(),
                     };
-                    match &stmt {
-                        Stmt::Assign { name, expr } => {
-                            let val = interp.eval(expr)?;
-                            Ok((Some(name.clone()), val))
-                        }
-                        _ => {
-                            interp.run_stmt(&stmt)?;
-                            Ok((None, Value::None))
+                    interp.run_block(&branch)?;
+                    // Return only new/changed vars
+                    let mut changed = HashMap::new();
+                    for (k, v) in &interp.vars {
+                        match vars.get(k) {
+                            None => { changed.insert(k.clone(), v.clone()); }
+                            Some(old) => {
+                                if old.to_string() != v.to_string() {
+                                    changed.insert(k.clone(), v.clone());
+                                }
+                            }
                         }
                     }
+                    Ok(changed)
                 })
             }).collect();
 
             handles.into_iter().map(|h| {
                 match h.join() {
-                    Ok(Ok((name, val))) => (name, Ok(val)),
-                    Ok(Err(e)) => (None, Err(e)),
-                    Err(_) => (None, Err(anyhow::anyhow!("parallel branch panicked"))),
+                    Ok(r) => r,
+                    Err(_) => Err(anyhow::anyhow!("parallel branch panicked")),
                 }
             }).collect()
         });
 
         // Check for errors, merge results
         let mut errors = Vec::new();
-        for (name, result) in results {
+        for result in results {
             match result {
-                Ok(val) => {
-                    if let Some(name) = name {
-                        self.vars.insert(name, val);
+                Ok(changed) => {
+                    for (k, v) in changed {
+                        self.vars.insert(k, v);
                     }
                 }
                 Err(e) => errors.push(e),

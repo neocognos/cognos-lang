@@ -400,8 +400,26 @@ impl Parser {
         self.expect(Token::Parallel)?;
         self.expect(Token::Colon)?;
         self.expect_newline()?;
-        let body = self.parse_block()?;
-        Ok(Stmt::Parallel { body })
+        self.expect(Token::Indent)?;
+        let mut branches = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.check(&Token::Dedent) || self.is_at_end() {
+                break;
+            }
+            self.expect(Token::Branch)?;
+            self.expect(Token::Colon)?;
+            self.expect_newline()?;
+            let body = self.parse_block()?;
+            branches.push(body);
+        }
+        if self.check(&Token::Dedent) {
+            self.advance();
+        }
+        if branches.is_empty() {
+            bail!("parallel block requires at least one branch:");
+        }
+        Ok(Stmt::Parallel { branches })
     }
 
     // ─── Expressions ───

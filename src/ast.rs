@@ -98,8 +98,8 @@ pub enum Stmt {
         error_var: Option<String>,
         catch_body: Vec<Stmt>,
     },
-    /// `parallel: body` — run all statements concurrently
-    Parallel { body: Vec<Stmt> },
+    /// `parallel:` with `branch:` sub-blocks — run all branches concurrently
+    Parallel { branches: Vec<Vec<Stmt>> },
     /// Bare expression (function call as statement)
     Expr(Expr),
 }

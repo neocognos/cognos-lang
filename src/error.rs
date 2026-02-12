@@ -117,7 +117,11 @@ pub fn unexpected_token(line: usize, got: &Token, context: &str) -> CognosError 
         ),
         Token::Parallel => (
             "found 'parallel' where an expression was expected".into(),
-            Some("use: parallel:\\n    a = expr\\n    b = expr".into()),
+            Some("use: parallel:\\n    branch:\\n        stmts".into()),
+        ),
+        Token::Branch => (
+            "found 'branch' where an expression was expected".into(),
+            Some("branch: is only valid inside a parallel: block".into()),
         ),
         Token::Async => (
             "found 'async' where an expression was expected".into(),

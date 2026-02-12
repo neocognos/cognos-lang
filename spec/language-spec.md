@@ -584,16 +584,23 @@ Run multiple statements concurrently. All branches execute in parallel threads a
 
 ```cognos
 parallel:
-    a = think("analyze code", model="claude-sonnet-4-20250514")
-    b = think("analyze tests", model="claude-sonnet-4-20250514")
-    c = shell("wc -l src/*.rs")
-# a, b, c all available here
+    branch:
+        code = read(file("src/main.rs"))
+        review = think(code, model="claude-sonnet-4-20250514")
+    branch:
+        tests = shell("cargo test 2>&1")
+        analysis = think(tests, system="Analyze")
+    branch:
+        metrics = shell("tokei src/")
+# review, analysis, metrics all available here
 ```
 
+Each `branch:` is an indented block of N statements. All branches run concurrently.
+
 **Semantics:**
-- Every statement in the block runs concurrently (spawned as OS threads)
+- Each `branch:` block runs in its own OS thread
 - Block waits for ALL branches to complete
-- Variables assigned inside are available after the block
+- Variables assigned inside branches are available after the parallel block
 - No shared mutable state between branches — each gets a snapshot of current vars
 - Errors in any branch propagate after all branches finish
 
