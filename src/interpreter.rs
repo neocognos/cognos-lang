@@ -1707,8 +1707,7 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            // All Claude calls go through CLI (Max subscription — no cost)
-            return self.call_claude_cli(model, system, prompt, tools);
+            return self.call_anthropic_api(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
@@ -1839,6 +1838,117 @@ impl Interpreter {
         }).collect();
 
         Some(result)
+    }
+
+    fn call_anthropic_api(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+        let call_start = std::time::Instant::now();
+
+        // Read OAuth token from Claude CLI credentials
+        let home = std::env::var("HOME")
+            .map_err(|_| anyhow::anyhow!("HOME env var not set"))?;
+        let cred_path = std::path::PathBuf::from(home).join(".claude/.credentials.json");
+        let cred_data = std::fs::read_to_string(&cred_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read Claude credentials at {:?}: {}. Run 'claude login' first.", cred_path, e))?;
+        let creds: serde_json::Value = serde_json::from_str(&cred_data)
+            .map_err(|e| anyhow::anyhow!("Invalid credentials JSON: {}", e))?;
+        let token = creds["claudeAiOauth"]["accessToken"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("No OAuth access token found. Run 'claude login' first."))?;
+
+        log::info!("Calling Anthropic API: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        // Build request body
+        let mut body = serde_json::json!({
+            "model": model,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}]
+        });
+        if !system.is_empty() {
+            body["system"] = serde_json::json!(system);
+        }
+
+        // Add native tools
+        if let Some(ref tool_defs) = tools {
+            let api_tools: Vec<serde_json::Value> = tool_defs.iter().map(|t| {
+                serde_json::json!({
+                    "name": t["function"]["name"].as_str().unwrap_or("unknown"),
+                    "description": t["function"]["description"].as_str().unwrap_or(""),
+                    "input_schema": t["function"]["parameters"]
+                })
+            }).collect();
+            body["tools"] = serde_json::json!(api_tools);
+        }
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client.post("https://api.anthropic.com/v1/messages")
+            .header("Authorization", format!("Bearer {}", token))
+            .header("anthropic-version", "2023-06-01")
+            .header("anthropic-beta", "oauth-2025-04-20")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Anthropic API request failed: {}", e))?;
+
+        let status = resp.status();
+        let resp_text = resp.text().map_err(|e| anyhow::anyhow!("Failed to read API response: {}", e))?;
+
+        if !status.is_success() {
+            bail!("Anthropic API error ({}): {}", status, &resp_text[..resp_text.len().min(500)]);
+        }
+
+        let parsed: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse API response: {}", e))?;
+
+        let latency = call_start.elapsed().as_millis() as u64;
+        let stop_reason = parsed["stop_reason"].as_str().unwrap_or("");
+
+        // Extract content blocks
+        let content_blocks = parsed["content"].as_array()
+            .ok_or_else(|| anyhow::anyhow!("No content in API response"))?;
+
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    if let Some(t) = block["text"].as_str() {
+                        text_parts.push(t.to_string());
+                    }
+                }
+                Some("tool_use") => {
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = self.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        let content = text_parts.join("\n");
+        log::info!("Anthropic API: {}ms, stop={}, tools={}", latency, stop_reason, tool_calls.len());
+
+        if stop_reason == "tool_use" || !tool_calls.is_empty() {
+            self.trace_llm(model, "anthropic-api", latency, prompt, system, &content, true);
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("tool_calls".to_string(), Value::List(tool_calls)),
+                ("has_tool_calls".to_string(), Value::Bool(true)),
+            ]));
+        }
+
+        if tools.is_some() {
+            self.trace_llm(model, "anthropic-api", latency, prompt, system, &content, false);
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]));
+        }
+
+        self.trace_llm(model, "anthropic-api", latency, prompt, system, &content, false);
+        Ok(Value::String(content))
     }
 
     fn call_openai(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
