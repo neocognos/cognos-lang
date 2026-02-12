@@ -20,27 +20,16 @@ flow write_file(path: String, content: String) -> String:
 
 flow do_task(description: String) -> String:
     "Execute a complex task in the background"
-    tools = ["shell", "read_file", "web_search"]
+    # Step 1: Search the web for information
+    write(stdout, f"  📡 Searching the web...\n")
+    search_results = web_search(description)
+    # Step 2: Ask LLM to synthesize
+    write(stdout, f"  🧠 Analyzing results...\n")
     response = think(
-        description,
+        f"Task: {description}\n\nWeb search results:\n{search_results}\n\nProvide a comprehensive summary based on these search results.",
         model="claude-sonnet-4-20250514",
-        system="Complete this task thoroughly. Use the tools available to you: shell() for commands, read_file() for file contents, web_search() for web research. Always use tools — don't say you can't.",
-        tools=tools
+        system="Synthesize the search results into a clear, well-structured summary. Include key findings, trends, and insights."
     )
-    if response.has_tool_calls:
-        executed = exec(response, tools=tools)
-        response = think(
-            f"Task: {description}\nTool results:\n{executed.content}",
-            model="claude-sonnet-4-20250514",
-            system="Synthesize the tool results into a clear, comprehensive answer."
-        )
-        if response.has_tool_calls:
-            executed = exec(response, tools=tools)
-            response = think(
-                f"Task: {description}\nMore results:\n{executed.content}",
-                model="claude-sonnet-4-20250514",
-                system="Give the final answer based on all results."
-            )
     return response.content
 
 flow handle_input(input: String, tasks: Map) -> Map:
@@ -60,17 +49,21 @@ flow handle_input(input: String, tasks: Map) -> Map:
         catch err:
             write(stdout, f"No task named '{name}'.\n")
         return tasks
-    action = think(
-        f"User said: \"{input}\"",
-        format="Action",
-        model="claude-sonnet-4-20250514",
-        system="Classify the user's intent into exactly one type.\n\ntype='spawn' — use for: research, analysis, long investigations, multi-step tasks, anything involving web search or reading multiple files. Give a short task_name like 'research' or 'analysis'.\n\ntype='respond' — use ONLY for: simple factual questions, greetings, math, or quick shell commands (date, time, disk space). task_name should be empty string.\n\nWhen in doubt, use 'spawn'."
-    )
-    if action.type == "spawn":
-        name = action.task_name
+    # Simple keyword-based routing — no LLM needed for classification
+    should_spawn = false
+    task_name = "task"
+    if input.contains("research") or input.contains("investigate") or input.contains("analyze") or input.contains("summarize") or input.contains("find out") or input.contains("look into") or input.contains("deep dive"):
+        should_spawn = true
+        if input.contains("research"):
+            task_name = "research"
+        if input.contains("analyze"):
+            task_name = "analysis"
+        if input.contains("investigate"):
+            task_name = "investigation"
+    if should_spawn:
         handle = async do_task(input)
-        tasks[name] = handle
-        write(stdout, f"⚡ Started '{name}' in background. Keep talking.\n")
+        tasks[task_name] = handle
+        write(stdout, f"⚡ Started '{task_name}' in background. Keep talking.\n")
         return tasks
     write(stdout, "🔍 Thinking...\n")
     response = think(
