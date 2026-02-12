@@ -1403,3 +1403,79 @@ flow main():
     assert!(content.contains("42"));
     assert!(content.contains("test"));
 }
+
+// ─── Type validation on think() ───
+
+#[test]
+fn test_format_validation_missing_field() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Review:
+    score: Int
+    summary: String
+
+flow main():
+    result = think("review this", format="Review")
+    write(stdout, f"score={result[\"score\"]}")
+"#).unwrap();
+    // LLM returns JSON missing 'summary' field
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"score\": 8}"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("missing field 'summary'"), "got: {}", stderr);
+}
+
+#[test]
+fn test_format_validation_wrong_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Review:
+    score: Int
+    summary: String
+
+flow main():
+    result = think("review this", format="Review")
+"#).unwrap();
+    // LLM returns score as string instead of int
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"score\": \"high\", \"summary\": \"good\"}"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(stderr.contains("field 'score': expected Int"), "got: {}", stderr);
+}
+
+#[test]
+fn test_format_validation_pass() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+    std::fs::write(&cog, r#"
+type Review:
+    score: Int
+    summary: String
+
+flow main():
+    result = think("review this", format="Review")
+    write(stdout, f"score={result[\"score\"]}, summary={result[\"summary\"]}")
+"#).unwrap();
+    std::fs::write(&mock, r#"{"stdin": [], "llm_responses": ["{\"score\": 8, \"summary\": \"solid code\"}"]}"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(&["test", cog.to_str().unwrap(), "--env", mock.to_str().unwrap()])
+        .output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(stdout.contains("score=8"), "got: {}", stdout);
+    assert!(stdout.contains("summary=solid code"), "got: {}", stdout);
+}

@@ -705,9 +705,15 @@ impl Interpreter {
 
                 let result = self.call_llm(&model, &system, &context.to_string(), tool_defs)?;
                 
-                // If format= specified, parse JSON response into a Map
-                if format_type.is_some() {
-                    self.parse_json_response(&result)
+                // If format= specified, parse JSON and validate against type
+                if let Some(ref tn) = format_type {
+                    let parsed = self.parse_json_response(&result)?;
+                    if tn != "json" {
+                        if let Some(td) = self.types.get(tn).cloned() {
+                            self.validate_type(&parsed, &td)?;
+                        }
+                    }
+                    Ok(parsed)
                 } else {
                     Ok(result)
                 }
@@ -1155,6 +1161,50 @@ impl Interpreter {
                 _ => format!("<{}>", name),
             }
             TypeExpr::Struct(_) => "<object>".to_string(),
+        }
+    }
+
+    fn validate_type(&self, val: &Value, td: &crate::ast::TypeDef) -> Result<()> {
+        let map = match val {
+            Value::Map(entries) => entries,
+            other => bail!("expected {} (Map), got {}", td.name, type_name(other)),
+        };
+
+        let mut errors = Vec::new();
+
+        // Check all required fields exist and have correct type
+        for field in &td.fields {
+            match map.iter().find(|(k, _)| k == &field.name) {
+                None => errors.push(format!("missing field '{}'", field.name)),
+                Some((_, val)) => {
+                    let expected = match &field.ty {
+                        crate::ast::TypeExpr::Named(name) => name.as_str(),
+                        crate::ast::TypeExpr::Generic(name, _) => name.as_str(),
+                        crate::ast::TypeExpr::Struct(_) => continue,
+                    };
+                    let ok = match expected {
+                        "Int" => matches!(val, Value::Int(_)),
+                        "Float" => matches!(val, Value::Float(_) | Value::Int(_)),
+                        "String" => matches!(val, Value::String(_)),
+                        "Bool" => matches!(val, Value::Bool(_)),
+                        "List" => matches!(val, Value::List(_)),
+                        "Map" => matches!(val, Value::Map(_)),
+                        _ => true, // unknown types pass (custom nested types)
+                    };
+                    if !ok {
+                        errors.push(format!(
+                            "field '{}': expected {}, got {} ({})",
+                            field.name, expected, type_name(val), val
+                        ));
+                    }
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            bail!("type {} validation failed:\n  {}\nLLM response: {}", td.name, errors.join("\n  "), val)
         }
     }
 

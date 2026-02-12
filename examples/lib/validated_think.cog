@@ -1,0 +1,22 @@
+# validated_think — think() with auto-retry on schema validation failure
+#
+# Usage:
+#   import "lib/validated_think.cog"
+#   result = validated_think(input, format="Review", model="claude-sonnet-4-20250514")
+#
+# On validation failure, the error includes the LLM's bad response and what
+# went wrong. This is sent back to the LLM to fix — the schema is already
+# in the system prompt from the format= parameter.
+
+flow validated_think(input: String, format: String, model: String, system: String) -> Map:
+    "Think with strict schema validation and auto-retry on failure."
+    last_error = ""
+    loop max=3:
+        try:
+            if last_error == "":
+                return think(input, format=format, model=model, system=system)
+            else:
+                return think(last_error, format=format, model=model, system=system)
+        catch err:
+            last_error = f"{err}"
+    return {"_error": last_error}
