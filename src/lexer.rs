@@ -49,6 +49,22 @@ impl Lexer {
 
             // Handle line start — check indentation
             if self.at_line_start {
+                // Skip blank lines and comment-only lines for indentation purposes
+                let mut peek = self.pos;
+                while peek < self.source.len() && (self.source[peek] == ' ' || self.source[peek] == '\t') {
+                    peek += 1;
+                }
+                if peek >= self.source.len() || self.source[peek] == '\n' || self.source[peek] == '#' {
+                    // Blank or comment-only line — skip entire line
+                    while self.pos < self.source.len() && self.source[self.pos] != '\n' {
+                        self.advance();
+                    }
+                    if self.pos < self.source.len() {
+                        self.advance(); // skip the \n
+                    }
+                    // Stay at_line_start for the next line
+                    continue;
+                }
                 self.handle_indentation(&mut tokens);
                 self.at_line_start = false;
                 continue;

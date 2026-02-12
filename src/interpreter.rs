@@ -58,7 +58,7 @@ impl std::fmt::Display for Value {
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
             Value::Future(id) => write!(f, "<future:{}>", id),
-            Value::None => write!(f, ""),
+            Value::None => write!(f, "none"),
         }
     }
 

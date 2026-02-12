@@ -3694,3 +3694,85 @@ flow main:
     assert_eq!(code, 0, "stderr: {}", err);
     assert!(out.contains("respond"), "got: {}", out);
 }
+
+// ── BUG-1: Comments as first line of indented block ──
+
+#[test]
+fn test_comment_first_line_of_block() {
+    let src = r#"
+flow main():
+    # first line is a comment
+    write(stdout, "ok")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("ok"), "got: {}", out);
+}
+
+#[test]
+fn test_comment_nested_block() {
+    let src = r#"
+flow main():
+    if true:
+        # nested comment
+        write(stdout, "nested")
+    # between blocks
+    write(stdout, "after")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("nested"), "got: {}", out);
+    assert!(out.contains("after"), "got: {}", out);
+}
+
+// ── BUG-2: await without parentheses ──
+
+#[test]
+fn test_await_no_parens() {
+    let src = r#"
+flow task() -> String:
+    return "done"
+
+flow main():
+    h = async task()
+    result = await h
+    write(stdout, result)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("done"), "got: {}", out);
+}
+
+// ── BUG-4: none literal and display ──
+
+#[test]
+fn test_none_literal() {
+    let src = r#"
+flow main():
+    x = none
+    if x == none:
+        write(stdout, "is none")
+    write(stdout, f"display: {none}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("is none"), "got: {}", out);
+    assert!(out.contains("display: none"), "got: {}", out);
+}
+
+// ── EOF handling ──
+
+#[test]
+fn test_read_stdin_eof_returns_none() {
+    let src = r#"
+flow main():
+    x = read(stdin)
+    if x == none:
+        write(stdout, "eof")
+    else:
+        write(stdout, f"got: {x}")
+"#;
+    let (out, err, code) = run_inline(src, ""); // empty stdin = immediate EOF
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("eof"), "got: {}", out);
+}

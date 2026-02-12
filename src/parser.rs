@@ -664,9 +664,17 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expr> {
         match self.peek_token() {
             Token::Await => {
-                // await(handle) — parse as a call to builtin "await"
+                // await handle OR await(handle) — both work
                 self.advance();
-                return self.parse_call("await".to_string());
+                if self.check(&Token::LParen) {
+                    return self.parse_call("await".to_string());
+                }
+                let expr = self.parse_primary()?;
+                return Ok(Expr::Call {
+                    name: "await".to_string(),
+                    args: vec![expr],
+                    kwargs: vec![],
+                });
             }
             Token::Ident(name) => {
                 let name = name.clone();

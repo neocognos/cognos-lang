@@ -23,7 +23,7 @@ flow main():
     write(stdout, "Agent with tools. Try: What's the weather in Amsterdam?")
     loop:
         input = read()
-        if input == "quit":
+        if input == none or input == "quit":
             break
         response = think(input, tools=["get_weather", "get_time"])
         loop max=3:

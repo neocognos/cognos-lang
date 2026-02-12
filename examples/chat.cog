@@ -4,7 +4,7 @@ flow main():
     write(stdout, "Chat ready. Type 'quit' to exit.")
     loop:
         input = read()
-        if input == "quit":
+        if input == none or input == "quit":
             break
         history = history + [f"User: {input}"]
         context = history.join("\n")
