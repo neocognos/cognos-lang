@@ -16,15 +16,15 @@ flow do_research(query: String) -> String:
     if results == "":
         return "Web search returned no results."
     write(stdout, "  🧠 Synthesizing...\n")
-    return think(f"Query: {query}\n\nSearch results:\n{results}", model="claude-sonnet-4-20250514", system="Summarize these search results clearly. Include source URLs.")
+    return think(f"Query: {query}\n\nSearch results:\n{results}", model="deepseek-chat", system="Summarize these search results clearly. Include source URLs.")
 
 flow respond(input: String, tasks: Map) -> Map:
     "Handle a user message"
-    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
+    response = think(input, model="deepseek-chat", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
     if response.has_tool_calls:
         write(stdout, "🔧 Running tools...\n")
         executed = exec(response, tools=["shell", "read_file", "web_search"])
-        final = think(f"User: {input}\nResults:\n{executed.content}", model="claude-sonnet-4-20250514", system="Answer concisely based on these results.")
+        final = think(f"User: {input}\nResults:\n{executed.content}", model="deepseek-chat", system="Answer concisely based on these results.")
         write(stdout, f"{final.content}\n")
     else:
         write(stdout, f"{response.content}\n")
@@ -80,7 +80,7 @@ flow main():
                                 task_names = []
                                 for name, handle in tasks:
                                     task_names = task_names + [name]
-                                response = think(input, model="claude-sonnet-4-20250514", system=f"Be very concise. Tasks running: {task_names}.")
+                                response = think(input, model="deepseek-chat", system=f"Be very concise. Tasks running: {task_names}.")
                                 write(stdout, f"{response}\n")
                 branch:
                     first_name = ""
