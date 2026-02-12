@@ -10,8 +10,8 @@
 ## Next Up
 
 ### Concurrency
-- [ ] **`parallel:` blocks** — run N statements concurrently, wait for all, no shared mutable state
-- [ ] **`async`/`await`** — fire off a flow, do other work, collect result later
+- [x] **`parallel:` blocks** — run N statements concurrently, wait for all, no shared mutable state
+- [x] **`async`/`await`** — fire off a flow, do other work, collect result later
 - [ ] _Future: inter-thread communication (channels) — post-1.0_
 
 ### Memory

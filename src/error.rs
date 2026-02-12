@@ -117,7 +117,15 @@ pub fn unexpected_token(line: usize, got: &Token, context: &str) -> CognosError 
         ),
         Token::Parallel => (
             "found 'parallel' where an expression was expected".into(),
-            Some("parallel execution is not yet supported".into()),
+            Some("use: parallel:\\n    a = expr\\n    b = expr".into()),
+        ),
+        Token::Async => (
+            "found 'async' where an expression was expected".into(),
+            Some("use: handle = async func(args)".into()),
+        ),
+        Token::Await => (
+            "found 'await' where an expression was expected".into(),
+            Some("use: result = await(handle)".into()),
         ),
 
         // Operators in wrong position

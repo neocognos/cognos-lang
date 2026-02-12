@@ -2,7 +2,7 @@
 /// Executes a parsed AST directly — no kernel needed.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use crate::ast::*;
 use crate::environment::{Env, RealEnv};
 use crate::trace::{Tracer, TraceEvent};
@@ -19,6 +19,7 @@ pub enum Value {
     Map(Vec<(std::string::String, Value)>),  // ordered key-value pairs
     Handle(Handle),
     Module(std::string::String),
+    Future(u64),
     None,
 }
 
@@ -56,6 +57,7 @@ impl std::fmt::Display for Value {
             Value::Handle(Handle::Stdin) => write!(f, "stdin"),
             Value::Handle(Handle::Stdout) => write!(f, "stdout"),
             Value::Handle(Handle::File(path)) => write!(f, "file(\"{}\")", path),
+            Value::Future(id) => write!(f, "<future:{}>", id),
             Value::None => write!(f, ""),
         }
     }
@@ -73,6 +75,7 @@ impl Value {
             Value::Map(entries) => !entries.is_empty(),
             Value::Handle(_) => true,
             Value::Module(_) => true,
+            Value::Future(_) => true,
             Value::None => false,
         }
     }
@@ -107,6 +110,7 @@ fn type_name(v: &Value) -> &'static str {
         Value::Map(_) => "Map",
         Value::Handle(_) => "Handle",
         Value::Module(_) => "Module",
+        Value::Future(_) => "Future",
         Value::None => "None",
     }
 }
@@ -131,10 +135,12 @@ pub struct Interpreter {
     vars: HashMap<std::string::String, Value>,
     flows: HashMap<std::string::String, crate::ast::FlowDef>,
     types: HashMap<std::string::String, crate::ast::TypeDef>,
-    env: Box<dyn Env>,
+    env: Arc<Mutex<Box<dyn Env + Send>>>,
     tracer: Option<Arc<Tracer>>,
     import_stack: Vec<std::string::String>,
     conversation_history: Vec<(std::string::String, std::string::String)>,
+    next_future_id: u64,
+    async_handles: HashMap<u64, std::thread::JoinHandle<Result<Value>>>,
 }
 
 impl Interpreter {
@@ -150,13 +156,13 @@ impl Interpreter {
         Self::with_env(Box::new(RealEnv::new(allow_shell)), tracer)
     }
 
-    pub fn with_env(env: Box<dyn Env>, tracer: Option<Arc<Tracer>>) -> Self {
+    pub fn with_env(env: Box<dyn Env + Send>, tracer: Option<Arc<Tracer>>) -> Self {
         let mut vars = HashMap::new();
         vars.insert("stdin".to_string(), Value::Handle(Handle::Stdin));
         vars.insert("stdout".to_string(), Value::Handle(Handle::Stdout));
         // math module removed (P11: lean core runtime)
         vars.insert("http".to_string(), Value::Module("http".to_string()));
-        Self { vars, flows: HashMap::new(), types: HashMap::new(), env, tracer, import_stack: Vec::new(), conversation_history: Vec::new() }
+        Self { vars, flows: HashMap::new(), types: HashMap::new(), env: Arc::from(Mutex::new(env)), tracer, import_stack: Vec::new(), conversation_history: Vec::new(), next_future_id: 0, async_handles: HashMap::new() }
     }
 
     pub fn load_session(&mut self, path: &str) -> anyhow::Result<()> {
@@ -188,7 +194,7 @@ impl Interpreter {
     }
 
     pub fn captured_stdout(&self) -> Option<Vec<String>> {
-        self.env.captured_stdout()
+        self.env.lock().unwrap().captured_stdout()
     }
 
     fn trace(&self, event: TraceEvent) {
@@ -277,7 +283,7 @@ impl Interpreter {
                 log::info!("Running flow '{}'", f.name);
                 for param in &f.params {
                     log::debug!("Reading param '{}' from stdin", param.name);
-                    let val = self.env.read_stdin()?;
+                    let val = self.env.lock().unwrap().read_stdin()?;
                     log::debug!("  {} = {:?}", param.name, val);
                     self.vars.insert(param.name.clone(), Value::String(val));
                 }
@@ -500,6 +506,11 @@ impl Interpreter {
                 Ok(ControlFlow::Normal)
             }
 
+            Stmt::Parallel { body } => {
+                self.run_parallel(body)?;
+                Ok(ControlFlow::Normal)
+            }
+
             Stmt::Loop { max, body } => {
                 match max {
                     Some(limit) => {
@@ -528,6 +539,78 @@ impl Interpreter {
         }
     }
 
+    fn run_parallel(&mut self, stmts: &[Stmt]) -> Result<()> {
+        // Each statement runs concurrently. We extract assignments, eval RHS in threads.
+        let env = self.env.clone();
+        let flows = self.flows.clone();
+        let types = self.types.clone();
+        let vars = self.vars.clone();
+        let tracer = self.tracer.clone();
+
+        // Collect results: Vec<(Option<String>, Result<Value>)>
+        let results: Vec<(Option<String>, Result<Value>)> = std::thread::scope(|s| {
+            let handles: Vec<_> = stmts.iter().map(|stmt| {
+                let env = env.clone();
+                let flows = flows.clone();
+                let types = types.clone();
+                let vars = vars.clone();
+                let tracer = tracer.clone();
+                let stmt = stmt.clone();
+                s.spawn(move || {
+                    let mut interp = Interpreter {
+                        vars,
+                        flows,
+                        types,
+                        env,
+                        tracer,
+                        import_stack: Vec::new(),
+                        conversation_history: Vec::new(),
+                        next_future_id: 0,
+                        async_handles: HashMap::new(),
+                    };
+                    match &stmt {
+                        Stmt::Assign { name, expr } => {
+                            let val = interp.eval(expr)?;
+                            Ok((Some(name.clone()), val))
+                        }
+                        _ => {
+                            interp.run_stmt(&stmt)?;
+                            Ok((None, Value::None))
+                        }
+                    }
+                })
+            }).collect();
+
+            handles.into_iter().map(|h| {
+                match h.join() {
+                    Ok(Ok((name, val))) => (name, Ok(val)),
+                    Ok(Err(e)) => (None, Err(e)),
+                    Err(_) => (None, Err(anyhow::anyhow!("parallel branch panicked"))),
+                }
+            }).collect()
+        });
+
+        // Check for errors, merge results
+        let mut errors = Vec::new();
+        for (name, result) in results {
+            match result {
+                Ok(val) => {
+                    if let Some(name) = name {
+                        self.vars.insert(name, val);
+                    }
+                }
+                Err(e) => errors.push(e),
+            }
+        }
+
+        if !errors.is_empty() {
+            let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+            bail!("parallel block errors:\n  {}", msgs.join("\n  "));
+        }
+
+        Ok(())
+    }
+
     fn eval(&mut self, expr: &Expr) -> Result<Value> {
         match expr {
             Expr::StringLit(s) => Ok(Value::String(s.clone())),
@@ -549,6 +632,36 @@ impl Interpreter {
                         }
                     }
                 }
+            }
+
+            Expr::Async(inner) => {
+                // Spawn the expression evaluation in a background thread
+                let env = self.env.clone();
+                let flows = self.flows.clone();
+                let types = self.types.clone();
+                let vars = self.vars.clone();
+                let tracer = self.tracer.clone();
+                let inner = (**inner).clone();
+
+                let handle = std::thread::spawn(move || {
+                    let mut interp = Interpreter {
+                        vars,
+                        flows,
+                        types,
+                        env,
+                        tracer,
+                        import_stack: Vec::new(),
+                        conversation_history: Vec::new(),
+                        next_future_id: 0,
+                        async_handles: HashMap::new(),
+                    };
+                    interp.eval(&inner)
+                });
+
+                let id = self.next_future_id;
+                self.next_future_id += 1;
+                self.async_handles.insert(id, handle);
+                Ok(Value::Future(id))
             }
 
             Expr::List(items) => {
@@ -808,7 +921,7 @@ impl Interpreter {
                 };
                 match handle {
                     Handle::Stdin => {
-                        let val = self.env.read_stdin()?;
+                        let val = self.env.lock().unwrap().read_stdin()?;
                         if let Some(ref tracer) = self.tracer {
                             tracer.increment_turn();
                         }
@@ -822,7 +935,7 @@ impl Interpreter {
                     }
                     Handle::Stdout => bail!("cannot read from stdout"),
                     Handle::File(path) => {
-                        let content = self.env.read_file(&path)?;
+                        let content = self.env.lock().unwrap().read_file(&path)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "read".into(), handle_type: "file".into(),
@@ -843,7 +956,7 @@ impl Interpreter {
                 match handle {
                     Handle::Stdin => bail!("cannot write to stdin"),
                     Handle::Stdout => {
-                        self.env.write_stdout(&content)?;
+                        self.env.lock().unwrap().write_stdout(&content)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "write".into(), handle_type: "stdout".into(),
@@ -853,7 +966,7 @@ impl Interpreter {
                         Ok(Value::None)
                     }
                     Handle::File(path) => {
-                        self.env.write_file(&path, &content)?;
+                        self.env.lock().unwrap().write_file(&path, &content)?;
                         let full = self.is_full_trace();
                         self.trace(TraceEvent::IoOp {
                             operation: "write".into(), handle_type: "file".into(),
@@ -885,14 +998,14 @@ impl Interpreter {
                 self.call_flow(&flow_name, vec![], kwarg_vals)
             }
             "__exec_shell__" => {
-                if !self.env.allow_shell() {
+                if !self.env.lock().unwrap().allow_shell() {
                     bail!("shell execution is disabled — use: cognos run --allow-shell file.cog");
                 }
                 if args.is_empty() { bail!("__exec_shell__() requires a command string"); }
                 let cmd = self.eval(&args[0])?.to_string();
                 log::info!("__exec_shell__ → {:?}", cmd);
                 let shell_start = std::time::Instant::now();
-                let result = self.env.exec_shell(&cmd)?;
+                let result = self.env.lock().unwrap().exec_shell(&cmd)?;
                 let shell_output = if self.is_full_trace() { Some(result.stdout.clone()) } else { None };
                 self.trace(TraceEvent::ShellExec {
                     command: cmd, latency_ms: shell_start.elapsed().as_millis() as u64,
@@ -907,7 +1020,7 @@ impl Interpreter {
                 let value = self.eval(&args[1])?;
                 let json = self.value_to_json(&value);
                 let content = serde_json::to_string_pretty(&json)?;
-                self.env.write_file(&path, &content)?;
+                self.env.lock().unwrap().write_file(&path, &content)?;
                 log::info!("Saved to {}", path);
                 Ok(Value::None)
             }
@@ -915,11 +1028,26 @@ impl Interpreter {
                 // load(path) — load a JSON file back to a Value via Env
                 if args.is_empty() { bail!("load(path)"); }
                 let path = self.eval(&args[0])?.to_string();
-                let content = self.env.read_file(&path)?;
+                let content = self.env.lock().unwrap().read_file(&path)?;
                 let json: serde_json::Value = serde_json::from_str(&content)
                     .map_err(|e| anyhow::anyhow!("load JSON error: {}", e))?;
                 log::info!("Loaded from {}", path);
                 Ok(self.json_to_value(json))
+            }
+            "await" => {
+                if args.is_empty() { bail!("await() requires a future handle"); }
+                let val = self.eval(&args[0])?;
+                match val {
+                    Value::Future(id) => {
+                        let handle = self.async_handles.remove(&id)
+                            .ok_or_else(|| anyhow::anyhow!("invalid or already-consumed future handle {}", id))?;
+                        match handle.join() {
+                            Ok(result) => result,
+                            Err(_) => bail!("async task panicked"),
+                        }
+                    }
+                    other => bail!("await() expects a Future, got {} (type: {})", other, type_name(&other)),
+                }
             }
             "log" => {
                 for arg in args {
@@ -983,7 +1111,7 @@ impl Interpreter {
                 if args.is_empty() { bail!("http.get() requires a URL"); }
                 let url = args[0].to_string();
                 log::info!("http.get({})", url);
-                let body = self.env.http_get(&url)?;
+                let body = self.env.lock().unwrap().http_get(&url)?;
                 Ok(Value::String(body))
             }
             "post" => {
@@ -991,7 +1119,7 @@ impl Interpreter {
                 let url = args[0].to_string();
                 let body = args[1].to_string();
                 log::info!("http.post({})", url);
-                let resp = self.env.http_post(&url, &body)?;
+                let resp = self.env.lock().unwrap().http_post(&url, &body)?;
                 Ok(Value::String(resp))
             }
             _ => bail!("http has no function '{}'", method),
@@ -1282,6 +1410,7 @@ impl Interpreter {
             }
             Value::Handle(_) => serde_json::Value::String("<handle>".into()),
             Value::Module(name) => serde_json::Value::String(format!("<module:{}>", name)),
+            Value::Future(id) => serde_json::Value::String(format!("<future:{}>", id)),
         }
     }
 
@@ -1347,14 +1476,14 @@ impl Interpreter {
 
     fn call_llm(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         // Check if mock env handles LLM calls
-        if self.env.is_mock() {
+        if self.env.lock().unwrap().is_mock() {
             // Mock environment — use env.call_llm
             let request = crate::environment::LlmRequest {
                 model: model.to_string(), system: system.to_string(),
                 prompt: prompt.to_string(), tools: tools.clone(),
                 format: None, history: vec![],
             };
-            let resp = self.env.call_llm(request)?;
+            let resp = self.env.lock().unwrap().call_llm(request)?;
             let has_tc = resp.tool_calls.is_some();
             self.trace_llm(model, "mock", 0, prompt, system, &resp.content, has_tc);
             if let Some(tc) = resp.tool_calls {

@@ -2802,3 +2802,162 @@ flow main():
     assert!(err.contains("OPENAI_API_KEY") || err.contains("OpenAI"),
         "expected OpenAI-related error for o3 model, got: {}", err);
 }
+
+// ─── Parallel & Async Tests ───
+
+#[test]
+fn test_parallel_basic() {
+    let src = r#"
+flow main:
+    parallel:
+        a = 1 + 2
+        b = 3 + 4
+        c = 5 + 6
+    emit(a)
+    emit(b)
+    emit(c)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["3", "7", "11"]);
+}
+
+#[test]
+fn test_parallel_string_ops() {
+    let src = r#"
+flow main:
+    parallel:
+        x = "hello" + " world"
+        y = "foo" + "bar"
+    emit(x)
+    emit(y)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["hello world", "foobar"]);
+}
+
+#[test]
+fn test_parallel_error_propagation() {
+    // Division by zero in one branch should cause an error
+    let src = r#"
+flow main:
+    parallel:
+        a = 1 + 2
+        b = 10 / 0
+    emit(a)
+"#;
+    let (_, _, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+}
+
+#[test]
+fn test_parallel_uses_outer_vars() {
+    let src = r#"
+flow main:
+    x = 10
+    parallel:
+        a = x + 1
+        b = x + 2
+    emit(a)
+    emit(b)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["11", "12"]);
+}
+
+#[test]
+fn test_async_await_basic() {
+    let src = r#"
+flow compute(x: Int) -> Int:
+    return x * 2
+
+flow main:
+    handle = async compute(21)
+    other = 100
+    result = await(handle)
+    emit(result)
+    emit(other)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["42", "100"]);
+}
+
+#[test]
+fn test_async_await_multiple() {
+    let src = r#"
+flow double(x: Int) -> Int:
+    return x * 2
+
+flow main:
+    h1 = async double(5)
+    h2 = async double(10)
+    h3 = async double(15)
+    r1 = await(h1)
+    r2 = await(h2)
+    r3 = await(h3)
+    emit(r1)
+    emit(r2)
+    emit(r3)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["10", "20", "30"]);
+}
+
+#[test]
+fn test_async_work_between() {
+    let src = r#"
+flow slow_add(a: Int, b: Int) -> Int:
+    return a + b
+
+flow main:
+    handle = async slow_add(10, 20)
+    x = 5 * 5
+    result = await(handle)
+    emit(x)
+    emit(result)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    let lines: Vec<&str> = out.trim().lines().collect();
+    assert_eq!(lines, vec!["25", "30"]);
+}
+
+#[test]
+fn test_parallel_parse() {
+    let src = r#"
+flow main:
+    parallel:
+        a = 1
+        b = 2
+"#;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("test.cog");
+    std::fs::write(&file, src).unwrap();
+    let bin = cognos_bin();
+    let output = std::process::Command::new(&bin)
+        .arg("parse")
+        .arg(&file)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("parallel:"), "parse output should contain parallel: got {}", stdout);
+}
+
+#[test]
+fn test_await_invalid_handle() {
+    let src = r#"
+flow main:
+    result = await(42)
+"#;
+    let (_, _, code) = run_inline(src, "");
+    assert_ne!(code, 0);
+}

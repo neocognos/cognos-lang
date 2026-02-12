@@ -281,6 +281,8 @@ impl Lexer {
             "return" => Token::Return,
             "emit" => Token::Emit,
             "parallel" => Token::Parallel,
+            "async" => Token::Async,
+            "await" => Token::Await,
             "for" => Token::For,
             "in" => Token::In,
             "try" => Token::Try,

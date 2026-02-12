@@ -254,6 +254,7 @@ impl Parser {
             Token::Return => return self.parse_return(),
             Token::Break => { self.advance(); self.skip_newlines(); return Ok(Stmt::Break); }
             Token::Continue => { self.advance(); self.skip_newlines(); return Ok(Stmt::Continue); }
+            Token::Parallel => return self.parse_parallel(),
             Token::Pass => { self.advance(); self.skip_newlines(); return Ok(Stmt::Pass); }
             _ => {}
         }
@@ -395,6 +396,14 @@ impl Parser {
         Ok(Stmt::TryCatch { body, error_var, catch_body })
     }
 
+    fn parse_parallel(&mut self) -> Result<Stmt> {
+        self.expect(Token::Parallel)?;
+        self.expect(Token::Colon)?;
+        self.expect_newline()?;
+        let body = self.parse_block()?;
+        Ok(Stmt::Parallel { body })
+    }
+
     // ─── Expressions ───
 
     fn parse_expr(&mut self) -> Result<Expr> {
@@ -471,6 +480,11 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expr> {
+        if self.check(&Token::Async) {
+            self.advance();
+            let expr = self.parse_unary()?;
+            return Ok(Expr::Async(Box::new(expr)));
+        }
         if self.check(&Token::Not) {
             self.advance();
             let operand = self.parse_unary()?;
@@ -583,6 +597,11 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Result<Expr> {
         match self.peek_token() {
+            Token::Await => {
+                // await(handle) — parse as a call to builtin "await"
+                self.advance();
+                return self.parse_call("await".to_string());
+            }
             Token::Ident(name) => {
                 let name = name.clone();
                 self.advance();

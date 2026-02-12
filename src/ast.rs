@@ -98,6 +98,8 @@ pub enum Stmt {
         error_var: Option<String>,
         catch_body: Vec<Stmt>,
     },
+    /// `parallel: body` — run all statements concurrently
+    Parallel { body: Vec<Stmt> },
     /// Bare expression (function call as statement)
     Expr(Expr),
 }
@@ -120,6 +122,8 @@ pub enum Expr {
         args: Vec<Expr>,
         kwargs: Vec<(String, Expr)>,
     },
+    /// Async expression: async func(args)
+    Async(Box<Expr>),
     /// Field access: expr.field
     Field { object: Box<Expr>, field: String },
     /// Index access: expr[expr]

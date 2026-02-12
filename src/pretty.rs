@@ -136,6 +136,11 @@ fn pretty_stmt(out: &mut String, stmt: &Stmt, level: usize) {
             }
             for s in body { pretty_stmt(out, s, level + 1); }
         }
+        Stmt::Parallel { body } => {
+            indent(out, level);
+            out.push_str("parallel:\n");
+            for s in body { pretty_stmt(out, s, level + 1); }
+        }
         Stmt::Expr(expr) => {
             indent(out, level);
             out.push_str(&format!("{}\n", pretty_expr(expr)));
@@ -203,6 +208,9 @@ fn pretty_expr(expr: &Expr) -> String {
             }
             s.push('"');
             s
+        }
+        Expr::Async(inner) => {
+            format!("async {}", pretty_expr(inner))
         }
         Expr::Map(entries) => {
             let parts: Vec<String> = entries.iter()

@@ -575,3 +575,43 @@ All I/O is routed through an `Env` trait. The interpreter never calls OS functio
 | `MockEnv` | `cognos test --env mock.json` — canned responses, no network |
 
 See [Environments docs](../docs/environments.md) for mock file format.
+
+## 16. Concurrency
+
+### `parallel:` Blocks
+
+Run multiple statements concurrently. All branches execute in parallel threads and the block waits for all to complete before continuing.
+
+```cognos
+parallel:
+    a = think("analyze code", model="claude-sonnet-4-20250514")
+    b = think("analyze tests", model="claude-sonnet-4-20250514")
+    c = shell("wc -l src/*.rs")
+# a, b, c all available here
+```
+
+**Semantics:**
+- Every statement in the block runs concurrently (spawned as OS threads)
+- Block waits for ALL branches to complete
+- Variables assigned inside are available after the block
+- No shared mutable state between branches — each gets a snapshot of current vars
+- Errors in any branch propagate after all branches finish
+
+### `async` / `await`
+
+Fire-and-forget with later collection. `async` starts an expression in a background thread and returns a future handle. `await(handle)` blocks until the result is ready.
+
+```cognos
+handle = async deep_research("quantum computing")
+# do other work while deep_research runs...
+quick = think("what's 2+2?")
+# now collect the result
+result = await(handle)
+```
+
+**Semantics:**
+- `async expr` spawns `expr` evaluation in a background thread, returns a `Future` handle
+- `await(handle)` blocks until the async operation completes, returns the result
+- The handle is a `Future` value — can be stored in variables, passed around
+- Each `await` consumes the handle — awaiting the same handle twice is an error
+- The background thread gets a snapshot of current variables and environment
