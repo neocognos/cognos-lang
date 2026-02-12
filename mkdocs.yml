@@ -27,6 +27,9 @@ nav:
     - Environments & Testing: docs/environments.md
     - Tracing & Diagnostics: docs/tracing.md
     - Memory Design: docs/memory.md
+  - Agents:
+    - Overview: docs/agents/index.md
+    - General Assistant: docs/agents/general-assistant.md
   - Architecture:
     - Design Principles: docs/design-principles.md
     - SDLC Process: docs/sdlc-process.md

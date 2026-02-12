@@ -1,0 +1,1503 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Programming language for agentic workflows">
+      
+      
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../../design-principles/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>General Assistant - Cognos Language</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#general-assistant" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Cognos Language" class="md-header__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cognos Language
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              General Assistant
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Cognos Language" class="md-nav__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cognos Language
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../spec/language-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments & Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing & Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    General Assistant
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    General Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#persona" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persona
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-turn-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-turn conversation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-the-assistant-doesnt-know" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the assistant doesn't know
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Memory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#short-term-conversation-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short-term: Conversation history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-term-session-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-term: Session persistence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-semantic-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future: Semantic memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-agent-demonstrates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this agent demonstrates
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sdlc-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDLC Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../comparison-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../spec/compilation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#persona" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persona
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-turn-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-turn conversation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-the-assistant-doesnt-know" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the assistant doesn't know
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Memory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#short-term-conversation-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short-term: Conversation history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-term-session-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-term: Session persistence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-semantic-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future: Semantic memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-agent-demonstrates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this agent demonstrates
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="general-assistant">General Assistant</h1>
+<p>A conversational agent that can answer questions, use tools, and maintain context across turns. The most common agent type — the foundation that other agents build on.</p>
+<hr />
+<h2 id="persona">Persona</h2>
+<p>The general assistant is helpful, direct, and honest about what it knows and doesn't know. It doesn't guess — if it's uncertain, it says so. If it can use a tool to find the answer, it does.</p>
+<p><strong>Tone:</strong> Conversational but concise. No filler. Answers the question, then stops.</p>
+<p><strong>Expertise:</strong> Generalist. Knows a little about everything, can use tools to go deeper.</p>
+<hr />
+<h2 id="capabilities">Capabilities</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shell</code></td>
+<td>Run commands, check system state, process data</td>
+<td><code>shell("date")</code>, <code>shell("wc -l *.py")</code></td>
+</tr>
+<tr>
+<td><code>read_file</code></td>
+<td>Read file contents for context</td>
+<td><code>read_file("README.md")</code></td>
+</tr>
+<tr>
+<td><code>write_file</code></td>
+<td>Create or update files</td>
+<td><code>write_file("notes.md", content)</code></td>
+</tr>
+<tr>
+<td><code>http_fetch</code></td>
+<td>Fetch web content</td>
+<td><code>http_fetch("https://api.example.com/data")</code></td>
+</tr>
+</tbody>
+</table>
+<p>The assistant doesn't decide which tools to use — the LLM does. The assistant defines which tools are <em>available</em>. The <code>think()</code> call with <code>tools=[...]</code> lets the LLM choose.</p>
+<hr />
+<h2 id="behavior">Behavior</h2>
+<h3 id="multi-turn-conversation">Multi-turn conversation</h3>
+<p>The assistant maintains conversation history. Each user message is added to context, and each response builds on previous turns. This enables follow-up questions, references to earlier answers, and progressive refinement.</p>
+<p><strong>When context grows too large:</strong> The assistant compacts old history into a summary, preserving key facts and decisions while reducing token count. Recent turns are kept verbatim.</p>
+<h3 id="tool-use">Tool use</h3>
+<p>When the user asks something the assistant can't answer from knowledge alone, the LLM requests tool calls. The assistant executes them and feeds results back to the LLM.</p>
+<p><strong>Tool selection is the LLM's job.</strong> The assistant provides tool descriptions (flow docstrings), and the LLM decides which to call based on the user's request.</p>
+<p><strong>Sequential vs parallel:</strong> Most tool calls are sequential — the LLM sees each result before deciding the next step. For independent lookups, the LLM may request multiple tools in one response.</p>
+<h3 id="when-the-assistant-doesnt-know">When the assistant doesn't know</h3>
+<ol>
+<li>First: check if a tool can help (search, read a file, run a command)</li>
+<li>If no tool helps: say "I don't know" honestly</li>
+<li>Never fabricate facts. Never present uncertainty as confidence.</li>
+</ol>
+<h3 id="error-handling">Error handling</h3>
+<ul>
+<li>Tool fails → report the error to the user, suggest alternatives</li>
+<li>LLM returns garbage → retry once with clearer prompt, then report failure</li>
+<li>Context too large → compact history, continue</li>
+</ul>
+<hr />
+<h2 id="output-contract">Output Contract</h2>
+<p>The general assistant has no fixed output type — it responds in natural language. However, when asked for structured output, it can use types:</p>
+<div class="highlight"><pre><span></span><code>type TaskList:
+    tasks: List[Task]
+
+type Task:
+    title: String
+    priority: Priority
+    done: Bool
+
+type Priority: &quot;high&quot; | &quot;medium&quot; | &quot;low&quot;
+</code></pre></div>
+<p>Structured output is requested per-turn, not per-agent. The same assistant can answer "what time is it?" (free text) and "list my tasks" (structured).</p>
+<hr />
+<h2 id="memory">Memory</h2>
+<h3 id="short-term-conversation-history">Short-term: Conversation history</h3>
+<p>Maintained automatically by <code>think()</code>. Each call appends user input and assistant response. Compacted when context exceeds threshold.</p>
+<h3 id="long-term-session-persistence">Long-term: Session persistence</h3>
+<p>Using <code>--session state.json</code>, the assistant preserves variables between runs. User preferences, accumulated notes, and task state survive restarts.</p>
+<h3 id="future-semantic-memory">Future: Semantic memory</h3>
+<p><code>remember()</code> and <code>recall()</code> will enable the assistant to store and retrieve facts by meaning, not just by variable name. This is on the roadmap.</p>
+<hr />
+<h2 id="implementation">Implementation</h2>
+<div class="highlight"><pre><span></span><code>import &quot;lib/exec.cog&quot;
+import &quot;lib/compact.cog&quot;
+
+flow shell(command: String) -&gt; String:
+    &quot;Run a shell command. Output limited to 50 lines.&quot;
+    return __exec_shell__(f&quot;{command} | head -50&quot;)
+
+flow read_file(path: String) -&gt; String:
+    &quot;Read the contents of a file&quot;
+    return read(file(path))
+
+flow write_file(path: String, content: String) -&gt; String:
+    &quot;Write content to a file&quot;
+    write(file(path), content)
+    return f&quot;Wrote {content.length} chars to {path}&quot;
+
+flow http_fetch(url: String) -&gt; String:
+    &quot;Fetch content from a URL&quot;
+    return http.get(url)
+
+flow main():
+    system = &quot;You are a helpful assistant. Be direct and concise. If you don&#39;t know something, say so. Use tools when they can help answer the question.&quot;
+    model = &quot;claude-sonnet-4-20250514&quot;
+    tools = [&quot;shell&quot;, &quot;read_file&quot;, &quot;write_file&quot;, &quot;http_fetch&quot;]
+    max_history = 20
+
+    write(stdout, &quot;Assistant ready. Type your message.\n&quot;)
+
+    loop:
+        input = read(stdin)
+        if input == &quot;exit&quot; or input == &quot;quit&quot;:
+            write(stdout, &quot;Goodbye.&quot;)
+            break
+
+        # Compact history if it&#39;s getting long
+        h = history()
+        if h.length &gt; max_history * 2:
+            summary = compact_history(max_turns=max_history)
+            write(stdout, &quot;(context compacted)\n&quot;)
+
+        # Think with tools — LLM decides which to use
+        response = think(
+            input,
+            model=model,
+            system=system,
+            tools=tools
+        )
+
+        # Handle tool calls
+        if response[&quot;has_tool_calls&quot;]:
+            # Execute tools and get final response
+            executed = exec(response, tools=tools)
+            # Feed results back to LLM for final answer
+            final = think(
+                f&quot;Tool results:\n{executed[\&quot;content\&quot;]}&quot;,
+                model=model,
+                system=system,
+                tools=tools
+            )
+            if final[&quot;has_tool_calls&quot;]:
+                # Second round of tools (max 2 rounds)
+                executed2 = exec(final, tools=tools)
+                final = think(
+                    f&quot;Tool results:\n{executed2[\&quot;content\&quot;]}&quot;,
+                    model=model,
+                    system=system
+                )
+            write(stdout, final[&quot;content&quot;])
+        else:
+            write(stdout, response[&quot;content&quot;])
+
+        write(stdout, &quot;\n&quot;)
+</code></pre></div>
+<h3 id="usage">Usage</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Interactive conversation</span>
+cognos<span class="w"> </span>run<span class="w"> </span>general-assistant.cog<span class="w"> </span>--allow-shell
+
+<span class="c1"># With session persistence (remembers between runs)</span>
+cognos<span class="w"> </span>run<span class="w"> </span>general-assistant.cog<span class="w"> </span>--allow-shell<span class="w"> </span>--session<span class="w"> </span>assistant-state.json
+
+<span class="c1"># With tracing (for debugging)</span>
+cognos<span class="w"> </span>run<span class="w"> </span>general-assistant.cog<span class="w"> </span>--allow-shell<span class="w"> </span>--trace<span class="w"> </span>assistant.jsonl<span class="w"> </span>--trace-level<span class="w"> </span>full
+</code></pre></div>
+<h3 id="testing">Testing</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Record a real session</span>
+cognos<span class="w"> </span>run<span class="w"> </span>general-assistant.cog<span class="w"> </span>--allow-shell<span class="w"> </span>--trace<span class="w"> </span>traces/assistant-session.jsonl
+
+<span class="c1"># Generate mock from trace</span>
+cognos<span class="w"> </span>trace-to-mock<span class="w"> </span>traces/assistant-session.jsonl<span class="w"> </span>&gt;<span class="w"> </span>examples/mocks/assistant-test.json
+
+<span class="c1"># Replay deterministically</span>
+cognos<span class="w"> </span><span class="nb">test</span><span class="w"> </span>general-assistant.cog<span class="w"> </span>--env<span class="w"> </span>examples/mocks/assistant-test.json
+</code></pre></div>
+<hr />
+<h2 id="what-this-agent-demonstrates">What this agent demonstrates</h2>
+<table>
+<thead>
+<tr>
+<th>Cognos Feature</th>
+<th>How it's used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>think()</code> with tools</td>
+<td>LLM chooses which tools to call</td>
+</tr>
+<tr>
+<td><code>exec()</code> from stdlib</td>
+<td>Dispatches tool calls to flows via <code>invoke()</code></td>
+</tr>
+<tr>
+<td><code>history()</code> / <code>compact_history()</code></td>
+<td>Conversation memory with compaction</td>
+</tr>
+<tr>
+<td><code>--session</code></td>
+<td>State persistence between runs</td>
+</tr>
+<tr>
+<td>Flow docstrings</td>
+<td>Tool descriptions for the LLM</td>
+</tr>
+<tr>
+<td><code>try/catch</code> (in exec)</td>
+<td>Graceful tool failure handling</td>
+</tr>
+<tr>
+<td><code>--trace</code></td>
+<td>Full observability</td>
+</tr>
+<tr>
+<td><code>cognos test --env</code></td>
+<td>Deterministic replay testing</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
