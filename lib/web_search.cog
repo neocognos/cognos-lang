@@ -1,9 +1,3 @@
-flow web_search(query: String, engine: String = "google") -> String:
-    "Search the web for a query. Engines: google, duckduckgo, brave"
-    if engine == "google":
-        return __exec_shell__(f"curl -sL 'https://www.google.com/search?q={query}&num=5' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
-    if engine == "duckduckgo":
-        return __exec_shell__(f"curl -sL 'https://html.duckduckgo.com/html/?q={query}' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
-    if engine == "brave":
-        return __exec_shell__(f"curl -sL 'https://search.brave.com/search?q={query}' -H 'User-Agent: Mozilla/5.0' | sed 's/<[^>]*>//g' | head -100")
-    return f"Unknown search engine: {engine}"
+flow web_search(query: String, num_results: Int = 5) -> String:
+    "Search the web using DuckDuckGo and return titles + summaries"
+    return __exec_shell__(f"/home/reza/.local/bin/ddgr --json -n {num_results} \"{query}\" 2>/dev/null | python3 -c \"import sys,json; [print(r['title']+'\\n'+r['abstract']+'\\n'+r['url']+'\\n') for r in json.load(sys.stdin)]\" 2>/dev/null | head -100")

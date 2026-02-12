@@ -66,10 +66,16 @@ flow handle_input(input: String, tasks: Map) -> Map:
         write(stdout, f"⚡ Started '{task_name}' in background. Keep talking.\n")
         return tasks
     write(stdout, "🔍 Thinking...\n")
+    task_names = []
+    for name, handle in tasks:
+        task_names = task_names + [name]
+    context_note = ""
+    if task_names.length > 0:
+        context_note = f"\n\nNote: You have background tasks running: {task_names}. If the user asks about them, tell them they're still running."
     response = think(
         input,
         model="claude-sonnet-4-20250514",
-        system="Be concise and helpful. You have tools available — use them when they can help answer the question. For date/time use shell('date'), for web info use web_search().",
+        system=f"Be concise and helpful. You have tools available — use them when they can help answer the question. For date/time use shell('date'), for web info use web_search().{context_note}",
         tools=tools
     )
     if response.has_tool_calls:
