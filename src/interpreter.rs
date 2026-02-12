@@ -808,6 +808,7 @@ impl Interpreter {
                 }
                 match (&val, field.as_str()) {
                     (Value::String(s), "length") => Ok(Value::Int(s.len() as i64)),
+                    (Value::String(s), "content") => Ok(Value::String(s.clone())),
                     (Value::List(l), "length") => Ok(Value::Int(l.len() as i64)),
                     (Value::Map(e), "length") => Ok(Value::Int(e.len() as i64)),
                     (Value::Map(_), _) => {

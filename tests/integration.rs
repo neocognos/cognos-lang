@@ -3534,3 +3534,163 @@ fn test_mock_general_assistant() {
     assert!(out.contains("Goodbye"));
     assert!(out.contains("Pass ✓"));
 }
+
+// ── Feature 1: Keywords as field names in type definitions ──
+
+#[test]
+fn test_keyword_as_type_field_name() {
+    let src = r#"
+type Action:
+    type: String
+    name: String
+
+flow main:
+    a = {"type": "respond", "name": "test"}
+    write(stdout, a["type"])
+    write(stdout, a.name)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("respond"), "got: {}", out);
+    assert!(out.contains("test"), "got: {}", out);
+}
+
+#[test]
+fn test_keyword_field_name_various_keywords() {
+    let src = r#"
+type Config:
+    for: String
+    if: String
+    return: String
+
+flow main:
+    c = {"for": "loop", "if": "cond", "return": "val"}
+    write(stdout, c["for"])
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("loop"), "got: {}", out);
+}
+
+// ── Feature 2: String methods ──
+
+#[test]
+fn test_string_starts_with() {
+    let src = r#"
+flow main:
+    x = "hello world"
+    r1 = x.starts_with("hello")
+    r2 = x.starts_with("world")
+    write(stdout, f"{r1}")
+    write(stdout, f"{r2}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("true"), "got: {}", out);
+    assert!(out.contains("false"), "got: {}", out);
+}
+
+#[test]
+fn test_string_ends_with() {
+    let src = r#"
+flow main:
+    x = "hello world"
+    r1 = x.ends_with("world")
+    r2 = x.ends_with("hello")
+    write(stdout, f"{r1}")
+    write(stdout, f"{r2}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("true"), "got: {}", out);
+    assert!(out.contains("false"), "got: {}", out);
+}
+
+#[test]
+fn test_string_contains() {
+    let src = r#"
+flow main:
+    x = "hello world"
+    r = x.contains("llo")
+    write(stdout, f"{r}")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("true"), "got: {}", out);
+}
+
+#[test]
+fn test_string_strip() {
+    let src = r#"
+flow main:
+    x = "  hi  "
+    write(stdout, f"[{x.strip()}]")
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("[hi]"), "got: {}", out);
+}
+
+#[test]
+fn test_string_lower_upper() {
+    let src = r#"
+flow main:
+    x = "Hello World"
+    write(stdout, x.lower())
+    write(stdout, x.upper())
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("hello world"), "got: {}", out);
+    assert!(out.contains("HELLO WORLD"), "got: {}", out);
+}
+
+#[test]
+fn test_string_replace() {
+    let src = r#"
+flow main:
+    x = "hello"
+    write(stdout, x.replace("l", "r"))
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("herro"), "got: {}", out);
+}
+
+// ── Feature 3: .content property ──
+
+#[test]
+fn test_content_on_string() {
+    let src = r#"
+flow main:
+    x = "hello"
+    write(stdout, x.content)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("hello"), "got: {}", out);
+}
+
+#[test]
+fn test_content_on_map() {
+    let src = r#"
+flow main:
+    x = {"content": "response text", "has_tool_calls": false}
+    write(stdout, x.content)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("response text"), "got: {}", out);
+}
+
+#[test]
+fn test_dot_access_keyword_field_on_map() {
+    let src = r#"
+flow main:
+    x = {"type": "respond", "name": "test"}
+    write(stdout, x.type)
+"#;
+    let (out, err, code) = run_inline(src, "");
+    assert_eq!(code, 0, "stderr: {}", err);
+    assert!(out.contains("respond"), "got: {}", out);
+}

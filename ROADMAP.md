@@ -16,6 +16,14 @@
 - [x] **`cancel(handle)`** — cancel an async task by its future handle
 - [ ] _Future: inter-thread communication (channels) — post-1.0_
 
+### Language Hardening (from building real agents)
+- [x] **Keywords as field names** — `type Action: type: String` should work (High impact)
+- [x] **String methods** — `.starts_with()`, `.strip()`, `.lower()`, `.upper()`, `.replace()` (High impact)
+- [x] **`think()` return consistency** — `.content` accessor works on both String and Map (High impact)
+- [ ] **Standard lib path** — `import "std/exec"` resolves from a known location (Medium impact)
+- [ ] **`break`/`continue` from nested blocks** — break outer loop from inside select/if (Medium impact)
+- [ ] **Map access methods** — `.keys()`, `.values()`, `.first()`, `.has()` (Low impact)
+
 ### Memory
 - [ ] **`remember()`/`recall()` builtins** — semantic memory backed by vector DB
 - [ ] **Session auto-save** — periodic saves during long runs, not just on exit

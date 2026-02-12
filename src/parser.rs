@@ -128,7 +128,7 @@ impl Parser {
             if self.check(&Token::Dedent) || self.is_at_end() {
                 break;
             }
-            let fname = self.expect_ident()?;
+            let fname = self.expect_ident_or_keyword()?;
             let optional = if self.check(&Token::Question) {
                 self.advance();
                 true
@@ -580,7 +580,7 @@ impl Parser {
         loop {
             if self.check(&Token::Dot) {
                 self.advance();
-                let field = self.expect_ident()?;
+                let field = self.expect_ident_or_keyword()?;
                 // Check if it's a method call: obj.method(args)
                 if self.check(&Token::LParen) {
                     self.advance(); // consume (
@@ -812,6 +812,47 @@ impl Parser {
                 format!("expected a name, got {}", self.peek_token()),
             ).into())
         }
+    }
+
+    /// Like expect_ident but also accepts keyword tokens (for field names in type defs)
+    fn expect_ident_or_keyword(&mut self) -> Result<String> {
+        let name = match self.peek_token() {
+            Token::Ident(s) => s,
+            Token::Flow => "flow".to_string(),
+            Token::Let => "let".to_string(),
+            Token::If => "if".to_string(),
+            Token::Else => "else".to_string(),
+            Token::Elif => "elif".to_string(),
+            Token::Loop => "loop".to_string(),
+            Token::Break => "break".to_string(),
+            Token::Continue => "continue".to_string(),
+            Token::Return => "return".to_string(),
+            Token::Emit => "emit".to_string(),
+            Token::Parallel => "parallel".to_string(),
+            Token::Branch => "branch".to_string(),
+            Token::Async => "async".to_string(),
+            Token::Await => "await".to_string(),
+            Token::For => "for".to_string(),
+            Token::In => "in".to_string(),
+            Token::Try => "try".to_string(),
+            Token::Catch => "catch".to_string(),
+            Token::Type => "type".to_string(),
+            Token::And => "and".to_string(),
+            Token::Or => "or".to_string(),
+            Token::Not => "not".to_string(),
+            Token::True => "true".to_string(),
+            Token::False => "false".to_string(),
+            Token::Pass => "pass".to_string(),
+            Token::Select => "select".to_string(),
+            _ => {
+                return Err(CognosError::parse(
+                    self.current_line(),
+                    format!("expected a name, got {}", self.peek_token()),
+                ).into());
+            }
+        };
+        self.advance();
+        Ok(name)
     }
 
     fn expect_newline(&mut self) -> Result<()> {
