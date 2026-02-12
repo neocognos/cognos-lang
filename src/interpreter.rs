@@ -1541,10 +1541,54 @@ impl Interpreter {
             json_str
         };
 
-        let parsed: serde_json::Value = serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("LLM returned invalid JSON: {}\nResponse was: {}", e, json_str))?;
+        // Try parsing as-is first
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+            return Ok(self.json_to_value(parsed));
+        }
 
-        Ok(self.json_to_value(parsed))
+        // LLM may have added text after the JSON — extract the first JSON object or array
+        let extracted = Self::extract_json(json_str);
+        if let Some(ref extracted_str) = extracted {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(extracted_str) {
+                return Ok(self.json_to_value(parsed));
+            }
+        }
+
+        Err(anyhow::anyhow!("LLM returned invalid JSON. Could not extract valid JSON from response.\nResponse was: {}", json_str))
+    }
+
+    fn extract_json(s: &str) -> Option<String> {
+        // Find the first { or [ and match its closing bracket
+        let start_char = s.chars().position(|c| c == '{' || c == '[')?;
+        let open = s.as_bytes()[start_char] as char;
+        let close = if open == '{' { '}' } else { ']' };
+        let mut depth = 0;
+        let mut in_string = false;
+        let mut escape = false;
+        for (i, ch) in s[start_char..].char_indices() {
+            if escape {
+                escape = false;
+                continue;
+            }
+            if ch == '\\' && in_string {
+                escape = true;
+                continue;
+            }
+            if ch == '"' {
+                in_string = !in_string;
+                continue;
+            }
+            if !in_string {
+                if ch == open { depth += 1; }
+                if ch == close {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(s[start_char..start_char + i + ch.len_utf8()].to_string());
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn value_to_json(&self, value: &Value) -> serde_json::Value {
