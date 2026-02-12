@@ -1707,7 +1707,7 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            return self.call_claude_cli(model, system, prompt, tools);
+            return self.call_anthropic_api(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
@@ -1843,16 +1843,33 @@ impl Interpreter {
     fn call_anthropic_api(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         let call_start = std::time::Instant::now();
 
-        // Read OAuth token from Claude CLI credentials
-        let home = std::env::var("HOME")
-            .map_err(|_| anyhow::anyhow!("HOME env var not set"))?;
-        let cred_path = std::path::PathBuf::from(home).join(".claude/.credentials.json");
-        let cred_data = std::fs::read_to_string(&cred_path)
-            .map_err(|e| anyhow::anyhow!("Cannot read Claude credentials at {:?}: {}. Run 'claude login' first.", cred_path, e))?;
-        let creds: serde_json::Value = serde_json::from_str(&cred_data)
-            .map_err(|e| anyhow::anyhow!("Invalid credentials JSON: {}", e))?;
-        let token = creds["claudeAiOauth"]["accessToken"].as_str()
-            .ok_or_else(|| anyhow::anyhow!("No OAuth access token found. Run 'claude login' first."))?;
+        // Read token: ANTHROPIC_API_KEY env var, or OpenClaw auth-profiles, or Claude CLI OAuth
+        let token = if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            key
+        } else {
+            // Try OpenClaw auth-profiles (multiple agent dirs)
+            let home = std::env::var("HOME").unwrap_or_default();
+            let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+            let mut found_token = None;
+            if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
+                for entry in entries.flatten() {
+                    let auth_path = entry.path().join("agent/auth-profiles.json");
+                    if let Ok(data) = std::fs::read_to_string(&auth_path) {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
+                            if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
+                                if !t.is_empty() {
+                                    found_token = Some(t.to_string());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            found_token.ok_or_else(|| anyhow::anyhow!(
+                "No Anthropic token found. Set ANTHROPIC_API_KEY or run 'openclaw configure'."
+            ))?
+        };
 
         log::info!("Calling Anthropic API: model={}, tools={}", model, tools.as_ref().map(|t| t.len()).unwrap_or(0));
 
