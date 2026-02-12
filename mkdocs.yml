@@ -11,6 +11,13 @@ theme:
     - navigation.expand
     - content.code.copy
 
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
 nav:
   - Home: index.md
   - Language Spec: spec/language-spec.md
@@ -20,6 +27,10 @@ nav:
     - Environments & Testing: docs/environments.md
     - Tracing & Diagnostics: docs/tracing.md
     - Memory Design: docs/memory.md
+  - Architecture:
+    - Design Principles: docs/design-principles.md
+    - SDLC Process: docs/sdlc-process.md
+    - Cognos vs PydanticAI: docs/comparison-pydantic.md
   - Compilation: spec/compilation.md
 
 docs_dir: site-docs

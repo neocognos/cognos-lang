@@ -1,0 +1,1739 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Programming language for agentic workflows">
+      
+      
+      
+      
+        <link rel="prev" href="../../docs/comparison-pydantic/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Compilation - Cognos Language</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cognos-compilation-specification" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Cognos Language" class="md-header__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cognos Language
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Compilation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Cognos Language" class="md-nav__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cognos Language
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../language-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments & Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing & Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/sdlc-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDLC Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/comparison-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compilation-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compilation Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compilation Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Parsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-semantic-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Semantic Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-code-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Code Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cognos-to-kernel-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cognos to Kernel Mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cognos to Kernel Mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flow-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flow Definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#built-in-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in Functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Control Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#conditionals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditionals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parallel-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parallel Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-system-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compilation-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compilation Artifacts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compilation Artifacts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#input-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-output-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Output Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compiler-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiler Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future Enhancements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Future Enhancements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lsp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LSP Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree-sitter-grammar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree-sitter Grammar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Optimizations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backward Compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternative-syntaxes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative Syntaxes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compilation-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compilation Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compilation Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Parsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-semantic-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Semantic Analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-code-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Code Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cognos-to-kernel-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cognos to Kernel Mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cognos to Kernel Mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flow-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flow Definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#built-in-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in Functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Control Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#conditionals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditionals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parallel-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parallel Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-system-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compilation-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compilation Artifacts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compilation Artifacts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#input-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-output-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Output Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compiler-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiler Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future Enhancements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Future Enhancements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lsp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LSP Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree-sitter-grammar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree-sitter Grammar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Optimizations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backward Compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternative-syntaxes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative Syntaxes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cognos-compilation-specification">Cognos Compilation Specification</h1>
+<h2 id="overview">Overview</h2>
+<p>Cognos source files (<code>.cog</code>) compile to the same internal <code>StageDef</code> representation that the Neocognos kernel already understands and executes. This design choice provides several key benefits:</p>
+<ol>
+<li><strong>No kernel changes required</strong> - The existing Neocognos runtime works unchanged</li>
+<li><strong>Feature parity</strong> - Cognos can express anything that YAML workflows can</li>
+<li><strong>Interoperability</strong> - Cognos and YAML workflows can call each other</li>
+<li><strong>Proven runtime</strong> - Leverages the mature, battle-tested kernel</li>
+</ol>
+<h2 id="compilation-pipeline">Compilation Pipeline</h2>
+<div class="highlight"><pre><span></span><code>┌─────────────┐    ┌────────────┐    ┌─────────────┐    ┌──────────────┐
+│ .cog source │ =&gt; │   Parser   │ =&gt; │   Compiler  │ =&gt; │  StageDef    │
+│    files    │    │    (AST)   │    │ (semantic)  │    │ (JSON/binary)│
+└─────────────┘    └────────────┘    └─────────────┘    └──────────────┘
+                                                              │
+                                                              v
+                                                    ┌──────────────┐
+                                                    │  Neocognos   │
+                                                    │   Kernel     │
+                                                    │  (Runtime)   │
+                                                    └──────────────┘
+</code></pre></div>
+<h3 id="phase-1-parsing">Phase 1: Parsing</h3>
+<ul>
+<li>Lexical analysis breaks source into tokens</li>
+<li>Parser builds Abstract Syntax Tree (AST) using the PEG grammar</li>
+<li>Syntax errors are caught and reported with precise location information</li>
+</ul>
+<h3 id="phase-2-semantic-analysis">Phase 2: Semantic Analysis</h3>
+<ul>
+<li>Type checking ensures all expressions are well-typed</li>
+<li>Symbol resolution links identifiers to their definitions</li>
+<li>Flow dependency analysis enables proper compilation order</li>
+<li>Semantic errors are caught and reported</li>
+</ul>
+<h3 id="phase-3-code-generation">Phase 3: Code Generation</h3>
+<ul>
+<li>AST is lowered to <code>StageDef</code> representation</li>
+<li>Cognos constructs map to equivalent kernel primitives</li>
+<li>Optimization passes may be applied</li>
+</ul>
+<h2 id="cognos-to-kernel-mapping">Cognos to Kernel Mapping</h2>
+<h3 id="flow-definitions">Flow Definitions</h3>
+<div class="highlight"><pre><span></span><code>flow example_flow(param: String) -&gt; String:
+    result = think(param)
+    return result
+</code></pre></div>
+<p>Compiles to a <code>StageDef</code> with:
+- Input schema defining the parameter structure
+- Step definitions for each statement
+- Output schema defining the return type</p>
+<h3 id="built-in-functions">Built-in Functions</h3>
+<table>
+<thead>
+<tr>
+<th>Cognos Function</th>
+<th>Kernel Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>think()</code></td>
+<td>LLM inference step with prompt construction</td>
+</tr>
+<tr>
+<td><code>act()</code></td>
+<td>Tool execution step</td>
+</tr>
+<tr>
+<td><code>receive()</code></td>
+<td>Input binding from runtime context</td>
+</tr>
+<tr>
+<td><code>emit()</code></td>
+<td>Output emission to runtime context</td>
+</tr>
+<tr>
+<td><code>run()</code></td>
+<td>Shell command execution step</td>
+</tr>
+<tr>
+<td><code>read_file()</code></td>
+<td>File system read operation</td>
+</tr>
+<tr>
+<td><code>write_file()</code></td>
+<td>File system write operation</td>
+</tr>
+<tr>
+<td><code>remember()</code></td>
+<td>Memory storage operation</td>
+</tr>
+<tr>
+<td><code>recall()</code></td>
+<td>Memory retrieval operation</td>
+</tr>
+<tr>
+<td><code>log()</code></td>
+<td>Debug output step</td>
+</tr>
+</tbody>
+</table>
+<h3 id="control-flow">Control Flow</h3>
+<h4 id="conditionals">Conditionals</h4>
+<div class="highlight"><pre><span></span><code>if condition:
+    statement1
+else:
+    statement2
+</code></pre></div>
+<p>Compiles to conditional step execution in the kernel with proper branching logic.</p>
+<h4 id="loops">Loops</h4>
+<div class="highlight"><pre><span></span><code>loop max=10:
+    statement
+</code></pre></div>
+<p>Compiles to bounded loop construct with automatic iteration tracking and termination.</p>
+<h4 id="parallel-execution">Parallel Execution</h4>
+<div class="highlight"><pre><span></span><code>a, b = parallel:
+    operation1()
+    operation2()
+</code></pre></div>
+<p>Compiles to parallel execution group with result collection and synchronization.</p>
+<h3 id="type-system-integration">Type System Integration</h3>
+<p>Cognos types map to kernel type schemas:</p>
+<ul>
+<li><strong>Primitive types</strong> (<code>String</code>, <code>Bool</code>, <code>Int</code>, <code>Float</code>) map to corresponding JSON schema primitives</li>
+<li><strong>Container types</strong> (<code>List[T]</code>, <code>Map[K,V]</code>) map to JSON schema arrays and objects</li>
+<li><strong>Custom types</strong> compile to structured JSON schemas with field validation</li>
+<li><strong>Optional types</strong> use JSON schema nullable properties</li>
+</ul>
+<h3 id="error-handling">Error Handling</h3>
+<div class="highlight"><pre><span></span><code>try:
+    risky_operation()
+catch error:
+    handle_error(error)
+</code></pre></div>
+<p>Compiles to kernel error handling mechanisms with proper exception propagation and recovery.</p>
+<h2 id="compilation-artifacts">Compilation Artifacts</h2>
+<h3 id="input-format">Input Format</h3>
+<ul>
+<li>Source files: <code>*.cog</code></li>
+<li>Configuration: <code>cognos.toml</code> (optional)</li>
+</ul>
+<h3 id="output-format">Output Format</h3>
+<ul>
+<li>Primary output: <code>StageDef</code> JSON/binary</li>
+<li>Debug symbols: Source maps for runtime debugging</li>
+<li>Type information: Schema definitions for validation</li>
+</ul>
+<h3 id="example-output-structure">Example Output Structure</h3>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;stage_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;example_flow&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;input_schema&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;param&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;param&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;step_1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;llm_call&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;prompt_template&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{{param}}&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;system_prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;output_schema&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="implementation-details">Implementation Details</h2>
+<h3 id="compiler-architecture">Compiler Architecture</h3>
+<p>The Cognos compiler is implemented in Rust and consists of several modules:</p>
+<div class="highlight"><pre><span></span><code>cognos-compiler/
+├── src/
+│   ├── lexer.rs          # Tokenization
+│   ├── parser.rs         # AST construction
+│   ├── ast.rs            # AST node definitions
+│   ├── analyzer.rs       # Semantic analysis
+│   ├── typechecker.rs    # Type system
+│   ├── codegen.rs        # StageDef generation
+│   ├── error.rs          # Error handling
+│   └── main.rs           # CLI interface
+├── tests/                # Test suite
+└── Cargo.toml
+</code></pre></div>
+<h3 id="cli-interface">CLI Interface</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Compile a single file</span>
+cognos<span class="w"> </span>compile<span class="w"> </span>example.cog<span class="w"> </span>-o<span class="w"> </span>example.stage.json
+
+<span class="c1"># Compile a project</span>
+cognos<span class="w"> </span>build
+
+<span class="c1"># Type check only</span>
+cognos<span class="w"> </span>check<span class="w"> </span>*.cog
+
+<span class="c1"># Watch mode for development</span>
+cognos<span class="w"> </span>watch<span class="w"> </span>src/
+</code></pre></div>
+<h3 id="configuration">Configuration</h3>
+<p>Optional <code>cognos.toml</code> for project-level settings:</p>
+<div class="highlight"><pre><span></span><code><span class="k">[project]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my-workflow&quot;</span>
+<span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span>
+
+<span class="k">[compiler]</span>
+<span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;neocognos-v1&quot;</span>
+<span class="n">optimization_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+
+<span class="k">[output]</span>
+<span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;json&quot;</span><span class="w">  </span><span class="c1"># or &quot;binary&quot;</span>
+<span class="n">compress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">include_debug</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+</code></pre></div>
+<h2 id="future-enhancements">Future Enhancements</h2>
+<h3 id="lsp-server">LSP Server</h3>
+<p>A Language Server Protocol implementation will provide:
+- Real-time syntax highlighting
+- Type information on hover
+- Auto-completion
+- Error squiggles
+- Refactoring support</p>
+<h3 id="tree-sitter-grammar">Tree-sitter Grammar</h3>
+<p>A tree-sitter grammar will enable:
+- Syntax highlighting in editors
+- Structural navigation
+- Code folding
+- AST-based tooling</p>
+<h3 id="advanced-optimizations">Advanced Optimizations</h3>
+<p>Future compiler versions may include:
+- Dead code elimination
+- Common subexpression elimination
+- Flow inlining for simple cases
+- Parallel execution optimization</p>
+<h3 id="debugging-support">Debugging Support</h3>
+<p>Integration with the kernel debugger for:
+- Breakpoint support
+- Variable inspection
+- Step-through execution
+- Flow call stack traces</p>
+<h2 id="backward-compatibility">Backward Compatibility</h2>
+<p>The compilation target (<code>StageDef</code>) is designed to be stable across kernel versions. This ensures that:
+- Compiled Cognos workflows continue working as the kernel evolves
+- Mixed deployments (Cognos + YAML) are fully supported
+- Migration from YAML to Cognos can be gradual</p>
+<h2 id="alternative-syntaxes">Alternative Syntaxes</h2>
+<p>While Cognos provides a clean imperative syntax, the kernel's <code>StageDef</code> format also supports other potential frontends:
+- YAML workflows (existing)
+- Functional language frontends
+- Visual workflow builders
+- Domain-specific languages</p>
+<p>This flexibility allows teams to choose the syntax that best fits their workflow and expertise while sharing the same robust execution engine.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

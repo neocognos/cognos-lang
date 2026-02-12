@@ -1,0 +1,2933 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Programming language for agentic workflows">
+      
+      
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../../docs/import/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Language Spec - Cognos Language</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cognos-language-specification" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Cognos Language" class="md-header__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cognos Language
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Language Spec
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Cognos Language" class="md-nav__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cognos Language
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Introduction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Introduction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-design-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Design Principles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-primitive-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Primitive Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-collection-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Collection Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-special-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Special Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-custom-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Custom Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-truthiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Truthiness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-type-coercion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Type Coercion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Imports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Flows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Flows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-docstrings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Docstrings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-input-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Input Binding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-flow-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Flow Composition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-flows-as-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Flows as Tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-built-in-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Built-in Functions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Built-in Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 LLM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.1 LLM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#thinkcontext-model-system-tools-format-string-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think(context, model="", system="", tools=[], format="") -&gt; String | Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invokename-args-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        invoke(name, args) -&gt; Value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 I/O
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.2 I/O">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#readhandle-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read(handle?) -&gt; String
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writehandle-content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write(handle, content)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filepath-handle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        file(path) -&gt; Handle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Persistence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.3 Persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#savepath-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        save(path, value)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loadpath-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        load(path) -&gt; Value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 Shell
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.4 Shell">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#__exec_shell__command-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __exec_shell__(command) -&gt; String
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.5 Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#logmessage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log(message)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#printvalue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        print(value)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-built-in-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 Built-in Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-native-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Native Modules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Native Modules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 math
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 http
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Arithmetic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-logical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Logical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-field-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Field Access
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-string-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 String Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-list-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 List Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-map-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 Map Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-control-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Control Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Control Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-conditional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 Conditional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#92-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.2 Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#93-for-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.3 For Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#94-trycatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.4 Try/Catch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#95-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.5 Pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-string-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. String Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-comments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Comments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-grammar-peg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Grammar (PEG)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-error-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Error System
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Environments
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments & Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing & Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/sdlc-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDLC Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs/comparison-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compilation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Introduction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Introduction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-design-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Design Principles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-primitive-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Primitive Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-collection-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Collection Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-special-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Special Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-custom-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Custom Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-truthiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Truthiness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-type-coercion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Type Coercion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Imports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Flows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Flows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-docstrings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Docstrings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-input-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Input Binding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-flow-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Flow Composition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-flows-as-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Flows as Tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-built-in-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Built-in Functions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Built-in Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 LLM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.1 LLM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#thinkcontext-model-system-tools-format-string-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think(context, model="", system="", tools=[], format="") -&gt; String | Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invokename-args-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        invoke(name, args) -&gt; Value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 I/O
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.2 I/O">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#readhandle-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read(handle?) -&gt; String
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writehandle-content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write(handle, content)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filepath-handle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        file(path) -&gt; Handle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Persistence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.3 Persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#savepath-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        save(path, value)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loadpath-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        load(path) -&gt; Value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 Shell
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.4 Shell">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#__exec_shell__command-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __exec_shell__(command) -&gt; String
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.5 Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#logmessage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log(message)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#printvalue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        print(value)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-built-in-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 Built-in Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-native-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Native Modules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Native Modules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 math
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 http
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Arithmetic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-logical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Logical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-field-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Field Access
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-string-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 String Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-list-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 List Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-map-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 Map Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-control-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Control Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Control Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-conditional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 Conditional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#92-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.2 Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#93-for-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.3 For Loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#94-trycatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.4 Try/Catch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#95-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.5 Pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-string-interpolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. String Interpolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-comments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Comments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-grammar-peg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Grammar (PEG)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-error-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Error System
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Environments
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cognos-language-specification">Cognos Language Specification</h1>
+<p>Version: 0.5.0</p>
+<h2 id="1-introduction">1. Introduction</h2>
+<p>Cognos is a programming language for agentic workflows. It provides deterministic control structures around non-deterministic computation (LLM calls). The LLM is a co-processor — you call it via <code>think()</code>, but everything else is explicit, typed, and testable.</p>
+<h3 id="11-design-principles">1.1 Design Principles</h3>
+<ul>
+<li><strong>Start with nothing, add what you need.</strong> No accidental complexity.</li>
+<li><strong>Channel agnostic.</strong> Flows declare <em>what</em> input they need, not <em>where</em> it comes from.</li>
+<li><strong>The LLM is a co-processor.</strong> <code>think()</code> is the only non-deterministic primitive.</li>
+<li><strong>Environment agnostic.</strong> Same <code>.cog</code> runs in production or against a mock.</li>
+<li><strong>Sandboxed by design.</strong> Only builtins can interact with the outside world.</li>
+<li><strong>Builtins are atomic.</strong> Rust builtins perform one I/O operation. Orchestration, loops, and decision-making belong in <code>.cog</code> flows.</li>
+<li><strong>Behaviors in language, not runtime.</strong> Agent behaviors (retry, tool loops, memory) are <code>.cog</code> flows, not Rust code.</li>
+<li><strong>One feature, multiple use cases.</strong> Prefer one general mechanism over multiple specialized ones.</li>
+<li><strong>Testability first.</strong> Every agent testable without LLM, network, or filesystem. Mocks are first-class.</li>
+<li><strong>Platform portable.</strong> <code>.cog</code> files run anywhere the interpreter compiles.</li>
+</ul>
+<h2 id="2-types">2. Types</h2>
+<h3 id="21-primitive-types">2.1 Primitive Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Literal</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>String</code></td>
+<td><code>"..."</code> or <code>f"...{expr}..."</code></td>
+<td><code>"hello"</code>, <code>f"hi {name}"</code></td>
+</tr>
+<tr>
+<td><code>Int</code></td>
+<td>digits</td>
+<td><code>42</code>, <code>-5</code></td>
+</tr>
+<tr>
+<td><code>Float</code></td>
+<td>digits.digits</td>
+<td><code>3.14</code></td>
+</tr>
+<tr>
+<td><code>Bool</code></td>
+<td><code>true</code> / <code>false</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-collection-types">2.2 Collection Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Literal</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>List[T]</code></td>
+<td><code>[a, b, c]</code></td>
+<td><code>[1, 2, 3]</code></td>
+</tr>
+<tr>
+<td><code>Map[K,V]</code></td>
+<td><code>{"k": v}</code></td>
+<td><code>{"name": "cognos"}</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-special-types">2.3 Special Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>None</code></td>
+<td>Returned by <code>write()</code>, <code>log()</code>, <code>save()</code>. No literal.</td>
+</tr>
+<tr>
+<td><code>Handle</code></td>
+<td>I/O endpoint: <code>stdin</code>, <code>stdout</code>, or <code>file("path")</code></td>
+</tr>
+<tr>
+<td><code>Module</code></td>
+<td>Built-in module: <code>math</code>, <code>http</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-custom-types">2.4 Custom Types</h3>
+<div class="highlight"><pre><span></span><code>type Review:
+    score: Int
+    summary: String
+    tags: List
+</code></pre></div>
+<p>Used with <code>think(input, format="Review")</code> to get structured LLM output.</p>
+<h3 id="25-truthiness">2.5 Truthiness</h3>
+<table>
+<thead>
+<tr>
+<th>Falsy</th>
+<th>Truthy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false</code>, <code>0</code>, <code>0.0</code>, <code>""</code>, <code>[]</code>, <code>{}</code>, <code>None</code></td>
+<td>Everything else</td>
+</tr>
+</tbody>
+</table>
+<h3 id="26-type-coercion">2.6 Type Coercion</h3>
+<p>Mixed <code>Int</code>/<code>Float</code> arithmetic auto-promotes: <code>1 + 2.5 → 3.5</code></p>
+<h2 id="3-imports">3. Imports</h2>
+<div class="highlight"><pre><span></span><code>import &quot;path/to/module.cog&quot;
+</code></pre></div>
+<ul>
+<li>Must appear at the top of the file, before types and flows</li>
+<li>Paths resolve relative to the importing file's directory</li>
+<li>Recursive imports supported</li>
+<li>Imported flows and types are registered in the current scope</li>
+<li>Last import wins on name collisions</li>
+</ul>
+<h2 id="4-flows">4. Flows</h2>
+<p>Flows are the fundamental unit of composition.</p>
+<div class="highlight"><pre><span></span><code>flow main():
+    write(stdout, &quot;Hello, World!&quot;)
+
+flow greet(name: String) -&gt; String:
+    return f&quot;Hello, {name}!&quot;
+
+flow assistant(input: String):
+    response = think(input, model=&quot;qwen2.5:7b&quot;)
+    write(stdout, response)
+</code></pre></div>
+<h3 id="41-docstrings">4.1 Docstrings</h3>
+<p>The first string literal in a flow body is its description (used as tool description):</p>
+<div class="highlight"><pre><span></span><code>flow search(query: String) -&gt; String:
+    &quot;Search the web for information&quot;
+    return http.get(f&quot;https://api.example.com/search?q={query}&quot;)
+</code></pre></div>
+<h3 id="42-input-binding">4.2 Input Binding</h3>
+<table>
+<thead>
+<tr>
+<th>Context</th>
+<th>How params are bound</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cognos run file.cog</code></td>
+<td>Read from stdin</td>
+</tr>
+<tr>
+<td>Neocognos TUI</td>
+<td>Bound from user message</td>
+</tr>
+<tr>
+<td>API call</td>
+<td>Bound from request body</td>
+</tr>
+<tr>
+<td>Flow-to-flow call</td>
+<td>Passed as arguments</td>
+</tr>
+<tr>
+<td>As tool</td>
+<td>Bound from LLM tool call arguments</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-flow-composition">4.3 Flow Composition</h3>
+<div class="highlight"><pre><span></span><code>flow add(a: Int, b: Int) -&gt; Int:
+    return a + b
+
+flow main():
+    write(stdout, add(2, 3))    # → 5
+</code></pre></div>
+<h3 id="44-flows-as-tools">4.4 Flows as Tools</h3>
+<p>Flows can be passed to <code>think()</code> as tools. The interpreter auto-generates JSON schemas from flow signatures:</p>
+<div class="highlight"><pre><span></span><code>import &quot;lib/exec.cog&quot;
+
+flow shell(command: String) -&gt; String:
+    &quot;Execute a sandboxed shell command&quot;
+    return __exec_shell__(command)
+
+flow main():
+    response = think(&quot;What time is it?&quot;,
+        model=&quot;claude-sonnet-4-20250514&quot;,
+        tools=[&quot;shell&quot;])
+    if response[&quot;has_tool_calls&quot;]:
+        response = exec(response, tools=[&quot;shell&quot;])
+    write(stdout, response)
+</code></pre></div>
+<h2 id="5-built-in-functions">5. Built-in Functions</h2>
+<h3 id="51-llm">5.1 LLM</h3>
+<h4 id="thinkcontext-model-system-tools-format-string-map"><code>think(context, model="", system="", tools=[], format="") -&gt; String | Map</code></h4>
+<p>Invokes the LLM. The only non-deterministic primitive.</p>
+<div class="highlight"><pre><span></span><code># Simple call
+response = think(input)
+
+# With model and system prompt
+response = think(input, model=&quot;claude-sonnet-4-20250514&quot;, system=&quot;Be concise.&quot;)
+
+# With tools — returns Map with content + tool_calls
+response = think(input, tools=[&quot;shell&quot;, &quot;search&quot;])
+
+# With structured output — returns Map matching type schema
+review = think(code, format=&quot;Review&quot;)
+</code></pre></div>
+<p><strong>Model routing:</strong> <code>claude-*</code> → Claude CLI/API, anything else → Ollama.</p>
+<h4 id="invokename-args-value"><code>invoke(name, args) -&gt; Value</code></h4>
+<p>Calls a flow by string name with a Map of keyword arguments. This is the atomic primitive for dynamic dispatch.</p>
+<div class="highlight"><pre><span></span><code>result = invoke(&quot;shell&quot;, {&quot;command&quot;: &quot;date&quot;})
+# equivalent to: result = shell(command=&quot;date&quot;)
+</code></pre></div>
+<blockquote>
+<p><strong>Note:</strong> <code>exec()</code> (tool call execution from <code>think()</code> responses) has moved to the standard library at <code>lib/exec.cog</code>. Import it with <code>import "lib/exec.cog"</code>. See <a href="#standard-library">Standard Library</a> below.</p>
+</blockquote>
+<h3 id="52-io">5.2 I/O</h3>
+<h4 id="readhandle-string"><code>read(handle?) -&gt; String</code></h4>
+<p>Reads from a handle. Default: <code>stdin</code>.</p>
+<div class="highlight"><pre><span></span><code>line = read(stdin)           # read one line from stdin
+content = read(file(&quot;data.txt&quot;))  # read entire file
+</code></pre></div>
+<h4 id="writehandle-content"><code>write(handle, content)</code></h4>
+<p>Writes to a handle.</p>
+<div class="highlight"><pre><span></span><code>write(stdout, &quot;Hello!&quot;)           # print to stdout
+write(file(&quot;out.txt&quot;), content)   # write to file
+</code></pre></div>
+<h4 id="filepath-handle"><code>file(path) -&gt; Handle</code></h4>
+<p>Creates a file handle.</p>
+<div class="highlight"><pre><span></span><code>write(file(&quot;output.txt&quot;), &quot;data&quot;)
+content = read(file(&quot;input.txt&quot;))
+</code></pre></div>
+<h3 id="53-persistence">5.3 Persistence</h3>
+<h4 id="savepath-value"><code>save(path, value)</code></h4>
+<p>Serializes any Cognos value to a JSON file.</p>
+<div class="highlight"><pre><span></span><code>save(&quot;state.json&quot;, {&quot;history&quot;: history, &quot;count&quot;: 42})
+</code></pre></div>
+<h4 id="loadpath-value"><code>load(path) -&gt; Value</code></h4>
+<p>Deserializes a JSON file back to a Cognos value.</p>
+<div class="highlight"><pre><span></span><code>state = load(&quot;state.json&quot;)
+</code></pre></div>
+<h3 id="54-shell">5.4 Shell</h3>
+<h4 id="__exec_shell__command-string"><code>__exec_shell__(command) -&gt; String</code></h4>
+<p>Low-level shell primitive. Requires <code>--allow-shell</code> flag.</p>
+<p>Typically wrapped in a user-defined flow for sandboxing:</p>
+<div class="highlight"><pre><span></span><code>flow shell(command: String) -&gt; String:
+    &quot;Execute a sandboxed shell command. Output limited to 50 lines.&quot;
+    return __exec_shell__(f&quot;{command} | head -50&quot;)
+</code></pre></div>
+<h3 id="55-logging">5.5 Logging</h3>
+<h4 id="logmessage"><code>log(message)</code></h4>
+<p>Outputs to stderr (debug, not user-visible).</p>
+<h4 id="printvalue"><code>print(value)</code></h4>
+<p>Alias for <code>log()</code>.</p>
+<h3 id="56-built-in-variables">5.6 Built-in Variables</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stdin</code></td>
+<td>Handle</td>
+<td>Standard input handle</td>
+</tr>
+<tr>
+<td><code>stdout</code></td>
+<td>Handle</td>
+<td>Standard output handle</td>
+</tr>
+<tr>
+<td><code>math</code></td>
+<td>Module</td>
+<td>Math functions and constants</td>
+</tr>
+<tr>
+<td><code>http</code></td>
+<td>Module</td>
+<td>HTTP client</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-native-modules">6. Native Modules</h2>
+<h3 id="61-math">6.1 <code>math</code></h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>math.sin(x)</code>, <code>math.cos(x)</code>, <code>math.tan(x)</code></td>
+<td>Trigonometric</td>
+</tr>
+<tr>
+<td><code>math.asin(x)</code>, <code>math.acos(x)</code>, <code>math.atan(x)</code></td>
+<td>Inverse trig</td>
+</tr>
+<tr>
+<td><code>math.atan2(y, x)</code></td>
+<td>Two-argument arctangent</td>
+</tr>
+<tr>
+<td><code>math.sqrt(x)</code>, <code>math.pow(x, y)</code></td>
+<td>Roots and powers</td>
+</tr>
+<tr>
+<td><code>math.exp(x)</code>, <code>math.log(x)</code>, <code>math.log2(x)</code>, <code>math.log10(x)</code></td>
+<td>Exponential/logarithmic</td>
+</tr>
+<tr>
+<td><code>math.floor(x)</code>, <code>math.ceil(x)</code>, <code>math.round(x)</code></td>
+<td>Rounding</td>
+</tr>
+<tr>
+<td><code>math.abs(x)</code></td>
+<td>Absolute value</td>
+</tr>
+<tr>
+<td><code>math.min(a, b)</code>, <code>math.max(a, b)</code></td>
+<td>Min/max</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>math.pi</code></td>
+<td>3.14159...</td>
+</tr>
+<tr>
+<td><code>math.e</code></td>
+<td>2.71828...</td>
+</tr>
+<tr>
+<td><code>math.inf</code></td>
+<td>Infinity</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62-http">6.2 <code>http</code></h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>http.get(url)</code></td>
+<td>HTTP GET, returns body as String</td>
+</tr>
+<tr>
+<td><code>http.post(url, body)</code></td>
+<td>HTTP POST, returns body as String</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-operators">7. Operators</h2>
+<h3 id="71-arithmetic">7.1 Arithmetic</h3>
+<p><code>+</code> (add/concat lists/strings), <code>-</code>, <code>*</code>, <code>/</code>, unary <code>-</code></p>
+<p><code>Int + Float</code> → <code>Float</code> (auto-promotion)</p>
+<h3 id="72-comparison">7.2 Comparison</h3>
+<p><code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></p>
+<h3 id="73-logical">7.3 Logical</h3>
+<p><code>and</code>, <code>or</code>, <code>not</code></p>
+<h3 id="74-indexing">7.4 Indexing</h3>
+<div class="highlight"><pre><span></span><code>items[0]        # list index
+items[-1]       # negative = from end
+&quot;hello&quot;[0]      # string index → &quot;h&quot;
+map[&quot;key&quot;]      # map lookup
+</code></pre></div>
+<h3 id="75-field-access">7.5 Field Access</h3>
+<div class="highlight"><pre><span></span><code>obj.field       # map field
+s.length        # string/list/map length
+</code></pre></div>
+<h2 id="8-methods">8. Methods</h2>
+<h3 id="81-string-methods">8.1 String Methods</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.upper()</code></td>
+<td>String</td>
+<td><code>"hi".upper()</code> → <code>"HI"</code></td>
+</tr>
+<tr>
+<td><code>.lower()</code></td>
+<td>String</td>
+<td><code>"HI".lower()</code> → <code>"hi"</code></td>
+</tr>
+<tr>
+<td><code>.strip()</code></td>
+<td>String</td>
+<td><code>"  hi  ".strip()</code> → <code>"hi"</code></td>
+</tr>
+<tr>
+<td><code>.contains(s)</code></td>
+<td>Bool</td>
+<td><code>"hello".contains("ell")</code> → <code>true</code></td>
+</tr>
+<tr>
+<td><code>.starts_with(s)</code></td>
+<td>Bool</td>
+<td><code>"hello".starts_with("he")</code> → <code>true</code></td>
+</tr>
+<tr>
+<td><code>.ends_with(s)</code></td>
+<td>Bool</td>
+<td><code>"hello".ends_with("lo")</code> → <code>true</code></td>
+</tr>
+<tr>
+<td><code>.replace(from, to)</code></td>
+<td>String</td>
+<td><code>"hello".replace("l", "L")</code> → <code>"heLLo"</code></td>
+</tr>
+<tr>
+<td><code>.split(delim)</code></td>
+<td>List</td>
+<td><code>"a,b".split(",")</code> → <code>["a", "b"]</code></td>
+</tr>
+<tr>
+<td><code>.truncate(max)</code></td>
+<td>String</td>
+<td><code>"hello".truncate(3)</code> → <code>"hel..."</code></td>
+</tr>
+<tr>
+<td><code>.length</code></td>
+<td>Int</td>
+<td><code>"hello".length</code> → <code>5</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="82-list-methods">8.2 List Methods</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.contains(val)</code></td>
+<td>Bool</td>
+<td><code>[1,2,3].contains(2)</code> → <code>true</code></td>
+</tr>
+<tr>
+<td><code>.join(sep)</code></td>
+<td>String</td>
+<td><code>[1,2].join("-")</code> → <code>"1-2"</code></td>
+</tr>
+<tr>
+<td><code>.reversed()</code></td>
+<td>List</td>
+<td><code>[1,2,3].reversed()</code> → <code>[3,2,1]</code></td>
+</tr>
+<tr>
+<td><code>.length</code></td>
+<td>Int</td>
+<td><code>[1,2,3].length</code> → <code>3</code></td>
+</tr>
+</tbody>
+</table>
+<p>List concatenation: <code>[1, 2] + [3, 4]</code> → <code>[1, 2, 3, 4]</code></p>
+<h3 id="83-map-methods">8.3 Map Methods</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.keys()</code></td>
+<td>List</td>
+<td><code>{"a":1}.keys()</code> → <code>["a"]</code></td>
+</tr>
+<tr>
+<td><code>.values()</code></td>
+<td>List</td>
+<td><code>{"a":1}.values()</code> → <code>[1]</code></td>
+</tr>
+<tr>
+<td><code>.contains(key)</code></td>
+<td>Bool</td>
+<td><code>{"a":1}.contains("a")</code> → <code>true</code></td>
+</tr>
+<tr>
+<td><code>.length</code></td>
+<td>Int</td>
+<td><code>{"a":1}.length</code> → <code>1</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-control-flow">9. Control Flow</h2>
+<h3 id="91-conditional">9.1 Conditional</h3>
+<div class="highlight"><pre><span></span><code>if condition:
+    body
+elif other:
+    body
+else:
+    body
+</code></pre></div>
+<h3 id="92-loops">9.2 Loops</h3>
+<div class="highlight"><pre><span></span><code># Infinite loop — exits via break or return
+loop:
+    if done:
+        break
+
+# Bounded loop
+loop max=10:
+    response = think(response)
+    if not response[&quot;has_tool_calls&quot;]:
+        break
+</code></pre></div>
+<h3 id="93-for-loops">9.3 For Loops</h3>
+<div class="highlight"><pre><span></span><code>for item in [1, 2, 3]:       # iterate list
+    write(stdout, item)
+
+for ch in &quot;hello&quot;:            # iterate characters
+    write(stdout, ch)
+
+for key in {&quot;a&quot;: 1, &quot;b&quot;: 2}: # iterate map keys
+    write(stdout, key)
+</code></pre></div>
+<p><code>break</code> and <code>continue</code> work in both <code>loop</code> and <code>for</code>.</p>
+<h3 id="94-trycatch">9.4 Try/Catch</h3>
+<div class="highlight"><pre><span></span><code>try:
+    content = read(file(&quot;data.txt&quot;))
+catch err:
+    content = &quot;default&quot;
+    write(stdout, f&quot;Warning: {err}&quot;)
+</code></pre></div>
+<ul>
+<li><code>err</code> variable is optional — omit it with just <code>catch:</code></li>
+<li>Error message is bound as a String</li>
+<li>Variables set in the try block are visible after it (if no error)</li>
+</ul>
+<h3 id="95-pass">9.5 Pass</h3>
+<div class="highlight"><pre><span></span><code>flow placeholder():
+    pass
+</code></pre></div>
+<p>No-op statement for empty blocks.</p>
+<h2 id="10-string-interpolation">10. String Interpolation</h2>
+<div class="highlight"><pre><span></span><code>name = &quot;World&quot;
+write(stdout, f&quot;Hello, {name}!&quot;)        # → Hello, World!
+write(stdout, f&quot;{1 + 2} items&quot;)        # → 3 items
+write(stdout, f&quot;{name.length} chars&quot;)  # → 5 chars
+</code></pre></div>
+<p>Any valid expression can appear inside <code>{}</code>.</p>
+<h2 id="11-comments">11. Comments</h2>
+<div class="highlight"><pre><span></span><code># This is a comment
+x = 42  # end-of-line comment
+</code></pre></div>
+<h2 id="12-grammar-peg">12. Grammar (PEG)</h2>
+<div class="highlight"><pre><span></span><code><span class="nc">Program</span> <span class="o">&lt;-</span> <span class="nc">Import</span><span class="o">*</span> <span class="nc">TypeDef</span><span class="o">*</span> <span class="nc">Flow</span><span class="o">*</span>
+
+<span class="nc">Import</span> <span class="o">&lt;-</span> <span class="s2">&quot;import&quot;</span> <span class="nc">StringLiteral</span> <span class="nc">NEWLINE</span>
+
+<span class="nc">TypeDef</span> <span class="o">&lt;-</span> <span class="s2">&quot;type&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">TypeField</span><span class="o">*</span> <span class="nc">DEDENT</span>
+<span class="nc">TypeField</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Type</span> <span class="nc">NEWLINE</span>
+
+<span class="nc">Flow</span> <span class="o">&lt;-</span> <span class="s2">&quot;flow&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;(&quot;</span> <span class="nc">ParameterList</span><span class="o">?</span> <span class="s2">&quot;)&quot;</span> <span class="p">(</span><span class="s2">&quot;-&gt;&quot;</span> <span class="nc">Type</span><span class="p">)</span><span class="o">?</span> <span class="s2">&quot;:&quot;</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">Statement</span><span class="o">*</span> <span class="nc">DEDENT</span>
+
+<span class="nc">ParameterList</span> <span class="o">&lt;-</span> <span class="nc">Parameter</span> <span class="p">(</span><span class="s2">&quot;,&quot;</span> <span class="nc">Parameter</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">Parameter</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Type</span>
+<span class="nc">Type</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="p">(</span><span class="s2">&quot;[&quot;</span> <span class="nc">Type</span> <span class="p">(</span><span class="s2">&quot;,&quot;</span> <span class="nc">Type</span><span class="p">)</span><span class="o">*</span> <span class="s2">&quot;]&quot;</span><span class="p">)</span><span class="o">?</span>
+
+<span class="nc">Statement</span> <span class="o">&lt;-</span> <span class="nc">Assignment</span> <span class="o">/</span> <span class="nc">ReturnStatement</span> <span class="o">/</span> <span class="nc">IfStatement</span> <span class="o">/</span>
+             <span class="nc">LoopStatement</span> <span class="o">/</span> <span class="nc">ForStatement</span> <span class="o">/</span> <span class="nc">TryCatchStatement</span> <span class="o">/</span>
+             <span class="nc">BreakStatement</span> <span class="o">/</span> <span class="nc">ContinueStatement</span> <span class="o">/</span>
+             <span class="nc">PassStatement</span> <span class="o">/</span> <span class="nc">ExprStatement</span>
+
+<span class="nc">Assignment</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="s2">&quot;=&quot;</span> <span class="nc">Expression</span> <span class="nc">NEWLINE</span>
+<span class="nc">ReturnStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;return&quot;</span> <span class="nc">Expression</span> <span class="nc">NEWLINE</span>
+<span class="nc">PassStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;pass&quot;</span> <span class="nc">NEWLINE</span>
+<span class="nc">BreakStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;break&quot;</span> <span class="nc">NEWLINE</span>
+<span class="nc">ContinueStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;continue&quot;</span> <span class="nc">NEWLINE</span>
+<span class="nc">ExprStatement</span> <span class="o">&lt;-</span> <span class="nc">Expression</span> <span class="nc">NEWLINE</span>
+
+<span class="nc">TryCatchStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;try&quot;</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span> <span class="s2">&quot;catch&quot;</span> <span class="nc">Identifier</span><span class="o">?</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span>
+
+<span class="nc">Expression</span> <span class="o">&lt;-</span> <span class="nc">OrExpr</span>
+<span class="nc">OrExpr</span> <span class="o">&lt;-</span> <span class="nc">AndExpr</span> <span class="p">(</span><span class="s2">&quot;or&quot;</span> <span class="nc">AndExpr</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">AndExpr</span> <span class="o">&lt;-</span> <span class="nc">Comparison</span> <span class="p">(</span><span class="s2">&quot;and&quot;</span> <span class="nc">Comparison</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">Comparison</span> <span class="o">&lt;-</span> <span class="nc">Addition</span> <span class="p">(</span><span class="nc">CompOp</span> <span class="nc">Addition</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">CompOp</span> <span class="o">&lt;-</span> <span class="s2">&quot;==&quot;</span> <span class="o">/</span> <span class="s2">&quot;!=&quot;</span> <span class="o">/</span> <span class="s2">&quot;&lt;&quot;</span> <span class="o">/</span> <span class="s2">&quot;&gt;&quot;</span> <span class="o">/</span> <span class="s2">&quot;&lt;=&quot;</span> <span class="o">/</span> <span class="s2">&quot;&gt;=&quot;</span>
+<span class="nc">Addition</span> <span class="o">&lt;-</span> <span class="nc">Multiplication</span> <span class="p">((</span><span class="s2">&quot;+&quot;</span> <span class="o">/</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span> <span class="nc">Multiplication</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">Multiplication</span> <span class="o">&lt;-</span> <span class="nc">Unary</span> <span class="p">((</span><span class="s2">&quot;*&quot;</span> <span class="o">/</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span> <span class="nc">Unary</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">Unary</span> <span class="o">&lt;-</span> <span class="s2">&quot;not&quot;</span> <span class="nc">Unary</span> <span class="o">/</span> <span class="s2">&quot;-&quot;</span> <span class="nc">Unary</span> <span class="o">/</span> <span class="nc">Postfix</span>
+<span class="nc">Postfix</span> <span class="o">&lt;-</span> <span class="nc">Primary</span> <span class="p">((</span><span class="s2">&quot;.&quot;</span> <span class="nc">Identifier</span> <span class="p">(</span><span class="s2">&quot;(&quot;</span> <span class="nc">ArgList</span><span class="o">?</span> <span class="s2">&quot;)&quot;</span><span class="p">)</span><span class="o">?</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="s2">&quot;[&quot;</span> <span class="nc">Expression</span> <span class="s2">&quot;]&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="s2">&quot;(&quot;</span> <span class="nc">ArgList</span><span class="o">?</span> <span class="s2">&quot;)&quot;</span><span class="p">))</span><span class="o">*</span>
+<span class="nc">Primary</span> <span class="o">&lt;-</span> <span class="nc">Identifier</span> <span class="o">/</span> <span class="nc">FStringLiteral</span> <span class="o">/</span> <span class="nc">StringLiteral</span> <span class="o">/</span> <span class="nc">IntLiteral</span> <span class="o">/</span> <span class="nc">FloatLiteral</span> <span class="o">/</span>
+           <span class="nc">BoolLiteral</span> <span class="o">/</span> <span class="nc">ListLiteral</span> <span class="o">/</span> <span class="nc">MapLiteral</span> <span class="o">/</span> <span class="s2">&quot;(&quot;</span> <span class="nc">Expression</span> <span class="s2">&quot;)&quot;</span>
+
+<span class="nc">ArgList</span> <span class="o">&lt;-</span> <span class="nc">Argument</span> <span class="p">(</span><span class="s2">&quot;,&quot;</span> <span class="nc">Argument</span><span class="p">)</span><span class="o">*</span>
+<span class="nc">Argument</span> <span class="o">&lt;-</span> <span class="p">(</span><span class="nc">Identifier</span> <span class="s2">&quot;=&quot;</span><span class="p">)</span><span class="o">?</span> <span class="nc">Expression</span>
+
+<span class="nc">IfStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;if&quot;</span> <span class="nc">Expression</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span> <span class="p">(</span><span class="s2">&quot;elif&quot;</span> <span class="nc">Expression</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span><span class="p">)</span><span class="o">*</span> <span class="p">(</span><span class="s2">&quot;else&quot;</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span><span class="p">)</span><span class="o">?</span>
+<span class="nc">LoopStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;loop&quot;</span> <span class="p">(</span><span class="s2">&quot;max=&quot;</span> <span class="nc">IntLiteral</span><span class="p">)</span><span class="o">?</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span>
+<span class="nc">ForStatement</span> <span class="o">&lt;-</span> <span class="s2">&quot;for&quot;</span> <span class="nc">Identifier</span> <span class="s2">&quot;in&quot;</span> <span class="nc">Expression</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Block</span>
+
+<span class="nc">Block</span> <span class="o">&lt;-</span> <span class="nc">NEWLINE</span> <span class="nc">INDENT</span> <span class="nc">Statement</span><span class="o">*</span> <span class="nc">DEDENT</span>
+
+<span class="nc">Identifier</span> <span class="o">&lt;-</span> <span class="p">[</span><span class="s">a-zA-Z_</span><span class="p">]</span> <span class="p">[</span><span class="s">a-zA-Z0-9_</span><span class="p">]</span><span class="o">*</span>
+<span class="nc">StringLiteral</span> <span class="o">&lt;-</span> <span class="s1">&#39;&quot;&#39;</span> <span class="p">[</span><span class="s">^&quot;</span><span class="p">]</span><span class="o">*</span> <span class="s1">&#39;&quot;&#39;</span>
+<span class="nc">FStringLiteral</span> <span class="o">&lt;-</span> <span class="s1">&#39;f&quot;&#39;</span> <span class="p">(</span><span class="nc">FStringChar</span> <span class="o">/</span> <span class="s1">&#39;{&#39;</span> <span class="nc">Expression</span> <span class="s1">&#39;}&#39;</span><span class="p">)</span><span class="o">*</span> <span class="s1">&#39;&quot;&#39;</span>
+<span class="nc">IntLiteral</span> <span class="o">&lt;-</span> <span class="p">[</span><span class="s">0-9</span><span class="p">]</span><span class="o">+</span>
+<span class="nc">FloatLiteral</span> <span class="o">&lt;-</span> <span class="p">[</span><span class="s">0-9</span><span class="p">]</span><span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="p">[</span><span class="s">0-9</span><span class="p">]</span><span class="o">+</span>
+<span class="nc">BoolLiteral</span> <span class="o">&lt;-</span> <span class="s2">&quot;true&quot;</span> <span class="o">/</span> <span class="s2">&quot;false&quot;</span>
+<span class="nc">ListLiteral</span> <span class="o">&lt;-</span> <span class="s2">&quot;[&quot;</span> <span class="p">(</span><span class="nc">Expression</span> <span class="p">(</span><span class="s2">&quot;,&quot;</span> <span class="nc">Expression</span><span class="p">)</span><span class="o">*</span><span class="p">)</span><span class="o">?</span> <span class="s2">&quot;]&quot;</span>
+<span class="nc">MapLiteral</span> <span class="o">&lt;-</span> <span class="s2">&quot;{&quot;</span> <span class="p">(</span><span class="nc">StringLiteral</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Expression</span> <span class="p">(</span><span class="s2">&quot;,&quot;</span> <span class="nc">StringLiteral</span> <span class="s2">&quot;:&quot;</span> <span class="nc">Expression</span><span class="p">)</span><span class="o">*</span><span class="p">)</span><span class="o">?</span> <span class="s2">&quot;}&quot;</span>
+</code></pre></div>
+<h2 id="13-cli">13. CLI</h2>
+<div class="highlight"><pre><span></span><code>cognos run [flags] &lt;file.cog&gt;           # run a program
+cognos test &lt;file.cog&gt; --env &lt;mock&gt;     # test with mock environment
+cognos parse &lt;file.cog&gt;                 # pretty-print parsed AST
+cognos tokens &lt;file.cog&gt;               # show raw tokens
+cognos repl                            # interactive REPL
+</code></pre></div>
+<h3 id="flags">Flags</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--allow-shell</code></td>
+<td>Enable <code>__exec_shell__()</code></td>
+</tr>
+<tr>
+<td><code>--trace &lt;path&gt;</code></td>
+<td>Write JSONL trace events to file</td>
+</tr>
+<tr>
+<td><code>--trace-level metrics\|full</code></td>
+<td>Trace detail (default: metrics)</td>
+</tr>
+<tr>
+<td><code>--env &lt;mock.json&gt;</code></td>
+<td>Mock environment (for <code>cognos test</code>)</td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>-vv</code> / <code>-vvv</code></td>
+<td>Log verbosity</td>
+</tr>
+</tbody>
+</table>
+<p>Env var: <code>COGNOS_LOG=info|debug|trace</code></p>
+<h2 id="14-error-system">14. Error System</h2>
+<p>Every token has a specific, context-aware error message with optional hints:</p>
+<div class="highlight"><pre><span></span><code>Error: unexpected &#39;=&#39; — not a valid expression
+  hint: did you mean &#39;==&#39; for comparison?
+
+Error: &#39;let&#39; is not needed — just write: name = value
+
+Error: cannot String + Int — String + Int not supported
+</code></pre></div>
+<h2 id="15-environments">15. Environments</h2>
+<p>All I/O is routed through an <code>Env</code> trait. The interpreter never calls OS functions directly.</p>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RealEnv</code></td>
+<td>Default — real stdin/stdout, files, shell, LLM, HTTP</td>
+</tr>
+<tr>
+<td><code>MockEnv</code></td>
+<td><code>cognos test --env mock.json</code> — canned responses, no network</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../docs/environments/">Environments docs</a> for mock file format.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

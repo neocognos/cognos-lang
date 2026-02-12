@@ -1,0 +1,1169 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Programming language for agentic workflows">
+      
+      
+      
+      
+        <link rel="prev" href="../sdlc-process/">
+      
+      
+        <link rel="next" href="../../spec/compilation/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Cognos vs PydanticAI - Cognos Language</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cognos-vs-pydanticai-side-by-side-comparison" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Cognos Language" class="md-header__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cognos Language
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Cognos vs PydanticAI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Cognos Language" class="md-nav__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cognos Language
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec/language-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments & Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing & Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdlc-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDLC Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cognos-68-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cognos (68 lines)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pydanticai-145-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PydanticAI (145 lines)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Comparison">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-differences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Differences
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec/compilation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cognos-68-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cognos (68 lines)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pydanticai-145-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PydanticAI (145 lines)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Comparison">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-differences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Differences
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cognos-vs-pydanticai-side-by-side-comparison">Cognos vs PydanticAI — Side-by-Side Comparison</h1>
+<p>The same agent: analyze source files, validate structured output, generate project summary.</p>
+<hr />
+<h2 id="cognos-68-lines">Cognos (68 lines)</h2>
+<div class="highlight"><pre><span></span><code>import &quot;lib/validated_think.cog&quot;
+
+type FileAnalysis:
+    filename: String
+    purpose: String
+    complexity: Int
+    issues: List
+    suggestions: List
+
+type ProjectSummary:
+    total_files: Int
+    total_lines: Int
+    architecture: String
+    top_issues: List
+    overall_score: Int
+
+flow shell(command: String) -&gt; String:
+    &quot;Execute a sandboxed shell command.&quot;
+    return __exec_shell__(f&quot;{command} | head -50&quot;)
+
+flow read_file(path: String) -&gt; String:
+    &quot;Read the contents of a file&quot;
+    return read(file(path))
+
+flow main():
+    files_raw = shell(&quot;find src -name &#39;*.rs&#39; -type f | sort | head -3&quot;)
+    files = files_raw.split(&quot;\n&quot;)
+
+    analyses = []
+    for filepath in files:
+        if filepath == &quot;&quot;:
+            continue
+        try:
+            content = read_file(filepath)
+            preview = content[0:2000]
+            analysis = validated_think(
+                f&quot;File: {filepath}\n\n{preview}&quot;,
+                &quot;FileAnalysis&quot;,
+                &quot;claude-sonnet-4-20250514&quot;,
+                &quot;Analyze this source file. Rate complexity 1-10.&quot;,
+                &quot;qwen2.5:1.5b&quot;
+            )
+            analyses = analyses + [analysis]
+        catch err:
+            write(stdout, f&quot;Error: {err}&quot;)
+
+    summary = validated_think(
+        f&quot;Project with {files.length} files:\n{analyses}&quot;,
+        &quot;ProjectSummary&quot;,
+        &quot;claude-sonnet-4-20250514&quot;,
+        &quot;Summarize this project analysis. Score 1-10.&quot;,
+        &quot;qwen2.5:1.5b&quot;
+    )
+
+    save(&quot;analysis-report.json&quot;, summary)
+</code></pre></div>
+<p><strong>Test:</strong>
+<div class="highlight"><pre><span></span><code>cognos<span class="w"> </span><span class="nb">test</span><span class="w"> </span>code-analyzer.cog<span class="w"> </span>--env<span class="w"> </span>mocks/code-analyzer-sonnet.json
+</code></pre></div></p>
+<hr />
+<h2 id="pydanticai-145-lines">PydanticAI (145 lines)</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="kn">from</span> <span class="nn">pydantic_ai</span> <span class="kn">import</span> <span class="n">Agent</span><span class="p">,</span> <span class="n">RunContext</span>
+
+<span class="c1"># --- Types (same as Cognos type definitions) ---</span>
+
+<span class="k">class</span> <span class="nc">FileAnalysis</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">purpose</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">complexity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">issues</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">suggestions</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="k">class</span> <span class="nc">ProjectSummary</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">total_files</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">total_lines</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">architecture</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">top_issues</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">overall_score</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+<span class="c1"># --- Agent setup ---</span>
+
+<span class="n">file_analyzer</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span>
+    <span class="s2">&quot;anthropic:claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+    <span class="n">result_type</span><span class="o">=</span><span class="n">FileAnalysis</span><span class="p">,</span>
+    <span class="n">system_prompt</span><span class="o">=</span><span class="s2">&quot;Analyze this source file. Rate complexity 1-10.&quot;</span><span class="p">,</span>
+    <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">project_summarizer</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span>
+    <span class="s2">&quot;anthropic:claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+    <span class="n">result_type</span><span class="o">=</span><span class="n">ProjectSummary</span><span class="p">,</span>
+    <span class="n">system_prompt</span><span class="o">=</span><span class="s2">&quot;Summarize this project analysis. Score 1-10.&quot;</span><span class="p">,</span>
+    <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># --- Tools (registered as decorators) ---</span>
+
+<span class="nd">@file_analyzer</span><span class="o">.</span><span class="n">tool</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">shell</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">,</span> <span class="n">command</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute a sandboxed shell command.&quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2"> | head -50&quot;</span><span class="p">,</span>
+        <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span>
+
+<span class="nd">@file_analyzer</span><span class="o">.</span><span class="n">tool</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">read_file</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read the contents of a file.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
+
+<span class="c1"># --- Main flow ---</span>
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="c1"># Step 1: Discover files</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="s2">&quot;find src -name &#39;*.rs&#39; -type f | sort | head -3&quot;</span><span class="p">,</span>
+        <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">f</span><span class="p">]</span>
+
+    <span class="c1"># Step 2: Analyze each file</span>
+    <span class="n">analyses</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">filepath</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
+            <span class="n">preview</span> <span class="o">=</span> <span class="n">content</span><span class="p">[:</span><span class="mi">2000</span><span class="p">]</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">file_analyzer</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;File: </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="se">\n\n</span><span class="si">{</span><span class="n">preview</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="n">analyses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Step 3: Generate project summary</span>
+    <span class="n">analyses_text</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">filename</span><span class="si">}</span><span class="s2">: complexity=</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">complexity</span><span class="si">}</span><span class="s2">, issues=</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">issues</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">analyses</span>
+    <span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">project_summarizer</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Project with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files:</span><span class="se">\n</span><span class="si">{</span><span class="n">analyses_text</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="c1"># Save results</span>
+    <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;analysis-report.json&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p><strong>Test:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Requires: pytest, pytest-asyncio, custom mock setup</span>
+<span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">unittest.mock</span> <span class="kn">import</span> <span class="n">AsyncMock</span><span class="p">,</span> <span class="n">patch</span><span class="p">,</span> <span class="n">MagicMock</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">asyncio</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">test_code_analyzer</span><span class="p">():</span>
+    <span class="n">mock_response</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">()</span>
+    <span class="n">mock_response</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">FileAnalysis</span><span class="p">(</span>
+        <span class="n">filename</span><span class="o">=</span><span class="s2">&quot;main.rs&quot;</span><span class="p">,</span>
+        <span class="n">purpose</span><span class="o">=</span><span class="s2">&quot;Entry point&quot;</span><span class="p">,</span>
+        <span class="n">complexity</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">issues</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;No error handling&quot;</span><span class="p">],</span>
+        <span class="n">suggestions</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Add Result types&quot;</span><span class="p">],</span>
+    <span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">patch</span><span class="o">.</span><span class="n">object</span><span class="p">(</span><span class="n">file_analyzer</span><span class="p">,</span> <span class="s1">&#39;run&#39;</span><span class="p">,</span> <span class="n">new_callable</span><span class="o">=</span><span class="n">AsyncMock</span><span class="p">)</span> <span class="k">as</span> <span class="n">mock_run</span><span class="p">:</span>
+        <span class="n">mock_run</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">mock_response</span>
+        <span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s1">&#39;subprocess.run&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">mock_shell</span><span class="p">:</span>
+            <span class="n">mock_shell</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">MagicMock</span><span class="p">(</span><span class="n">stdout</span><span class="o">=</span><span class="s2">&quot;src/main.rs</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="s1">&#39;pathlib.Path.read_text&#39;</span><span class="p">,</span> <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;fn main() </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">):</span>
+                <span class="k">await</span> <span class="n">main</span><span class="p">()</span>
+
+    <span class="c1"># Assert... what exactly? stdout? file written?</span>
+    <span class="c1"># Need more mocking for Path.write_text...</span>
+</code></pre></div></p>
+<hr />
+<h2 id="comparison">Comparison</h2>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Cognos</th>
+<th>PydanticAI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lines of code</strong></td>
+<td>68</td>
+<td>145</td>
+</tr>
+<tr>
+<td><strong>Dependencies</strong></td>
+<td>0 (just <code>cognos</code> binary)</td>
+<td>pydantic, pydantic-ai, anthropic SDK, asyncio</td>
+</tr>
+<tr>
+<td><strong>Type definitions</strong></td>
+<td>8 lines</td>
+<td>13 lines (+ imports)</td>
+</tr>
+<tr>
+<td><strong>Tool definitions</strong></td>
+<td>Flows — same as any other function</td>
+<td>Decorators on agent instances</td>
+</tr>
+<tr>
+<td><strong>Agent creation</strong></td>
+<td>None — <code>think()</code> is the agent</td>
+<td>Explicit <code>Agent()</code> objects per task</td>
+</tr>
+<tr>
+<td><strong>Structured output</strong></td>
+<td><code>format="FileAnalysis"</code> on any think()</td>
+<td><code>result_type=</code> locked to agent instance</td>
+</tr>
+<tr>
+<td><strong>Retry/validation</strong></td>
+<td><code>validated_think()</code> — a .cog flow you can read and modify</td>
+<td><code>retries=3</code> — black box, can't customize</td>
+</tr>
+<tr>
+<td><strong>Error handling</strong></td>
+<td><code>try/catch</code></td>
+<td><code>try/except</code> (same)</td>
+</tr>
+<tr>
+<td><strong>Testing</strong></td>
+<td><code>cognos test --env mock.json</code> (one command, zero code)</td>
+<td>20+ lines of mock setup per test</td>
+</tr>
+<tr>
+<td><strong>Mock creation</strong></td>
+<td><code>cognos trace-to-mock trace.jsonl</code> (automatic)</td>
+<td>Manual mock construction</td>
+</tr>
+<tr>
+<td><strong>Shell access</strong></td>
+<td>Sandboxed by default, <code>--allow-shell</code> flag</td>
+<td>Unrestricted <code>subprocess.run</code></td>
+</tr>
+<tr>
+<td><strong>Multi-model</strong></td>
+<td>Change <code>model=</code> on any think() call</td>
+<td>Create separate Agent per model</td>
+</tr>
+<tr>
+<td><strong>Async</strong></td>
+<td>Sync by default (LLM calls are blocking anyway)</td>
+<td>Forced async everywhere</td>
+</tr>
+<tr>
+<td><strong>Runtime</strong></td>
+<td>Single 5MB binary</td>
+<td>Python 3.11+, pip, venv, 50+ transitive deps</td>
+</tr>
+<tr>
+<td><strong>Tracing</strong></td>
+<td><code>--trace file.jsonl</code> built-in</td>
+<td>OpenTelemetry setup required</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-differences">Key Differences</h3>
+<p><strong>1. Agent-per-task vs think-per-call</strong>
+PydanticAI creates an <code>Agent</code> object per task (file_analyzer, project_summarizer). Cognos just calls <code>think()</code> with different parameters. Less ceremony, more flexible.</p>
+<p><strong>2. Testing is night and day</strong>
+Cognos: record a trace, derive a mock, replay it. One command. Zero test code.
+PydanticAI: AsyncMock, patch decorators, MagicMock, nested context managers. Fragile.</p>
+<p><strong>3. Forced async</strong>
+PydanticAI forces <code>async/await</code> everywhere because it uses asyncio. But LLM calls take 2-30 seconds — the async overhead buys nothing for sequential agents. Cognos is sync by default, async when you choose it.</p>
+<p><strong>4. Tool registration</strong>
+PydanticAI tools are decorators tied to specific agent instances. If two agents need the same tool, you register it twice. Cognos tools are just flows — any think() call can use any flow as a tool.</p>
+<p><strong>5. Observability</strong>
+Cognos traces every LLM call, tool call, shell exec, and I/O operation automatically. PydanticAI requires instrumenting with Logfire or OpenTelemetry.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

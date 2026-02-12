@@ -1,0 +1,1697 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Programming language for agentic workflows">
+      
+      
+      
+      
+        <link rel="prev" href="../memory/">
+      
+      
+        <link rel="next" href="../sdlc-process/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Design Principles - Cognos Language</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cognos-design-principles" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Cognos Language" class="md-header__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cognos Language
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design Principles
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Cognos Language" class="md-nav__button md-logo" aria-label="Cognos Language" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cognos Language
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec/language-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../error-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Error Handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments & Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing & Diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Principles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Principles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p1-start-with-nothing-add-what-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1: Start with nothing, add what you need
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p2-channel-agnostic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P2: Channel agnostic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p3-the-llm-is-a-co-processor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P3: The LLM is a co-processor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p4-environment-agnostic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P4: Environment agnostic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p5-sandboxed-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P5: Sandboxed by design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p6-builtins-are-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P6: Builtins are atomic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p7-platform-portable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P7: Platform portable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p8-behaviors-in-language-not-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P8: Behaviors in language, not runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p9-one-feature-multiple-use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P9: One feature, multiple use cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p10-testability-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P10: Testability first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p11-lean-core-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P11: Lean core runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture Review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rust-builtins-audit-p6-builtins-are-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rust Builtins Audit (P6: Builtins are atomic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p6-violations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P6 Violations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P6 Violations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#think-format-validation-schema-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think() — format validation + schema injection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#think-tools-kwarg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think() — tools= kwarg
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-agnosticism-audit-p2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Agnosticism Audit (P2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-agnosticism-audit-p4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Agnosticism Audit (P4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sandbox-audit-p5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sandbox Audit (P5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testability-audit-p10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testability Audit (P10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behaviors-in-language-audit-p8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviors in Language Audit (P8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Action Items">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deferred-on-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deferred (on roadmap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdlc-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDLC Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparison-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cognos vs PydanticAI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec/compilation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compilation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Principles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Principles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p1-start-with-nothing-add-what-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1: Start with nothing, add what you need
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p2-channel-agnostic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P2: Channel agnostic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p3-the-llm-is-a-co-processor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P3: The LLM is a co-processor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p4-environment-agnostic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P4: Environment agnostic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p5-sandboxed-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P5: Sandboxed by design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p6-builtins-are-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P6: Builtins are atomic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p7-platform-portable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P7: Platform portable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p8-behaviors-in-language-not-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P8: Behaviors in language, not runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p9-one-feature-multiple-use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P9: One feature, multiple use cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p10-testability-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P10: Testability first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p11-lean-core-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P11: Lean core runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture Review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rust-builtins-audit-p6-builtins-are-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rust Builtins Audit (P6: Builtins are atomic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p6-violations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P6 Violations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P6 Violations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#think-format-validation-schema-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think() — format validation + schema injection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#think-tools-kwarg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        think() — tools= kwarg
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-agnosticism-audit-p2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Agnosticism Audit (P2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-agnosticism-audit-p4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Agnosticism Audit (P4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sandbox-audit-p5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sandbox Audit (P5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testability-audit-p10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testability Audit (P10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behaviors-in-language-audit-p8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviors in Language Audit (P8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Action Items">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deferred-on-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deferred (on roadmap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cognos-design-principles">Cognos Design Principles</h1>
+<h2 id="the-principles">The Principles</h2>
+<h3 id="p1-start-with-nothing-add-what-you-need">P1: Start with nothing, add what you need</h3>
+<p>No accidental complexity. Every feature must earn its place.</p>
+<h3 id="p2-channel-agnostic">P2: Channel agnostic</h3>
+<p>Flows declare <em>what</em> input they need, not <em>where</em> it comes from. <code>read(stdin)</code> works in CLI, TUI, API, Slack — the runtime maps the channel.</p>
+<h3 id="p3-the-llm-is-a-co-processor">P3: The LLM is a co-processor</h3>
+<p><code>think()</code> is the only non-deterministic primitive. Everything else is explicit, typed, and testable.</p>
+<h3 id="p4-environment-agnostic">P4: Environment agnostic</h3>
+<p>Same <code>.cog</code> runs in production or against a mock. No code changes. The <code>Env</code> trait abstracts all I/O.</p>
+<h3 id="p5-sandboxed-by-design">P5: Sandboxed by design</h3>
+<p>Only builtins can interact with the outside world. Shell is disabled by default (<code>--allow-shell</code>). Sandbox policy lives in <code>.cog</code> files, not the runtime.</p>
+<h3 id="p6-builtins-are-atomic">P6: Builtins are atomic</h3>
+<p>Rust builtins perform exactly one I/O operation. No loops, no branching, no flow calls. Orchestration belongs in <code>.cog</code> flows.</p>
+<h3 id="p7-platform-portable">P7: Platform portable</h3>
+<p><code>.cog</code> files run anywhere the interpreter compiles. No OS-specific constructs in the language.</p>
+<h3 id="p8-behaviors-in-language-not-runtime">P8: Behaviors in language, not runtime</h3>
+<p>Agent behaviors (retry logic, tool loops, memory strategy) are defined in <code>.cog</code> files, not hardcoded in Rust. The runtime provides primitives; the programmer defines policy.</p>
+<h3 id="p9-one-feature-multiple-use-cases">P9: One feature, multiple use cases</h3>
+<p>Prefer a single general mechanism over multiple specialized ones. Example: <code>type</code> covers both structured output and JSON format validation.</p>
+<h3 id="p10-testability-first">P10: Testability first</h3>
+<p>Every agent must be testable without LLM calls, network, or filesystem. Mock environments are a first-class concept, not an afterthought.</p>
+<h3 id="p11-lean-core-runtime">P11: Lean core runtime</h3>
+<p>Cognos is a domain language for agents, not a general-purpose language. Resist adding features that exist in Python/JS/Go. If you need a hash map library, data science toolkit, or web framework — use a real language. Cognos handles the agent loop: think, act, observe, remember. Everything else is out of scope.</p>
+<hr />
+<h2 id="architecture-review">Architecture Review</h2>
+<h3 id="rust-builtins-audit-p6-builtins-are-atomic">Rust Builtins Audit (P6: Builtins are atomic)</h3>
+<table>
+<thead>
+<tr>
+<th>Builtin</th>
+<th>Atomic?</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>think()</code></td>
+<td>⚠️ <strong>VIOLATION</strong></td>
+<td>See below</td>
+</tr>
+<tr>
+<td><code>invoke(name, args)</code></td>
+<td>✅</td>
+<td>One flow call, returns result</td>
+</tr>
+<tr>
+<td><code>read(handle)</code></td>
+<td>✅</td>
+<td>One read operation</td>
+</tr>
+<tr>
+<td><code>write(handle, content)</code></td>
+<td>✅</td>
+<td>One write operation</td>
+</tr>
+<tr>
+<td><code>file(path)</code></td>
+<td>✅</td>
+<td>Creates a handle value (pure)</td>
+</tr>
+<tr>
+<td><code>__exec_shell__(cmd)</code></td>
+<td>✅</td>
+<td>One shell command</td>
+</tr>
+<tr>
+<td><code>save(path, value)</code></td>
+<td>✅</td>
+<td>One file write</td>
+</tr>
+<tr>
+<td><code>load(path)</code></td>
+<td>✅</td>
+<td>One file read</td>
+</tr>
+<tr>
+<td><code>log(msg)</code> / <code>print(msg)</code></td>
+<td>✅</td>
+<td>One stderr write</td>
+</tr>
+<tr>
+<td><code>emit(value)</code></td>
+<td>✅</td>
+<td>Alias for write(stdout, ...)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="p6-violations">P6 Violations</h3>
+<h4 id="think-format-validation-schema-injection"><code>think()</code> — format validation + schema injection</h4>
+<p><code>think()</code> currently does three things:
+1. <strong>Call the LLM</strong> — atomic ✅
+2. <strong>Inject type schema into system prompt</strong> (<code>format=</code>) — preparation, not I/O ⚠️
+3. <strong>Parse + validate JSON response</strong> (<code>format=</code>) — post-processing ⚠️</p>
+<p>Steps 2 and 3 are orchestration logic embedded in the builtin. They should be in <code>.cog</code>:</p>
+<p><strong>Option A: Keep as-is (pragmatic)</strong>
+- Schema injection is prompt construction, not a separate I/O operation
+- Validation is a check on the return value, not a loop or branch
+- Moving it to <code>.cog</code> would require exposing <code>type_schema()</code> as a builtin</p>
+<p><strong>Option B: Split (pure)</strong>
+- <code>think()</code> only calls LLM, returns raw string
+- <code>type_schema(name)</code> builtin returns the JSON schema string
+- <code>validate(value, type_name)</code> builtin checks a value against a type
+- <code>formatted_think()</code> in <code>.cog</code> stdlib composes them</p>
+<p><strong>Recommendation:</strong> Option A for now. The format/validation logic doesn't loop, doesn't call flows, and doesn't do I/O. It's data transformation on the builtin's return value. A strict reading of P6 says split it, but the pragmatic cost is high (3 new builtins, user complexity).</p>
+<p><strong>Decision needed from Reza.</strong></p>
+<h4 id="think-tools-kwarg"><code>think()</code> — tools= kwarg</h4>
+<p><code>think()</code> builds tool JSON schemas from flow signatures when <code>tools=</code> is passed. This is:
+- Reading flow definitions (data access, not I/O)
+- Building JSON (data transformation)
+- Passing to LLM call (part of the one I/O operation)</p>
+<p><strong>Verdict:</strong> Acceptable. It's preparing the LLM request, not orchestrating.</p>
+<h3 id="channel-agnosticism-audit-p2">Channel Agnosticism Audit (P2)</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read(stdin)</code> / <code>write(stdout, ...)</code></td>
+<td>✅ Handle-based, channel-mapped</td>
+</tr>
+<tr>
+<td>Flow params bound from stdin in CLI</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>print("&gt; ")</code> for prompts</td>
+<td>⚠️ Leaks presentation into logic</td>
+</tr>
+<tr>
+<td><code>emit()</code></td>
+<td>✅ Sugar for <code>write(stdout, ...)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Minor violation:</strong> When <code>main()</code> has params, the interpreter prints <code>&gt;</code> before reading each one. This presentation detail should be the runtime's concern, not injected by the interpreter. Low priority.</p>
+<h3 id="environment-agnosticism-audit-p4">Environment Agnosticism Audit (P4)</h3>
+<table>
+<thead>
+<tr>
+<th>I/O Operation</th>
+<th>Routes through Env?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stdin read</td>
+<td>✅ <code>env.read_stdin()</code></td>
+</tr>
+<tr>
+<td>stdout write</td>
+<td>✅ <code>env.write_stdout()</code></td>
+</tr>
+<tr>
+<td>file read</td>
+<td>✅ <code>env.read_file()</code></td>
+</tr>
+<tr>
+<td>file write</td>
+<td>✅ <code>env.write_file()</code></td>
+</tr>
+<tr>
+<td>shell exec</td>
+<td>✅ <code>env.exec_shell()</code></td>
+</tr>
+<tr>
+<td>LLM calls</td>
+<td>✅ <code>env.call_llm()</code> (mock) / direct (real)</td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td>✅ <code>env.http_get()</code> / <code>env.http_post()</code></td>
+</tr>
+<tr>
+<td><code>save()</code></td>
+<td>✅ <code>env.write_file()</code></td>
+</tr>
+<tr>
+<td><code>load()</code></td>
+<td>✅ <code>env.read_file()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Violations:</strong> <code>save()</code> and <code>load()</code> bypass the Env trait. In MockEnv, <code>save()</code> writes to real filesystem and <code>load()</code> reads from real filesystem. They should go through <code>env.write_file()</code> and <code>env.read_file()</code>.</p>
+<h3 id="sandbox-audit-p5">Sandbox Audit (P5)</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shell disabled by default</td>
+<td>✅ <code>--allow-shell</code> required</td>
+</tr>
+<tr>
+<td>Shell policy in <code>.cog</code></td>
+<td>✅ <code>shell()</code> is a user flow</td>
+</tr>
+<tr>
+<td>File access unrestricted</td>
+<td>⚠️ No path restrictions</td>
+</tr>
+<tr>
+<td>HTTP unrestricted</td>
+<td>⚠️ Any URL accessible</td>
+</tr>
+<tr>
+<td><code>invoke()</code> unrestricted</td>
+<td>⚠️ Can call any flow by name</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Gaps:</strong> No working directory sandbox or path restrictions yet. On the roadmap.</p>
+<h3 id="testability-audit-p10">Testability Audit (P10)</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mock environment</td>
+<td>✅ <code>cognos test --env mock.json</code></td>
+</tr>
+<tr>
+<td>All I/O through Env</td>
+<td>⚠️ <code>save()</code>/<code>load()</code> bypass</td>
+</tr>
+<tr>
+<td>Deterministic mock replay</td>
+<td>✅ Traces → mocks → replay</td>
+</tr>
+<tr>
+<td>trace-to-mock CLI</td>
+<td>✅ <code>cognos trace-to-mock</code></td>
+</tr>
+<tr>
+<td>CI-friendly</td>
+<td>✅ Zero external deps for mock tests</td>
+</tr>
+</tbody>
+</table>
+<h3 id="behaviors-in-language-audit-p8">Behaviors in Language Audit (P8)</h3>
+<table>
+<thead>
+<tr>
+<th>Behavior</th>
+<th>In <code>.cog</code>?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tool execution loop</td>
+<td>✅ <code>lib/exec.cog</code></td>
+</tr>
+<tr>
+<td>Auto tool loop</td>
+<td>✅ <code>lib/agent.cog</code></td>
+</tr>
+<tr>
+<td>Retry with validation</td>
+<td>✅ <code>lib/validated_think.cog</code></td>
+</tr>
+<tr>
+<td>Shell sandboxing</td>
+<td>✅ User-defined <code>shell()</code> flow</td>
+</tr>
+<tr>
+<td>Memory strategy</td>
+<td>✅ Planned for <code>.cog</code></td>
+</tr>
+<tr>
+<td>Format validation</td>
+<td>⚠️ In Rust (see think() discussion above)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="action-items">Action Items</h2>
+<h3 id="fixed">Fixed</h3>
+<ol>
+<li>~~<strong><code>save()</code>/<code>load()</code> must route through Env</strong>~~ — ✅ Now routes through <code>env.write_file()</code> / <code>env.read_file()</code></li>
+<li>~~<strong>Prompt <code>&gt;</code> in param binding</strong>~~ — ✅ Removed presentation from interpreter</li>
+</ol>
+<h3 id="decided">Decided</h3>
+<ol>
+<li><strong><code>think()</code> format validation stays in Rust</strong> — it's the marshalling layer (type boundary between LLM world and Cognos world), not orchestration. Schema injection, JSON parsing, and type validation are all part of the single atomic operation: "call LLM, return typed value." This extends naturally to multimodal: <code>think(audio_handle, format="Transcript")</code> — same boundary, different media.</li>
+</ol>
+<h3 id="deferred-on-roadmap">Deferred (on roadmap)</h3>
+<ol>
+<li>Path restrictions for file access (P5)</li>
+<li>HTTP URL restrictions (P5)</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
