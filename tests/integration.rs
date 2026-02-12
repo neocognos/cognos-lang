@@ -1861,3 +1861,119 @@ fn test_for_index_value_list() {
 "#);
     assert_eq!(out.trim(), "0:a\n1:b\n2:c");
 }
+
+// ═══════════════════════════════════════════════════════
+// Feature: Kwargs in flow calls
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_flow_kwargs_only() {
+    let out = expect_run_ok(concat!(
+        "flow greet(name: String, greeting: String) -> String:\n",
+        "    return f\"{greeting}, {name}!\"\n",
+        "\n",
+        "flow main():\n",
+        "    result = greet(name=\"World\", greeting=\"Hello\")\n",
+        "    write(stdout, result)\n",
+    ));
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+#[test]
+fn test_flow_kwargs_mixed() {
+    let out = expect_run_ok(concat!(
+        "flow greet(name: String, greeting: String) -> String:\n",
+        "    return f\"{greeting}, {name}!\"\n",
+        "\n",
+        "flow main():\n",
+        "    result = greet(\"World\", greeting=\"Hello\")\n",
+        "    write(stdout, result)\n",
+    ));
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+#[test]
+fn test_flow_kwargs_unknown() {
+    let err = expect_error(concat!(
+        "flow greet(name: String) -> String:\n",
+        "    return name\n",
+        "\n",
+        "flow main():\n",
+        "    greet(name=\"World\", unknown=\"bad\")\n",
+    ));
+    assert!(err.contains("unknown keyword argument"), "got: {}", err);
+}
+
+#[test]
+fn test_flow_kwargs_duplicate() {
+    let err = expect_error(concat!(
+        "flow greet(name: String, greeting: String) -> String:\n",
+        "    return name\n",
+        "\n",
+        "flow main():\n",
+        "    greet(\"World\", name=\"duplicate\")\n",
+    ));
+    assert!(err.contains("duplicate argument"), "got: {}", err);
+}
+
+#[test]
+fn test_flow_kwargs_missing_required() {
+    let err = expect_error(concat!(
+        "flow greet(name: String, greeting: String) -> String:\n",
+        "    return name\n",
+        "\n",
+        "flow main():\n",
+        "    greet(name=\"World\")\n",
+    ));
+    assert!(err.contains("missing required argument"), "got: {}", err);
+}
+
+// ═══════════════════════════════════════════════════════
+// Feature: Multi-line expressions
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn test_multiline_function_call() {
+    let out = expect_run_ok("flow add(a: Int, b: Int) -> Int:\n    return a + b\n\nflow main():\n    result = add(\n        10,\n        20\n    )\n    write(stdout, result)\n");
+    assert_eq!(out.trim(), "30");
+}
+
+#[test]
+fn test_multiline_list_literal() {
+    let out = expect_run_ok("flow main():\n    items = [\n        1,\n        2,\n        3\n    ]\n    write(stdout, items)\n");
+    assert_eq!(out.trim(), "[1, 2, 3]");
+}
+
+#[test]
+fn test_multiline_map_literal() {
+    let out = expect_run_ok("flow main():\n    m = {\n        \"a\": 1,\n        \"b\": 2\n    }\n    write(stdout, m[\"a\"])\n    write(stdout, m[\"b\"])\n");
+    assert_eq!(out.trim(), "1\n2");
+}
+
+#[test]
+fn test_multiline_flow_call_with_kwargs() {
+    let out = expect_run_ok(concat!(
+        "flow greet(name: String, greeting: String) -> String:\n",
+        "    return f\"{greeting}, {name}!\"\n",
+        "\n",
+        "flow main():\n",
+        "    result = greet(\n",
+        "        \"World\",\n",
+        "        greeting=\"Hello\"\n",
+        "    )\n",
+        "    write(stdout, result)\n",
+    ));
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+#[test]
+fn test_multiline_nested_brackets() {
+    let out = expect_run_ok("flow main():\n    items = [\n        [1, 2],\n        [3, 4]\n    ]\n    write(stdout, items[0][1])\n    write(stdout, items[1][0])\n");
+    assert_eq!(out.trim(), "2\n3");
+}
+
+#[test]
+fn test_multiline_method_chain() {
+    let out = expect_run_ok("flow main():\n    result = [\n        \"hello\",\n        \"world\"\n    ].join(\" \")\n    write(stdout, result)\n");
+    assert_eq!(out.trim(), "hello world");
+}

@@ -41,7 +41,13 @@ flow main():
             lines = content.split("\n").length
             # Truncate large files for LLM context
             preview = content[0:2000]
-            analysis = validated_think(f"File: {filepath} ({lines} lines)\n\n{preview}", "FileAnalysis", "claude-sonnet-4-20250514", "Analyze this source file. Rate complexity 1-10. Be specific about issues and suggestions.", "qwen2.5:1.5b")
+            analysis = validated_think(
+                f"File: {filepath} ({lines} lines)\n\n{preview}",
+                "FileAnalysis",
+                "claude-sonnet-4-20250514",
+                "Analyze this source file. Rate complexity 1-10. Be specific about issues and suggestions.",
+                "qwen2.5:1.5b"
+            )
             if analysis.contains("_error"):
                 write(stdout, f"  ⚠ Could not parse analysis for {filepath}")
             else:
@@ -59,7 +65,13 @@ flow main():
     for a in analyses:
         analyses_text = analyses_text + f"\n- {a[\"filename\"]}: complexity={a[\"complexity\"]}, issues={a[\"issues\"]}"
 
-    summary = validated_think(f"Project with {files.length} files:\n{analyses_text}", "ProjectSummary", "claude-sonnet-4-20250514", "Summarize this project analysis. Give an overall score 1-10.", "qwen2.5:1.5b")
+    summary = validated_think(
+        f"Project with {files.length} files:\n{analyses_text}",
+        "ProjectSummary",
+        "claude-sonnet-4-20250514",
+        "Summarize this project analysis. Give an overall score 1-10.",
+        "qwen2.5:1.5b"
+    )
 
     write(stdout, f"\n=== Project Summary ===")
     write(stdout, f"Files: {summary[\"total_files\"]}")

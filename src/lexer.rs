@@ -11,6 +11,7 @@ pub struct Lexer {
     indent_stack: Vec<usize>,
     pending: Vec<Spanned>,
     at_line_start: bool,
+    bracket_depth: usize,
 }
 
 impl Lexer {
@@ -23,6 +24,7 @@ impl Lexer {
             indent_stack: vec![0],
             pending: Vec::new(),
             at_line_start: true,
+            bracket_depth: 0,
         }
     }
 
@@ -70,9 +72,13 @@ impl Lexer {
 
             // Newline
             if ch == '\n' {
-                tokens.push(self.spanned(Token::Newline));
+                if self.bracket_depth == 0 {
+                    tokens.push(self.spanned(Token::Newline));
+                }
                 self.advance();
-                self.at_line_start = true;
+                if self.bracket_depth == 0 {
+                    self.at_line_start = true;
+                }
                 continue;
             }
 
@@ -133,12 +139,12 @@ impl Lexer {
                 ':' => Token::Colon,
                 '<' => Token::Lt,
                 '>' => Token::Gt,
-                '(' => Token::LParen,
-                ')' => Token::RParen,
-                '[' => Token::LBracket,
-                ']' => Token::RBracket,
-                '{' => Token::LBrace,
-                '}' => Token::RBrace,
+                '(' => { self.bracket_depth += 1; Token::LParen },
+                ')' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RParen },
+                '[' => { self.bracket_depth += 1; Token::LBracket },
+                ']' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RBracket },
+                '{' => { self.bracket_depth += 1; Token::LBrace },
+                '}' => { if self.bracket_depth > 0 { self.bracket_depth -= 1; } Token::RBrace },
                 _ => {
                     // Skip unknown chars
                     self.advance();

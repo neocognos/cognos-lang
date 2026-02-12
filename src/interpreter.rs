@@ -306,22 +306,48 @@ impl Interpreter {
         Ok(())
     }
 
-    /// Call a user-defined flow with arguments
-    fn call_flow(&mut self, name: &str, args: Vec<Value>) -> Result<Value> {
+    /// Call a user-defined flow with positional and keyword arguments
+    fn call_flow(&mut self, name: &str, args: Vec<Value>, kwargs: Vec<(std::string::String, Value)>) -> Result<Value> {
         let flow = self.flows.get(name).cloned()
             .ok_or_else(|| anyhow::anyhow!("unknown flow: {}", name))?;
 
-        if args.len() != flow.params.len() {
+        // Build parameter bindings from positional args + kwargs
+        let mut bindings: HashMap<std::string::String, Value> = HashMap::new();
+
+        // First, bind positional args in order
+        if args.len() > flow.params.len() {
             bail!("{}() expects {} args, got {}", name, flow.params.len(), args.len());
+        }
+        for (i, val) in args.iter().enumerate() {
+            bindings.insert(flow.params[i].name.clone(), val.clone());
+        }
+
+        // Then, bind kwargs by name
+        for (k, v) in &kwargs {
+            // Check kwarg name is a valid parameter
+            if !flow.params.iter().any(|p| &p.name == k) {
+                bail!("{}(): unknown keyword argument '{}'", name, k);
+            }
+            // Check for duplicate (already bound by positional)
+            if bindings.contains_key(k) {
+                bail!("{}(): duplicate argument for '{}'", name, k);
+            }
+            bindings.insert(k.clone(), v.clone());
+        }
+
+        // Check all params are bound
+        for param in &flow.params {
+            if !bindings.contains_key(&param.name) {
+                bail!("{}(): missing required argument '{}'", name, param.name);
+            }
         }
 
         // Save current vars, set up new scope
         let saved_vars = self.vars.clone();
         self.vars.clear();
 
-        // Bind parameters
-        for (param, val) in flow.params.iter().zip(args) {
-            self.vars.insert(param.name.clone(), val);
+        for (k, v) in bindings {
+            self.vars.insert(k, v);
         }
 
         log::info!("Calling flow '{}'", name);
@@ -969,7 +995,11 @@ impl Interpreter {
                     for arg in args {
                         arg_vals.push(self.eval(arg)?);
                     }
-                    return self.call_flow(name, arg_vals);
+                    let mut kwarg_vals = Vec::new();
+                    for (k, v) in kwargs {
+                        kwarg_vals.push((k.clone(), self.eval(v)?));
+                    }
+                    return self.call_flow(name, arg_vals, kwarg_vals);
                 }
                 bail!("unknown function: {}()", name)
             }

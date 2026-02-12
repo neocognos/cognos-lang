@@ -1,8 +1,8 @@
 # Cognos Roadmap
 
 ## Language Usability
-- [ ] **Kwargs in flow calls** — `my_flow(input, format="Review")` instead of positional-only
-- [ ] **Multi-line expressions** — implicit continuation inside `()`, `[]`, `{}`
+- [x] **Kwargs in flow calls** — `my_flow(input, format="Review")` instead of positional-only
+- [x] **Multi-line expressions** — implicit continuation inside `()`, `[]`, `{}`
 - [ ] **String `*` repeat** — `"=" * 50` for formatting
 - [ ] **Default parameter values** — `flow greet(name: String, greeting: String = "Hello"):`
 - [ ] **Nested List types** — `List[Insight]` validation, not just `List`
