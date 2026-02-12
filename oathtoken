@@ -1,0 +1,9 @@
+✓ Long-lived authentication token created successfully!
+
+Your OAuth token (valid for 1 year):
+
+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
+
+Store this token securely. You won't be able to see it again.
+
+Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>

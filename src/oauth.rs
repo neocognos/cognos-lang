@@ -105,28 +105,31 @@ pub fn get_access_token() -> Result<String> {
     bail!("No valid Cognos OAuth token. Run 'cognos login' to authenticate with your Claude Max subscription.")
 }
 
-/// Generate PKCE challenge
+/// Generate PKCE challenge (RFC 7636)
 fn generate_pkce() -> (String, String) {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    // Simple verifier — random enough for our purposes
-    let mut hasher = DefaultHasher::new();
-    std::time::SystemTime::now().hash(&mut hasher);
-    std::process::id().hash(&mut hasher);
-    let verifier = format!("{:x}{:x}", hasher.finish(), hasher.finish().wrapping_mul(7));
-
-    // S256 challenge
     use sha2::{Sha256, Digest};
+    use base64::Engine;
+
+    // Generate 32 random bytes for verifier
+    let mut random_bytes = [0u8; 32];
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    // Mix time, pid, and address of local var for entropy
+    let seed = now.as_nanos() ^ (std::process::id() as u128) ^ (&random_bytes as *const _ as u128);
+    for (i, b) in random_bytes.iter_mut().enumerate() {
+        let v = seed.wrapping_mul(6364136223846793005).wrapping_add(i as u128 * 1442695040888963407);
+        *b = (v >> (i * 3)) as u8;
+    }
+
+    // Verifier: base64url-encoded random bytes (43-128 chars per spec)
+    let verifier = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(random_bytes);
+
+    // Challenge: base64url(SHA256(verifier))
     let hash = Sha256::digest(verifier.as_bytes());
-    let challenge = base64_url_encode(&hash);
+    let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash);
 
     (verifier, challenge)
-}
-
-fn base64_url_encode(data: &[u8]) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
 }
 
 /// Interactive login flow — opens browser, user pastes code
