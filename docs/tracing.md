@@ -64,7 +64,7 @@ Emitted for every `think()` call.
 | Field | Description |
 |-------|-------------|
 | `model` | Model name passed to `think()` |
-| `provider` | `claude-cli`, `anthropic`, or `ollama` |
+| `provider` | `claude-cli`, `anthropic`, `ollama`, or `mock` |
 | `latency_ms` | Time from request to response |
 | `prompt_chars` | Characters sent to the LLM |
 | `response_chars` | Characters received |
@@ -206,6 +206,7 @@ cognos run --trace <path> [--allow-shell] <file.cog>
 | Flag | Description |
 |------|-------------|
 | `--trace <path>` | Write JSONL trace events to file |
+| `--trace-level metrics\|full` | Trace detail level (default: metrics) |
 | `--allow-shell` | Enable `__exec_shell__()` primitive |
 | `-v` / `-vv` / `-vvv` | Log verbosity (info/debug/trace) to stderr |
 

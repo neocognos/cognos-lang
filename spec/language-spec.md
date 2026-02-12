@@ -1,6 +1,6 @@
 # Cognos Language Specification
 
-Version: 0.4.0
+Version: 0.5.0
 
 ## 1. Introduction
 
@@ -11,6 +11,7 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 - **Start with nothing, add what you need.** No accidental complexity.
 - **Channel agnostic.** Flows declare *what* input they need, not *where* it comes from.
 - **The LLM is a co-processor.** `think()` is the only non-deterministic primitive.
+- **Environment agnostic.** Same `.cog` runs in production or against a mock.
 - **Sandboxed by design.** Only builtins can interact with the outside world.
 - **Platform portable.** `.cog` files run anywhere the interpreter compiles.
 
@@ -36,31 +37,70 @@ Cognos is a programming language for agentic workflows. It provides deterministi
 
 | Type | Description |
 |------|-------------|
-| `None` | Returned by `emit()`, `log()`. No literal. |
+| `None` | Returned by `write()`, `log()`, `save()`. No literal. |
+| `Handle` | I/O endpoint: `stdin`, `stdout`, or `file("path")` |
+| `Module` | Built-in module: `math`, `http` |
 
-### 2.4 Truthiness
+### 2.4 Custom Types
+
+```cognos
+type Review:
+    score: Int
+    summary: String
+    tags: List
+```
+
+Used with `think(input, format="Review")` to get structured LLM output.
+
+### 2.5 Truthiness
 
 | Falsy | Truthy |
 |-------|--------|
 | `false`, `0`, `0.0`, `""`, `[]`, `{}`, `None` | Everything else |
 
-## 3. Flows
+### 2.6 Type Coercion
 
-Flows are the fundamental unit of composition. Input is received through parameters — the runtime binds them from whatever channel invokes the flow.
+Mixed `Int`/`Float` arithmetic auto-promotes: `1 + 2.5 → 3.5`
+
+## 3. Imports
+
+```cognos
+import "path/to/module.cog"
+```
+
+- Must appear at the top of the file, before types and flows
+- Paths resolve relative to the importing file's directory
+- Recursive imports supported
+- Imported flows and types are registered in the current scope
+- Last import wins on name collisions
+
+## 4. Flows
+
+Flows are the fundamental unit of composition.
 
 ```cognos
 flow main():
-    emit("Hello, World!")
+    write(stdout, "Hello, World!")
 
 flow greet(name: String) -> String:
     return f"Hello, {name}!"
 
 flow assistant(input: String):
     response = think(input, model="qwen2.5:7b")
-    emit(response)
+    write(stdout, response)
 ```
 
-### 3.1 Input Binding
+### 4.1 Docstrings
+
+The first string literal in a flow body is its description (used as tool description):
+
+```cognos
+flow search(query: String) -> String:
+    "Search the web for information"
+    return http.get(f"https://api.example.com/search?q={query}")
+```
+
+### 4.2 Input Binding
 
 | Context | How params are bound |
 |---------|---------------------|
@@ -68,64 +108,196 @@ flow assistant(input: String):
 | Neocognos TUI | Bound from user message |
 | API call | Bound from request body |
 | Flow-to-flow call | Passed as arguments |
+| As tool | Bound from LLM tool call arguments |
 
-### 3.2 Flow Composition
-
-Flows call other flows directly. Each gets its own scope:
+### 4.3 Flow Composition
 
 ```cognos
 flow add(a: Int, b: Int) -> Int:
     return a + b
 
 flow main():
-    emit(add(2, 3))    # → 5
+    write(stdout, add(2, 3))    # → 5
 ```
 
-## 4. Built-in Functions
+### 4.4 Flows as Tools
 
-### 4.1 LLM
-
-#### `think(context, model="", system="", tools=[]) -> String`
-Invokes the LLM.
+Flows can be passed to `think()` as tools. The interpreter auto-generates JSON schemas from flow signatures:
 
 ```cognos
-response = think(input)
-response = think(input, model="qwen2.5:7b", system="Be concise.")
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command"
+    return __exec_shell__(command)
+
+flow main():
+    response = think("What time is it?",
+        model="claude-sonnet-4-20250514",
+        tools=["shell"])
+    if response["has_tool_calls"]:
+        response = exec(response, tools=["shell"])
+    write(stdout, response)
 ```
 
-#### `act(response) -> Any`
-Executes tool calls from a `think()` response. *(Stubbed in interpreter mode.)*
+## 5. Built-in Functions
 
-### 4.2 Output
+### 5.1 LLM
 
-#### `emit(value)`
-Outputs a value to the channel.
+#### `think(context, model="", system="", tools=[], format="") -> String | Map`
+
+Invokes the LLM. The only non-deterministic primitive.
+
+```cognos
+# Simple call
+response = think(input)
+
+# With model and system prompt
+response = think(input, model="claude-sonnet-4-20250514", system="Be concise.")
+
+# With tools — returns Map with content + tool_calls
+response = think(input, tools=["shell", "search"])
+
+# With structured output — returns Map matching type schema
+review = think(code, format="Review")
+```
+
+**Model routing:** `claude-*` → Claude CLI/API, anything else → Ollama.
+
+#### `exec(response, tools=[...]) -> String | Map`
+
+Executes tool calls from a `think()` response by invoking the named flows:
+
+```cognos
+response = think(input, tools=["shell"])
+if response["has_tool_calls"]:
+    result = exec(response, tools=["shell"])
+```
+
+### 5.2 I/O
+
+#### `read(handle?) -> String`
+
+Reads from a handle. Default: `stdin`.
+
+```cognos
+line = read(stdin)           # read one line from stdin
+content = read(file("data.txt"))  # read entire file
+```
+
+#### `write(handle, content)`
+
+Writes to a handle.
+
+```cognos
+write(stdout, "Hello!")           # print to stdout
+write(file("out.txt"), content)   # write to file
+```
+
+#### `file(path) -> Handle`
+
+Creates a file handle.
+
+```cognos
+write(file("output.txt"), "data")
+content = read(file("input.txt"))
+```
+
+### 5.3 Persistence
+
+#### `save(path, value)`
+
+Serializes any Cognos value to a JSON file.
+
+```cognos
+save("state.json", {"history": history, "count": 42})
+```
+
+#### `load(path) -> Value`
+
+Deserializes a JSON file back to a Cognos value.
+
+```cognos
+state = load("state.json")
+```
+
+### 5.4 Shell
+
+#### `__exec_shell__(command) -> String`
+
+Low-level shell primitive. Requires `--allow-shell` flag.
+
+Typically wrapped in a user-defined flow for sandboxing:
+
+```cognos
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command. Output limited to 50 lines."
+    return __exec_shell__(f"{command} | head -50")
+```
+
+### 5.5 Logging
 
 #### `log(message)`
+
 Outputs to stderr (debug, not user-visible).
 
-### 4.3 System
+#### `print(value)`
 
-#### `run(command: String) -> String`
-Executes a shell command, returns stdout.
+Alias for `log()`.
 
-```cognos
-result = run("cargo test")
-emit(result)
-```
+### 5.6 Built-in Variables
 
-## 5. Operators
+| Variable | Type | Description |
+|----------|------|-------------|
+| `stdin` | Handle | Standard input handle |
+| `stdout` | Handle | Standard output handle |
+| `math` | Module | Math functions and constants |
+| `http` | Module | HTTP client |
 
-### 5.1 Arithmetic
-`+` (add/concat), `-`, `*`, `/`, unary `-`
+## 6. Native Modules
 
-### 5.2 Comparison
+### 6.1 `math`
+
+| Function | Description |
+|----------|-------------|
+| `math.sin(x)`, `math.cos(x)`, `math.tan(x)` | Trigonometric |
+| `math.asin(x)`, `math.acos(x)`, `math.atan(x)` | Inverse trig |
+| `math.atan2(y, x)` | Two-argument arctangent |
+| `math.sqrt(x)`, `math.pow(x, y)` | Roots and powers |
+| `math.exp(x)`, `math.log(x)`, `math.log2(x)`, `math.log10(x)` | Exponential/logarithmic |
+| `math.floor(x)`, `math.ceil(x)`, `math.round(x)` | Rounding |
+| `math.abs(x)` | Absolute value |
+| `math.min(a, b)`, `math.max(a, b)` | Min/max |
+
+| Constant | Value |
+|----------|-------|
+| `math.pi` | 3.14159... |
+| `math.e` | 2.71828... |
+| `math.inf` | Infinity |
+
+### 6.2 `http`
+
+| Function | Description |
+|----------|-------------|
+| `http.get(url)` | HTTP GET, returns body as String |
+| `http.post(url, body)` | HTTP POST, returns body as String |
+
+## 7. Operators
+
+### 7.1 Arithmetic
+
+`+` (add/concat lists/strings), `-`, `*`, `/`, unary `-`
+
+`Int + Float` → `Float` (auto-promotion)
+
+### 7.2 Comparison
+
 `==`, `!=`, `<`, `>`, `<=`, `>=`
 
-### 5.3 Logical
+### 7.3 Logical
+
 `and`, `or`, `not`
 
-### 5.4 Indexing
+### 7.4 Indexing
+
 ```cognos
 items[0]        # list index
 items[-1]       # negative = from end
@@ -133,14 +305,16 @@ items[-1]       # negative = from end
 map["key"]      # map lookup
 ```
 
-### 5.5 Field Access
+### 7.5 Field Access
+
 ```cognos
-obj.field       # map field, or .length on String/List/Map
+obj.field       # map field
+s.length        # string/list/map length
 ```
 
-## 6. Methods
+## 8. Methods
 
-### 6.1 String Methods
+### 8.1 String Methods
 
 | Method | Returns | Example |
 |--------|---------|---------|
@@ -151,10 +325,11 @@ obj.field       # map field, or .length on String/List/Map
 | `.starts_with(s)` | Bool | `"hello".starts_with("he")` → `true` |
 | `.ends_with(s)` | Bool | `"hello".ends_with("lo")` → `true` |
 | `.replace(from, to)` | String | `"hello".replace("l", "L")` → `"heLLo"` |
-| `.split(delim)` | List[String] | `"a,b".split(",")` → `["a", "b"]` |
+| `.split(delim)` | List | `"a,b".split(",")` → `["a", "b"]` |
+| `.truncate(max)` | String | `"hello".truncate(3)` → `"hel..."` |
 | `.length` | Int | `"hello".length` → `5` |
 
-### 6.2 List Methods
+### 8.2 List Methods
 
 | Method | Returns | Example |
 |--------|---------|---------|
@@ -163,18 +338,20 @@ obj.field       # map field, or .length on String/List/Map
 | `.reversed()` | List | `[1,2,3].reversed()` → `[3,2,1]` |
 | `.length` | Int | `[1,2,3].length` → `3` |
 
-### 6.3 Map Methods
+List concatenation: `[1, 2] + [3, 4]` → `[1, 2, 3, 4]`
+
+### 8.3 Map Methods
 
 | Method | Returns | Example |
 |--------|---------|---------|
-| `.keys()` | List[String] | `{"a":1}.keys()` → `["a"]` |
+| `.keys()` | List | `{"a":1}.keys()` → `["a"]` |
 | `.values()` | List | `{"a":1}.values()` → `[1]` |
 | `.contains(key)` | Bool | `{"a":1}.contains("a")` → `true` |
 | `.length` | Int | `{"a":1}.length` → `1` |
 
-## 7. Control Flow
+## 9. Control Flow
 
-### 7.1 Conditional
+### 9.1 Conditional
 
 ```cognos
 if condition:
@@ -185,7 +362,7 @@ else:
     body
 ```
 
-### 7.2 Loops
+### 9.2 Loops
 
 ```cognos
 # Infinite loop — exits via break or return
@@ -196,47 +373,75 @@ loop:
 # Bounded loop
 loop max=10:
     response = think(response)
-    if not response.has_tool_calls:
+    if not response["has_tool_calls"]:
         break
 ```
 
-### 7.3 For Loops
+### 9.3 For Loops
 
 ```cognos
 for item in [1, 2, 3]:       # iterate list
-    emit(item)
+    write(stdout, item)
 
 for ch in "hello":            # iterate characters
-    emit(ch)
+    write(stdout, ch)
 
 for key in {"a": 1, "b": 2}: # iterate map keys
-    emit(key)
+    write(stdout, key)
 ```
 
 `break` and `continue` work in both `loop` and `for`.
 
-## 8. String Interpolation
+### 9.4 Try/Catch
+
+```cognos
+try:
+    content = read(file("data.txt"))
+catch err:
+    content = "default"
+    write(stdout, f"Warning: {err}")
+```
+
+- `err` variable is optional — omit it with just `catch:`
+- Error message is bound as a String
+- Variables set in the try block are visible after it (if no error)
+
+### 9.5 Pass
+
+```cognos
+flow placeholder():
+    pass
+```
+
+No-op statement for empty blocks.
+
+## 10. String Interpolation
 
 ```cognos
 name = "World"
-emit(f"Hello, {name}!")           # → Hello, World!
-emit(f"{1 + 2} items")           # → 3 items
-emit(f"{name.length} chars")     # → 5 chars
+write(stdout, f"Hello, {name}!")        # → Hello, World!
+write(stdout, f"{1 + 2} items")        # → 3 items
+write(stdout, f"{name.length} chars")  # → 5 chars
 ```
 
 Any valid expression can appear inside `{}`.
 
-## 9. Comments
+## 11. Comments
 
 ```cognos
 # This is a comment
 x = 42  # end-of-line comment
 ```
 
-## 10. Grammar (PEG)
+## 12. Grammar (PEG)
 
 ```peg
-Program <- Flow*
+Program <- Import* TypeDef* Flow*
+
+Import <- "import" StringLiteral NEWLINE
+
+TypeDef <- "type" Identifier ":" NEWLINE INDENT TypeField* DEDENT
+TypeField <- Identifier ":" Type NEWLINE
 
 Flow <- "flow" Identifier "(" ParameterList? ")" ("->" Type)? ":" NEWLINE INDENT Statement* DEDENT
 
@@ -244,17 +449,19 @@ ParameterList <- Parameter ("," Parameter)*
 Parameter <- Identifier ":" Type
 Type <- Identifier ("[" Type ("," Type)* "]")?
 
-Statement <- Assignment / EmitStatement / ReturnStatement / IfStatement /
-             LoopStatement / ForStatement / BreakStatement / ContinueStatement /
+Statement <- Assignment / ReturnStatement / IfStatement /
+             LoopStatement / ForStatement / TryCatchStatement /
+             BreakStatement / ContinueStatement /
              PassStatement / ExprStatement
 
 Assignment <- Identifier "=" Expression NEWLINE
-EmitStatement <- "emit" "(" Expression ")" NEWLINE
 ReturnStatement <- "return" Expression NEWLINE
 PassStatement <- "pass" NEWLINE
 BreakStatement <- "break" NEWLINE
 ContinueStatement <- "continue" NEWLINE
 ExprStatement <- Expression NEWLINE
+
+TryCatchStatement <- "try" ":" Block "catch" Identifier? ":" Block
 
 Expression <- OrExpr
 OrExpr <- AndExpr ("or" AndExpr)*
@@ -287,19 +494,29 @@ ListLiteral <- "[" (Expression ("," Expression)*)? "]"
 MapLiteral <- "{" (StringLiteral ":" Expression ("," StringLiteral ":" Expression)*)? "}"
 ```
 
-## 11. CLI
+## 13. CLI
 
 ```
-cognos <file.cog>              # run a program
-cognos run [-v|-vv|-vvv] <file> # run with logging verbosity
-cognos parse <file.cog>         # pretty-print parsed AST
-cognos tokens <file.cog>        # show raw tokens
-cognos repl                     # interactive REPL
+cognos run [flags] <file.cog>           # run a program
+cognos test <file.cog> --env <mock>     # test with mock environment
+cognos parse <file.cog>                 # pretty-print parsed AST
+cognos tokens <file.cog>               # show raw tokens
+cognos repl                            # interactive REPL
 ```
 
-Logging: `-v` info, `-vv` debug, `-vvv` trace. Or set `COGNOS_LOG=info|debug|trace`.
+### Flags
 
-## 12. Error System
+| Flag | Description |
+|------|-------------|
+| `--allow-shell` | Enable `__exec_shell__()` |
+| `--trace <path>` | Write JSONL trace events to file |
+| `--trace-level metrics\|full` | Trace detail (default: metrics) |
+| `--env <mock.json>` | Mock environment (for `cognos test`) |
+| `-v` / `-vv` / `-vvv` | Log verbosity |
+
+Env var: `COGNOS_LOG=info|debug|trace`
+
+## 14. Error System
 
 Every token has a specific, context-aware error message with optional hints:
 
@@ -312,4 +529,13 @@ Error: 'let' is not needed — just write: name = value
 Error: cannot String + Int — String + Int not supported
 ```
 
-The error system is exhaustive — adding a new token requires defining its error message.
+## 15. Environments
+
+All I/O is routed through an `Env` trait. The interpreter never calls OS functions directly.
+
+| Environment | Usage |
+|-------------|-------|
+| `RealEnv` | Default — real stdin/stdout, files, shell, LLM, HTTP |
+| `MockEnv` | `cognos test --env mock.json` — canned responses, no network |
+
+See [Environments docs](../docs/environments.md) for mock file format.

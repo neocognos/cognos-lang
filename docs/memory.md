@@ -16,7 +16,7 @@ flow agent(input: String):
         context = history.join("\n")
         response = think(context, system="You are a helpful assistant.")
         history = history + [f"Assistant: {response}"]
-        emit(response)
+        write(stdout, response)
 ```
 
 ## Future: Semantic Memory
@@ -35,7 +35,7 @@ flow memorize(text: String):
     facts = extract_facts(text)
     for fact in facts:
         remember(fact)
-    emit(f"Stored {facts.length} facts")
+    write(stdout, f"Stored {facts.length} facts")
 
 flow answer(question: String) -> String:
     context = recall(question)
@@ -54,7 +54,7 @@ flow main(input: String):
     if input.starts_with("remember:"):
         memorize(input.replace("remember:", "").strip())
     else:
-        emit(answer(input))
+        write(stdout, answer(input))
 ```
 
 ## Design Principles
@@ -74,4 +74,4 @@ flow main(input: String):
 - [ ] `forget(query: String)` — remove facts
 - [ ] Memory consolidation (summarize + deduplicate)
 - [ ] Memory persistence across sessions
-- [ ] `import "memory.cog"` — reusable memory module
+- [x] `import "memory.cog"` — reusable memory module (import system implemented)
