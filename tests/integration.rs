@@ -1977,3 +1977,186 @@ fn test_multiline_method_chain() {
     let out = expect_run_ok("flow main():\n    result = [\n        \"hello\",\n        \"world\"\n    ].join(\" \")\n    write(stdout, result)\n");
     assert_eq!(out.trim(), "hello world");
 }
+
+// ─── Feature 1: String * repeat ───
+
+#[test]
+fn test_string_repeat_right() {
+    let out = expect_run_ok("flow main():\n    write(stdout, \"=\" * 5)\n");
+    assert_eq!(out.trim(), "=====");
+}
+
+#[test]
+fn test_string_repeat_left() {
+    let out = expect_run_ok("flow main():\n    write(stdout, 3 * \"ab\")\n");
+    assert_eq!(out.trim(), "ababab");
+}
+
+#[test]
+fn test_string_repeat_zero() {
+    let out = expect_run_ok("flow main():\n    write(stdout, \"x\" * 0)\n");
+    assert_eq!(out.trim(), "");
+}
+
+#[test]
+fn test_string_repeat_one() {
+    let out = expect_run_ok("flow main():\n    write(stdout, \"hello\" * 1)\n");
+    assert_eq!(out.trim(), "hello");
+}
+
+#[test]
+fn test_string_repeat_variable() {
+    let out = expect_run_ok("flow main():\n    n = 4\n    s = \"-\" * n\n    write(stdout, s)\n");
+    assert_eq!(out.trim(), "----");
+}
+
+// ─── Feature 2: Default parameter values ───
+
+#[test]
+fn test_default_param_basic() {
+    let out = expect_run_ok(r#"flow greet(name: String, greeting: String = "Hello"):
+    write(stdout, f"{greeting}, {name}!")
+
+flow main():
+    greet("World")
+"#);
+    assert_eq!(out.trim(), "Hello, World!");
+}
+
+#[test]
+fn test_default_param_override() {
+    let out = expect_run_ok(r#"flow greet(name: String, greeting: String = "Hello"):
+    write(stdout, f"{greeting}, {name}!")
+
+flow main():
+    greet("World", "Hey")
+"#);
+    assert_eq!(out.trim(), "Hey, World!");
+}
+
+#[test]
+fn test_default_param_int() {
+    let out = expect_run_ok(r#"flow repeat_str(s: String, n: Int = 3):
+    write(stdout, s * n)
+
+flow main():
+    repeat_str("x")
+"#);
+    assert_eq!(out.trim(), "xxx");
+}
+
+#[test]
+fn test_default_param_multiple() {
+    let out = expect_run_ok(r#"flow fmt(text: String, prefix: String = "[", suffix: String = "]"):
+    write(stdout, f"{prefix}{text}{suffix}")
+
+flow main():
+    fmt("hi")
+"#);
+    assert_eq!(out.trim(), "[hi]");
+}
+
+#[test]
+fn test_default_param_kwarg_override() {
+    let out = expect_run_ok(r#"flow fmt(text: String, prefix: String = "[", suffix: String = "]"):
+    write(stdout, f"{prefix}{text}{suffix}")
+
+flow main():
+    fmt("hi", suffix="!")
+"#);
+    assert_eq!(out.trim(), "[hi!");
+}
+
+// ─── Feature 3: auto_exec (tested via mock) ───
+
+#[test]
+fn test_auto_exec_mock() {
+    let dir = tempfile::tempdir().unwrap();
+    let cog = dir.path().join("test.cog");
+    let mock = dir.path().join("mock.json");
+
+    std::fs::write(&cog, r#"flow shell(command: String) -> String:
+    "Execute a shell command"
+    return __exec_shell__(command)
+
+flow main():
+    result = think("list files", model="test", tools=["shell"], auto_exec=true)
+    write(stdout, result)
+"#).unwrap();
+
+    // First response has tool_calls, second is final answer
+    std::fs::write(&mock, r#"{
+        "stdin": [],
+        "llm_responses": [
+            {
+                "content": "Let me list files",
+                "tool_calls": [{"name": "shell", "arguments": {"command": "ls"}}]
+            },
+            "Here are the files: a.txt b.txt"
+        ],
+        "shell": {"ls": "a.txt\nb.txt"},
+        "files": {},
+        "allow_shell": true
+    }"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(["test", "--env"])
+        .arg(&mock)
+        .arg("--allow-shell")
+        .arg(&cog)
+        .output().unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code().unwrap(), 0,
+        "auto_exec test failed:\nstdout: {}\nstderr: {}", stdout, stderr);
+    assert!(stdout.contains("Here are the files"), "Expected final text, got: {}", stdout);
+}
+
+// ─── Feature 4: trace-to-mock ───
+
+#[test]
+fn test_trace_to_mock_basic() {
+    let dir = tempfile::tempdir().unwrap();
+    let trace_file = dir.path().join("trace.jsonl");
+
+    std::fs::write(&trace_file, r#"{"event":"io","op":"read","handle":"stdin","content":"hello","bytes":5}
+{"event":"llm_call","model":"test","response":"world","has_tool_calls":false}
+{"event":"shell_exec","command":"ls","output":"a.txt","exit_code":0}
+{"event":"io","op":"read","handle":"file","path":"input.txt","content":"data"}
+"#).unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(["trace-to-mock"])
+        .arg(&trace_file)
+        .output().unwrap();
+
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mock: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(mock["stdin"][0], "hello");
+    assert_eq!(mock["llm_responses"][0], "world");
+    assert_eq!(mock["shell"]["ls"], "a.txt");
+    assert_eq!(mock["files"]["input.txt"], "data");
+}
+
+#[test]
+fn test_trace_to_mock_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let trace_file = dir.path().join("empty.jsonl");
+    std::fs::write(&trace_file, "").unwrap();
+
+    let bin = cognos_bin();
+    let output = Command::new(&bin)
+        .args(["trace-to-mock"])
+        .arg(&trace_file)
+        .output().unwrap();
+
+    assert_eq!(output.status.code().unwrap(), 0);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mock: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert!(mock["stdin"].as_array().unwrap().is_empty());
+}

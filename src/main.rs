@@ -11,6 +11,7 @@ mod trace;
 
 use std::env;
 use std::fs;
+use std::collections::HashMap;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,8 +22,15 @@ fn main() {
         eprintln!("       cognos parse <file.cog>         # parse and pretty-print");
         eprintln!("       cognos tokens <file.cog>        # show raw tokens");
         eprintln!("       cognos repl                     # interactive REPL");
+        eprintln!("       cognos trace-to-mock <file.jsonl> # convert trace to mock JSON");
         eprintln!("\nEnv: COGNOS_LOG=info|debug|trace");
         std::process::exit(1);
+    }
+
+    // Handle trace-to-mock before normal arg parsing
+    if args.len() >= 3 && args[1] == "trace-to-mock" {
+        trace_to_mock(&args[2]);
+        return;
     }
 
     // Parse args: find command, verbosity flags, and file path
@@ -38,12 +46,13 @@ fn main() {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "run" | "parse" | "tokens" | "repl" | "test" => command = match args[i].as_str() {
+            "run" | "parse" | "tokens" | "repl" | "test" | "trace-to-mock" => command = match args[i].as_str() {
                 "run" => "run",
                 "parse" => "parse",
                 "tokens" => "tokens",
                 "repl" => "repl",
                 "test" => "test",
+                "trace-to-mock" => "trace-to-mock",
                 _ => unreachable!(),
             },
             "-v" => verbosity = verbosity.max(1),
@@ -255,4 +264,81 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+fn trace_to_mock(path: &str) {
+    let content = fs::read_to_string(path).unwrap_or_else(|e| {
+        eprintln!("Cannot read {}: {}", path, e);
+        std::process::exit(1);
+    });
+
+    let mut stdin_lines: Vec<String> = Vec::new();
+    let mut llm_responses: Vec<serde_json::Value> = Vec::new();
+    let mut shell_commands: HashMap<String, String> = HashMap::new();
+    let mut files: HashMap<String, String> = HashMap::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let event: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        match event.get("event").and_then(|v| v.as_str()) {
+            Some("io") => {
+                let op = event.get("op").and_then(|v| v.as_str()).unwrap_or("");
+                let handle = event.get("handle").and_then(|v| v.as_str()).unwrap_or("");
+                match (op, handle) {
+                    ("read", "stdin") => {
+                        if let Some(c) = event.get("content").and_then(|v| v.as_str()) {
+                            stdin_lines.push(c.to_string());
+                        }
+                    }
+                    ("read", "file") => {
+                        if let (Some(p), Some(c)) = (
+                            event.get("path").and_then(|v| v.as_str()),
+                            event.get("content").and_then(|v| v.as_str()),
+                        ) {
+                            files.insert(p.to_string(), c.to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Some("llm_call") => {
+                if let Some(resp) = event.get("response").and_then(|v| v.as_str()) {
+                    let has_tc = event.get("has_tool_calls").and_then(|v| v.as_bool()).unwrap_or(false);
+                    if has_tc {
+                        // Try to extract tool calls from response text
+                        llm_responses.push(serde_json::json!({
+                            "content": resp,
+                            "tool_calls": []
+                        }));
+                    } else {
+                        llm_responses.push(serde_json::Value::String(resp.to_string()));
+                    }
+                } else {
+                    llm_responses.push(serde_json::Value::String("".to_string()));
+                }
+            }
+            Some("shell_exec") => {
+                if let Some(cmd) = event.get("command").and_then(|v| v.as_str()) {
+                    let output = event.get("output").and_then(|v| v.as_str()).unwrap_or("");
+                    shell_commands.insert(cmd.to_string(), output.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mock = serde_json::json!({
+        "stdin": stdin_lines,
+        "llm_responses": llm_responses,
+        "shell": shell_commands,
+        "files": files,
+        "allow_shell": true
+    });
+
+    println!("{}", serde_json::to_string_pretty(&mock).unwrap());
 }

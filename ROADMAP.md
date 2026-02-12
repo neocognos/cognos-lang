@@ -3,12 +3,12 @@
 ## Language Usability
 - [x] **Kwargs in flow calls** — `my_flow(input, format="Review")` instead of positional-only
 - [x] **Multi-line expressions** — implicit continuation inside `()`, `[]`, `{}`
-- [ ] **String `*` repeat** — `"=" * 50` for formatting
-- [ ] **Default parameter values** — `flow greet(name: String, greeting: String = "Hello"):`
+- [x] **String `*` repeat** — `"=" * 50` for formatting
+- [x] **Default parameter values** — `flow greet(name: String, greeting: String = "Hello"):`
 - [ ] **Nested List types** — `List[Insight]` validation, not just `List`
 
 ## Agent Intelligence
-- [ ] **Automatic tool loop** — `think()` with `auto_exec=true` handles multi-step tool chains
+- [x] **Automatic tool loop** — `think()` with `auto_exec=true` handles multi-step tool chains
 - [ ] **Conversation compaction** — summarize old history to prevent token bloat
 - [ ] **Streaming output** — token-by-token `think()` output for responsiveness
 - [ ] **Parallel/async** — `parallel:` blocks and `async`/`await` for concurrent tool calls
@@ -25,7 +25,7 @@
 - [ ] **Readline/rustyline** — arrow keys, history in REPL
 - [ ] **`cargo install cognos`** — publish to crates.io
 - [ ] **WASM target** — run .cog files in the browser
-- [ ] **trace-to-mock** — convert recorded traces to mock files automatically
+- [x] **trace-to-mock** — convert recorded traces to mock files automatically
 - [ ] **Working directory sandbox** — restrict shell + file access to specific paths
 
 ## Memory & State

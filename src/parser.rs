@@ -138,7 +138,13 @@ impl Parser {
                 let pname = self.expect_ident()?;
                 self.expect(Token::Colon)?;
                 let ty = self.parse_type()?;
-                params.push(Param { name: pname, ty });
+                let default = if self.check(&Token::Eq) {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                params.push(Param { name: pname, ty, default });
                 if !self.check(&Token::RParen) {
                     self.expect(Token::Comma)?;
                 }
