@@ -11,63 +11,28 @@ flow read_file(path: String) -> String:
 
 flow do_research(query: String) -> String:
     "Research a topic using web search + LLM synthesis"
-    write(stdout, "  📡 Searching the web...\n")
+    write(stdout, "  📡 Searching...\n")
     results = web_search(query, num_results=3)
     if results == "":
         return "Web search returned no results."
-    write(stdout, "  🧠 Synthesizing findings...\n")
-    summary = think(f"Research query: {query}\n\nSearch results:\n{results}\n\nProvide a clear, structured summary.", model="claude-sonnet-4-20250514", system="Synthesize search results into a concise summary. Include key points and URLs.")
-    return summary
+    write(stdout, "  🧠 Synthesizing...\n")
+    return think(f"Query: {query}\n\nSearch results:\n{results}", model="claude-sonnet-4-20250514", system="Summarize these search results clearly. Include source URLs.")
 
-flow classify_and_respond(input: String, tasks: Map) -> Map:
-    "Classify user input and either respond or spawn a task"
-    write(stdout, "🔍 Thinking...\n")
-    classification = think(f"Does this request need web research or lengthy analysis? Answer ONLY 'yes' or 'no'.\n\nRequest: \"{input}\"", model="claude-sonnet-4-20250514")
-    if classification.lower().contains("yes"):
-        handle = async do_research(input)
-        tasks["research"] = handle
-        write(stdout, "⚡ Started 'research' in background. Keep talking.\n")
-        return tasks
-    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful.", tools=["shell", "read_file"])
+flow respond(input: String, tasks: Map) -> Map:
+    "Handle a user message"
+    response = think(input, model="claude-sonnet-4-20250514", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
     if response.has_tool_calls:
-        executed = exec(response, tools=["shell", "read_file"])
-        final = think(f"User asked: {input}\nResults:\n{executed.content}", model="claude-sonnet-4-20250514", system="Answer concisely.")
+        write(stdout, "🔧 Running tools...\n")
+        executed = exec(response, tools=["shell", "read_file", "web_search"])
+        final = think(f"User: {input}\nResults:\n{executed.content}", model="claude-sonnet-4-20250514", system="Answer concisely based on these results.")
         write(stdout, f"{final.content}\n")
     else:
         write(stdout, f"{response.content}\n")
     return tasks
 
-flow quick_respond(input: String, tasks: Map):
-    "Quick response while background tasks are running"
-    task_names = []
-    for name, handle in tasks:
-        task_names = task_names + [name]
-    write(stdout, "🔍 Thinking...\n")
-    response = think(input, model="claude-sonnet-4-20250514", system=f"Be very concise (1-2 sentences). Background tasks running: {task_names}. If user asks about them, say they're still working.")
-    write(stdout, f"{response}\n")
-
-flow handle_command(input: String, tasks: Map) -> Map:
-    "Handle status, cancel, and other commands"
-    if input == "status":
-        if tasks.length == 0:
-            write(stdout, "No tasks running.\n")
-        for name, handle in tasks:
-            write(stdout, f"  ⏳ {name}: running\n")
-        return tasks
-    if input.starts_with("cancel "):
-        name = input[7:].strip()
-        try:
-            cancel(tasks[name])
-            tasks = remove(tasks, name)
-            write(stdout, f"🛑 Cancelled '{name}'.\n")
-        catch err:
-            write(stdout, f"No task named '{name}'.\n")
-        return tasks
-    return tasks
-
 flow main():
     write(stdout, "🤖 Assistant ready.\n")
-    write(stdout, "Type naturally. 'status' to check tasks, 'exit' to quit.\n\n")
+    write(stdout, "Prefix with 'bg:' to run in background. 'status'/'cancel'/'exit' for control.\n\n")
     tasks = {}
     loop:
         write(stdout, "> ")
@@ -77,8 +42,14 @@ flow main():
                 break
             if input == "status":
                 write(stdout, "No tasks running.\n")
+            if input.starts_with("bg:"):
+                query = input[3:].strip()
+                handle = async do_research(query)
+                tasks["research"] = handle
+                write(stdout, f"⚡ Research started. Keep talking.\n")
             if input != "status":
-                tasks = classify_and_respond(input, tasks)
+                if input.starts_with("bg:") == false:
+                    tasks = respond(input, tasks)
         else:
             select:
                 branch:
@@ -87,11 +58,30 @@ flow main():
                         for name, handle in tasks:
                             cancel(handle)
                         break
-                    if input == "status" or input.starts_with("cancel "):
-                        tasks = handle_command(input, tasks)
+                    if input == "status":
+                        for name, handle in tasks:
+                            write(stdout, f"  ⏳ {name}: running\n")
+                    if input.starts_with("cancel "):
+                        name = input[7:].strip()
+                        try:
+                            cancel(tasks[name])
+                            tasks = remove(tasks, name)
+                            write(stdout, f"🛑 Cancelled '{name}'.\n")
+                        catch err:
+                            write(stdout, f"No task '{name}'.\n")
+                    if input.starts_with("bg:"):
+                        query = input[3:].strip()
+                        handle = async do_research(query)
+                        tasks["research"] = handle
+                        write(stdout, f"⚡ Research started. Keep talking.\n")
                     if input != "status":
                         if input.starts_with("cancel ") == false:
-                            quick_respond(input, tasks)
+                            if input.starts_with("bg:") == false:
+                                task_names = []
+                                for name, handle in tasks:
+                                    task_names = task_names + [name]
+                                response = think(input, model="claude-sonnet-4-20250514", system=f"Be very concise. Tasks running: {task_names}.")
+                                write(stdout, f"{response}\n")
                 branch:
                     first_name = ""
                     first_handle = None
@@ -100,6 +90,6 @@ flow main():
                             first_name = name
                             first_handle = handle
                     result = await(first_handle)
-                    write(stdout, f"\n✅ '{first_name}' complete:\n{result}\n")
+                    write(stdout, f"\n✅ '{first_name}' done:\n{result}\n")
                     tasks = remove(tasks, first_name)
     write(stdout, "Goodbye! 👋\n")
