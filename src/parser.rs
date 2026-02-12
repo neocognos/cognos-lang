@@ -728,7 +728,7 @@ mod tests {
         let program = parse(r#"flow hello:
     input = receive(String)
     emit(input)
-"#).unwrap();
+"#).expect("parse failed");
         assert_eq!(program.flows.len(), 1);
         assert_eq!(program.flows[0].name, "hello");
         assert_eq!(program.flows[0].body.len(), 2);
@@ -739,7 +739,7 @@ mod tests {
         let program = parse(r#"flow greet(name: String) -> String:
     msg = think(name, system="Say hello.")
     return msg
-"#).unwrap();
+"#).expect("parse failed");
         let flow = &program.flows[0];
         assert_eq!(flow.name, "greet");
         assert_eq!(flow.params.len(), 1);
@@ -755,7 +755,7 @@ mod tests {
         emit(x)
     else:
         emit(false)
-"#).unwrap();
+"#).expect("parse failed");
         let body = &program.flows[0].body;
         assert_eq!(body.len(), 2); // assign + if
         assert!(matches!(body[1], Stmt::If { .. }));
@@ -767,7 +767,7 @@ mod tests {
     loop max=10:
         x = think(y)
         break
-"#).unwrap();
+"#).expect("parse failed");
         let body = &program.flows[0].body;
         assert!(matches!(body[0], Stmt::Loop { max: Some(10), .. }));
     }
@@ -776,7 +776,7 @@ mod tests {
     fn test_kwargs() {
         let program = parse(r#"flow test:
     x = think(input, system="hello", tools=[])
-"#).unwrap();
+"#).expect("parse failed");
         let body = &program.flows[0].body;
         if let Stmt::Assign { expr: Expr::Call { kwargs, .. }, .. } = &body[0] {
             assert_eq!(kwargs.len(), 2);

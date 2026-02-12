@@ -340,5 +340,5 @@ fn trace_to_mock(path: &str) {
         "allow_shell": true
     });
 
-    println!("{}", serde_json::to_string_pretty(&mock).unwrap());
+    println!("{}", serde_json::to_string_pretty(&mock).unwrap_or_default());
 }

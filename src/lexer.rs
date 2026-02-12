@@ -172,12 +172,12 @@ impl Lexer {
             return;
         }
 
-        let current = *self.indent_stack.last().unwrap();
+        let current = *self.indent_stack.last().unwrap_or(&0);
         if spaces > current {
             self.indent_stack.push(spaces);
             tokens.push(self.spanned(Token::Indent));
         } else if spaces < current {
-            while self.indent_stack.len() > 1 && *self.indent_stack.last().unwrap() > spaces {
+            while self.indent_stack.len() > 1 && *self.indent_stack.last().unwrap_or(&0) > spaces {
                 self.indent_stack.pop();
                 tokens.push(self.spanned(Token::Dedent));
             }

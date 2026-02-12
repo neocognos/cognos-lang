@@ -39,13 +39,13 @@ impl Tracer {
     }
 
     pub fn increment_turn(&self) -> u32 {
-        let mut turn = self.turn.lock().unwrap();
+        let mut turn = self.turn.lock().unwrap_or_else(|e| e.into_inner());
         *turn += 1;
         *turn
     }
 
     pub fn current_turn(&self) -> u32 {
-        *self.turn.lock().unwrap()
+        *self.turn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     pub fn emit(&self, event: TraceEvent) {
