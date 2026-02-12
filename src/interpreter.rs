@@ -1707,13 +1707,9 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            let has_tools = tools.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
-            if has_tools {
-                // OAuth token can't do tool_use — use CLI with clean system prompt
-                return self.call_claude_cli(model, system, prompt, tools);
-            }
-            // No tools: API is 2-3x faster than CLI
-            return self.call_anthropic_api(model, system, prompt, tools);
+            // CLI with --tools "" --system-prompt for clean context (no Claude Code baggage)
+            // call_anthropic_api() exists for when a real API key is available
+            return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
