@@ -1,0 +1,105 @@
+import "lib/exec.cog"
+
+type HealthReport:
+    status: String
+    cpu_usage: String
+    memory_usage: String
+    disk_usage: String
+    issues: List
+    recommendations: List
+
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command. Output limited to 50 lines."
+    return __exec_shell__(f"{command} | head -50")
+
+flow read_file(path: String) -> String:
+    "Read the contents of a file"
+    return read(file(path))
+
+flow write_file(path: String, content: String) -> String:
+    "Write content to a file"
+    write(file(path), content)
+    return f"Wrote {content.length} chars to {path}"
+
+flow main():
+    write(stdout, "DevOps Agent — system health check + code quality audit\n")
+
+    # Phase 1: System health
+    write(stdout, "=== Phase 1: System Health ===")
+    
+    cpu = shell("top -bn1 | head -5")
+    write(stdout, f"CPU:\n{cpu}\n")
+
+    mem = shell("free -h")
+    write(stdout, f"Memory:\n{mem}\n")
+
+    disk = shell("df -h / /home 2>/dev/null")
+    write(stdout, f"Disk:\n{disk}\n")
+
+    uptime = shell("uptime")
+    write(stdout, f"Uptime: {uptime}")
+
+    health_data = f"System metrics:\nCPU:\n{cpu}\n\nMemory:\n{mem}\n\nDisk:\n{disk}\n\nUptime: {uptime}"
+    
+    health = think(
+        health_data,
+        model="claude-sonnet-4-20250514",
+        system="Analyze system health. Be specific about values.",
+        format="HealthReport"
+    )
+
+    write(stdout, f"\nHealth Status: {health[\"status\"]}")
+    write(stdout, f"CPU: {health[\"cpu_usage\"]}")
+    write(stdout, f"Memory: {health[\"memory_usage\"]}")
+    write(stdout, f"Disk: {health[\"disk_usage\"]}")
+    if health["issues"].length > 0:
+        write(stdout, "Issues:")
+        for issue in health["issues"]:
+            write(stdout, f"  ⚠ {issue}")
+    if health["recommendations"].length > 0:
+        write(stdout, "Recommendations:")
+        for rec in health["recommendations"]:
+            write(stdout, f"  → {rec}")
+
+    # Phase 2: Code quality
+    write(stdout, "\n=== Phase 2: Code Quality ===")
+
+    # Find TODO/FIXME/HACK comments
+    todos = shell("grep -rn 'TODO\\|FIXME\\|HACK\\|XXX' src/ 2>/dev/null || echo 'None found'")
+    write(stdout, f"TODOs/FIXMEs:\n{todos}\n")
+
+    # Check for unwrap() usage (potential panics)
+    unwraps = shell("grep -c 'unwrap()' src/*.rs 2>/dev/null | grep -v ':0$' || echo 'None'")
+    write(stdout, f"unwrap() usage by file:\n{unwraps}\n")
+
+    # Check test count
+    test_count = shell("grep -c '#\\[test\\]' tests/*.rs src/*.rs 2>/dev/null || echo '0'")
+    write(stdout, f"Test annotations:\n{test_count}\n")
+
+    # Get recent git activity
+    recent = shell("git log --oneline -5 2>/dev/null || echo 'no git'")
+    write(stdout, f"Recent commits:\n{recent}\n")
+
+    # Phase 3: LLM analysis of code quality
+    write(stdout, "=== Phase 3: Analysis ===")
+
+    quality_data = f"Code quality scan:\n\nTODO/FIXME comments:\n{todos}\n\nunwrap() usage:\n{unwraps}\n\nTest count:\n{test_count}\n\nRecent commits:\n{recent}"
+
+    analysis = think(
+        quality_data,
+        model="claude-sonnet-4-20250514",
+        system="You are a senior developer reviewing code quality. Be actionable and specific. Focus on reliability risks."
+    )
+
+    write(stdout, analysis)
+
+    # Save full report
+    report = {
+        "health": health,
+        "todos": todos,
+        "unwraps": unwraps,
+        "test_count": test_count,
+        "analysis": analysis
+    }
+    save("devops-report.json", report)
+    write(stdout, "\nFull report saved to devops-report.json")

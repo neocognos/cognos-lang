@@ -2281,3 +2281,13 @@ fn test_trace_to_mock_empty() {
     let mock: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert!(mock["stdin"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn test_mock_devops_agent() {
+    let (out, _, code) = run_test("devops-agent.cog", "devops-agent-sonnet.json");
+    assert_eq!(code, 0);
+    assert!(out.contains("Phase 1: System Health"));
+    assert!(out.contains("Phase 2: Code Quality"));
+    assert!(out.contains("Phase 3: Analysis"));
+    assert!(out.contains("Pass ✓"));
+}
