@@ -1707,13 +1707,6 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
-            // Try Cognos OAuth token first (native API, fast), fall back to CLI
-            if let Ok(token) = crate::oauth::get_access_token() {
-                log::info!("Using Cognos OAuth token for API call");
-                // Temporarily set it so call_anthropic_api can use it
-                return self.call_anthropic_api_with_token(model, system, prompt, tools, &token);
-            }
-            // Fallback: CLI with --tools "" --system-prompt
             return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
