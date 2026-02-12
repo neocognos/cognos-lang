@@ -1738,6 +1738,18 @@ impl Interpreter {
             (Value::String(a), BinOp::Eq, Value::String(b)) => Ok(Value::Bool(a == b)),
             (Value::String(a), BinOp::NotEq, Value::String(b)) => Ok(Value::Bool(a != b)),
 
+            // Boolean comparison
+            (Value::Bool(a), BinOp::Eq, Value::Bool(b)) => Ok(Value::Bool(a == b)),
+            (Value::Bool(a), BinOp::NotEq, Value::Bool(b)) => Ok(Value::Bool(a != b)),
+
+            // None comparison
+            (Value::None, BinOp::Eq, Value::None) => Ok(Value::Bool(true)),
+            (Value::None, BinOp::Eq, _) => Ok(Value::Bool(false)),
+            (_, BinOp::Eq, Value::None) => Ok(Value::Bool(false)),
+            (Value::None, BinOp::NotEq, Value::None) => Ok(Value::Bool(false)),
+            (Value::None, BinOp::NotEq, _) => Ok(Value::Bool(true)),
+            (_, BinOp::NotEq, Value::None) => Ok(Value::Bool(true)),
+
             // Boolean logic
             (Value::Bool(a), BinOp::And, Value::Bool(b)) => Ok(Value::Bool(*a && *b)),
             (Value::Bool(a), BinOp::Or, Value::Bool(b)) => Ok(Value::Bool(*a || *b)),

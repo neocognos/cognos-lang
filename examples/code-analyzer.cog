@@ -1,0 +1,74 @@
+import "lib/validated_think.cog"
+
+type FileAnalysis:
+    filename: String
+    purpose: String
+    complexity: Int
+    issues: List
+    suggestions: List
+
+type ProjectSummary:
+    total_files: Int
+    total_lines: Int
+    architecture: String
+    top_issues: List
+    overall_score: Int
+
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command. Output limited to 50 lines."
+    return __exec_shell__(f"{command} | head -50")
+
+flow read_file(path: String) -> String:
+    "Read the contents of a file"
+    return read(file(path))
+
+flow main():
+    write(stdout, "Code Analyzer — analyzing src/ directory...")
+
+    # Step 1: Discover files
+    files_raw = shell("find src -name '*.rs' -type f | sort | head -3")
+    files = files_raw.split("\n")
+    write(stdout, f"Found {files.length} source files")
+
+    # Step 2: Analyze each file
+    analyses = []
+    for filepath in files:
+        if filepath == "":
+            continue
+        write(stdout, f"\nAnalyzing {filepath}...")
+        try:
+            content = read_file(filepath)
+            lines = content.split("\n").length
+            # Truncate large files for LLM context
+            preview = content[0:2000]
+            analysis = validated_think(f"File: {filepath} ({lines} lines)\n\n{preview}", "FileAnalysis", "claude-sonnet-4-20250514", "Analyze this source file. Rate complexity 1-10. Be specific about issues and suggestions.", "qwen2.5:1.5b")
+            if analysis.contains("_error"):
+                write(stdout, f"  ⚠ Could not parse analysis for {filepath}")
+            else:
+                write(stdout, f"  Purpose: {analysis[\"purpose\"]}")
+                write(stdout, f"  Complexity: {analysis[\"complexity\"]}/10")
+                for issue in analysis["issues"]:
+                    write(stdout, f"  ⚠ {issue}")
+                analyses = analyses + [analysis]
+        catch err:
+            write(stdout, f"  ✗ Error: {err}")
+
+    # Step 3: Generate project summary
+    write(stdout, "\n--- Generating project summary ---")
+    analyses_text = ""
+    for a in analyses:
+        analyses_text = analyses_text + f"\n- {a[\"filename\"]}: complexity={a[\"complexity\"]}, issues={a[\"issues\"]}"
+
+    summary = validated_think(f"Project with {files.length} files:\n{analyses_text}", "ProjectSummary", "claude-sonnet-4-20250514", "Summarize this project analysis. Give an overall score 1-10.", "qwen2.5:1.5b")
+
+    write(stdout, f"\n=== Project Summary ===")
+    write(stdout, f"Files: {summary[\"total_files\"]}")
+    write(stdout, f"Architecture: {summary[\"architecture\"]}")
+    write(stdout, f"Score: {summary[\"overall_score\"]}/10")
+    write(stdout, "Top Issues:")
+    for issue in summary["top_issues"]:
+        write(stdout, f"  • {issue}")
+
+    # Save results
+    save("analysis-report.json", summary)
+    write(stdout, "\nReport saved to analysis-report.json")

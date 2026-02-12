@@ -1,0 +1,55 @@
+import "lib/validated_think.cog"
+
+type Report:
+    title: String
+    insights: List
+    recommendation: String
+
+flow shell(command: String) -> String:
+    "Execute a shell command"
+    return __exec_shell__(f"{command} | head -50")
+
+flow main():
+    write(stdout, "Data Pipeline — Analyzing git repository metrics\n")
+
+    # Step 1: Gather data
+    write(stdout, "Gathering metrics...")
+
+    commit_count = shell("git log --oneline | wc -l")
+    write(stdout, f"  Commits: {commit_count.strip()}")
+
+    recent_commits = shell("git log --oneline -10")
+    write(stdout, f"  Recent commits:\n{recent_commits}")
+
+    file_count = shell("find src -name '*.rs' | wc -l")
+    write(stdout, f"  Source files: {file_count.strip()}")
+
+    loc = shell("find src -name '*.rs' -exec cat {} + | wc -l")
+    write(stdout, f"  Lines of code: {loc.strip()}")
+
+    # Get contributor info
+    try:
+        authors = shell("git log --format='%an' | sort | uniq -c | sort -rn | head -5")
+        write(stdout, f"  Top contributors:\n{authors}")
+    catch:
+        authors = "unknown"
+
+    # Step 2: Analyze with LLM
+    write(stdout, "\nAnalyzing patterns...")
+    data = f"Repository stats:\n- Commits: {commit_count.strip()}\n- Files: {file_count.strip()}\n- LOC: {loc.strip()}\n- Recent commits:\n{recent_commits}\n- Contributors:\n{authors}"
+
+    report = validated_think(data, "Report", "claude-sonnet-4-20250514", "Analyze this git repository data. Provide actionable insights. Rate significance 1-10.", "qwen2.5:1.5b")
+
+    # Step 3: Output report
+    write(stdout, "\n==================================================")
+    write(stdout, f"  {report[\"title\"]}")
+    write(stdout, "==================================================")
+
+    for i, insight in report["insights"]:
+        write(stdout, f"\n  {i + 1}. {insight}")
+
+    write(stdout, f"\n  Recommendation: {report[\"recommendation\"]}")
+
+    # Save
+    save("pipeline-report.json", report)
+    write(stdout, "\nSaved to pipeline-report.json")

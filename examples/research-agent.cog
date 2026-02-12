@@ -1,0 +1,63 @@
+flow shell(command: String) -> String:
+    "Execute a sandboxed shell command. Output limited to 50 lines."
+    return __exec_shell__(f"{command} | head -50")
+
+flow read_file(path: String) -> String:
+    "Read the contents of a file"
+    return read(file(path))
+
+flow write_file(path: String, content: String) -> String:
+    "Write content to a file"
+    write(file(path), content)
+    return f"Wrote {content.length} chars to {path}"
+
+flow main():
+    write(stdout, "Research Agent — I can explore codebases, read files, run commands, and take notes.")
+    write(stdout, "Commands: 'notes' to see notes, 'save' to export, 'quit' to exit.\n")
+
+    history = []
+    notes = []
+
+    loop:
+        input = read(stdin)
+
+        if input == "quit":
+            break
+        if input == "notes":
+            if notes.length == 0:
+                write(stdout, "No notes yet.")
+            else:
+                write(stdout, "--- Notes ---")
+                for i, note in notes:
+                    write(stdout, f"{i + 1}. {note}")
+                write(stdout, "---")
+            continue
+        if input == "save":
+            write(file("research-notes.md"), notes.join("\n"))
+            write(stdout, f"Saved {notes.length} notes to research-notes.md")
+            continue
+
+        history = history + [f"User: {input}"]
+        context = history.join("\n")
+
+        response = think(context, model="claude-sonnet-4-20250514", system="You are a research assistant exploring a codebase. Use tools to investigate. When you find something important, include NOTE: <finding> in your response.", tools=["shell", "read_file", "write_file"])
+
+        # Tool call loop
+        loop max=5:
+            if response["has_tool_calls"] == false:
+                break
+            response = exec(response, tools=["shell", "read_file", "write_file"])
+
+        result = response
+        if response["has_tool_calls"] == false:
+            result = response["content"]
+
+        # Extract notes from response
+        lines = f"{result}".split("\n")
+        for line in lines:
+            if line.contains("NOTE:"):
+                note = line.replace("NOTE:", "").strip()
+                notes = notes + [note]
+
+        history = history + [f"Assistant: {result}"]
+        write(stdout, result)
