@@ -11,7 +11,7 @@ COGNOS = os.path.expanduser("~/clawd/neocognos/cognos-lang/target/release/cognos
 AGENT = os.path.expanduser("~/clawd/neocognos/cognos-lang/examples/coding-agent.cog")
 COGNOS_DIR = os.path.expanduser("~/clawd/neocognos/cognos-lang")
 
-def run_instance(instance, timeout=300):
+def run_instance(instance, timeout=600):
     """Run the coding agent on a single SWE-bench instance."""
     instance_id = instance["instance_id"]
     repo = instance["repo"]

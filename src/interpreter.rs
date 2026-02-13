@@ -1936,6 +1936,10 @@ impl Interpreter {
             return self.call_openai_compat(model, system, prompt, tools,
                 "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY");
         }
+        if model.starts_with("MiniMax") || model.starts_with("minimax") {
+            return self.call_openai_compat(model, system, prompt, tools,
+                "https://api.minimax.io/v1/chat/completions", "MINIMAX_API_KEY");
+        }
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
         }
@@ -2461,7 +2465,13 @@ impl Interpreter {
         }
 
         let choice = &json["choices"][0]["message"];
-        let content = choice["content"].as_str().unwrap_or("").to_string();
+        let raw_content = choice["content"].as_str().unwrap_or("").to_string();
+        // Strip <think>...</think> tags (MiniMax reasoning tokens)
+        let content = if let Some(end) = raw_content.find("</think>") {
+            raw_content[end + 8..].trim().to_string()
+        } else {
+            raw_content
+        };
 
         // Check for tool calls
         if let Some(tool_calls_arr) = choice.get("tool_calls").and_then(|v| v.as_array()) {

@@ -68,7 +68,7 @@ flow explore(repo_path: String, issue: String) -> String:
     # Ask LLM to identify relevant files
     r = think(
         f"Given this repo structure:\n{structure}\n\nAnd this issue:\n{issue}\n\nWhich files are most likely relevant? List the top 5 file paths.",
-        model="deepseek-chat"
+        model="MiniMax-M2.5"
     )
     remember(f"Relevant files: {r.content}")
 
@@ -76,7 +76,7 @@ flow explore(repo_path: String, issue: String) -> String:
     files = r.content
     r2 = think(
         f"Files identified as relevant:\n{files}\n\nI need to read these files to understand the code. Which file should I read first?",
-        model="deepseek-chat",
+        model="MiniMax-M2.5",
         tools=["read_file", "search", "read_lines"],
         system="Read the most relevant files to understand the bug. Use tools."
     )
@@ -96,7 +96,7 @@ flow plan_fix(issue: String) -> String:
     
     r = think(
         f"{context}\nIssue to fix:\n{issue}\n\nPlan a minimal, targeted fix. Describe exactly which file(s) to edit, what to change, and why.",
-        model="deepseek-chat",
+        model="MiniMax-M2.5",
         system="You are an expert software engineer. Plan the smallest possible fix that resolves the issue without side effects. Be specific about file paths and line numbers."
     )
     
@@ -115,7 +115,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     # Step 1: Read the file that needs editing
     r1 = think(
         f"{context}\nFix plan:\n{plan}\n\nRead the file that needs to be fixed.",
-        model="deepseek-chat",
+        model="MiniMax-M2.5",
         tools=["read_file", "read_lines", "search"],
         system="Read the file that needs fixing. Use read_file with the exact path."
     )
@@ -128,7 +128,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     # Step 2: Apply the fix using shell + python3 for reliable file editing
     r2 = think(
         f"{context}\nCurrent file contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nUse the shell tool to apply the fix. Use python3 to read the file, modify it, and write it back. Or use sed -i for simple replacements.",
-        model="deepseek-chat",
+        model="MiniMax-M2.5",
         tools=["shell", "read_file", "write_file"],
         system=f"Apply the fix in {repo_path}. Use shell() to run python3 or sed commands that edit files in place. For complex edits, write a python3 script to /tmp/fix.py first using write_file, then run it with shell('python3 /tmp/fix.py'). Verify with shell('git diff --stat') after editing."
     )
@@ -149,7 +149,7 @@ flow verify(repo_path: String, test_cmd: String) -> Map:
     
     r = think(
         f"Test output:\n{output}\n\nDid the tests pass? Reply with ONLY 'PASS' or 'FAIL: <reason>'",
-        model="deepseek-chat"
+        model="MiniMax-M2.5"
     )
     
     passed = r.content.strip().starts_with("PASS")
@@ -169,7 +169,7 @@ flow self_correct(error: String, attempt: Int, issue: String, repo_path: String)
     
     r = think(
         f"{context}Original issue:\n{issue}\n\nAnalyze why the fix failed and propose a DIFFERENT approach.",
-        model="deepseek-chat",
+        model="MiniMax-M2.5",
         tools=["read_file", "search", "shell", "read_lines"],
         system="You are debugging a failed fix. Read the relevant code, understand why it failed, and propose a different strategy. Do NOT repeat previous attempts."
     )
