@@ -60,33 +60,10 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     dirs = shell(f"cd {repo_path} && find . -maxdepth 2 -type f -name '*.py' | head -30")
     top = shell(f"cd {repo_path} && ls -la")
     
-    system_prompt = f"""You are an expert software engineer fixing a bug in a Python repository.
-
-Repository: {repo_path}
-Top-level files:
-{top}
-
-Python files:
-{dirs}
-
-YOUR TASK: Fix the bug described below. Follow these steps:
-1. SEARCH for relevant code using search() and read_file()/read_lines()
-2. UNDERSTAND the bug — find the exact file and line causing the issue  
-3. EDIT the code using edit_file(path, old_text, new_text) — be precise with old_text
-4. VERIFY your fix with git_diff() to confirm the change looks correct
-
-IMPORTANT RULES:
-- Use search() to find relevant code, don't guess file paths
-- Use read_lines() to read specific sections, not entire large files
-- Use edit_file() for edits — provide exact old_text that exists in the file
-- After editing, ALWAYS call git_diff() to verify
-- When done, say DONE and summarize what you changed
-
-Bug report:
-{issue}"""
+    system_prompt = f"You are an expert software engineer fixing a bug in a Python repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYOUR TASK: Fix the bug described below. Follow these steps:\n1. SEARCH for relevant code using search() and read_file()/read_lines()\n2. UNDERSTAND the bug — find the exact file and line causing the issue\n3. EDIT the code using edit_file(path, old_text, new_text) — be precise with old_text\n4. VERIFY your fix with git_diff() to confirm the change looks correct\n\nIMPORTANT RULES:\n- Use search() to find relevant code, don't guess file paths\n- Use read_lines() to read specific sections, not entire large files\n- Use edit_file() for edits — provide exact old_text that exists in the file\n- After editing, ALWAYS call git_diff() to verify\n- When done, say DONE and summarize what you changed\n\nBug report:\n{issue}"
 
     r = think(
-        "Find and fix the bug described in the system prompt. Start by searching for relevant code.",
+        f"Find and fix this bug. Start by using search() to find relevant code.\n\nBug report:\n{issue}",
         model="deepseek-chat",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
         system=system_prompt

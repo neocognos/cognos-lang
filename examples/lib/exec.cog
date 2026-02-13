@@ -1,12 +1,11 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 5, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "deepseek-chat") -> Map:
-    "Execute tool calls from a think() response in an agentic loop.
-     Runs tool calls, feeds results back to the LLM, repeats until
-     the LLM responds without tool calls or max_turns is reached.
-     Keeps only last 2 turns of context to avoid confusion."
+flow exec(response: Map, tools: List = [], max_turns: Int = 10, system: String = "", model: String = "deepseek-chat") -> Map:
+    "Agentic tool loop: run tool calls, feed results back to LLM, repeat.
+     The system prompt is preserved across all turns for context continuity."
     
     current = response
     turn = 0
-    prev_context = ""
+    # Keep a rolling history of the last 3 turns to maintain context
+    history = []
     
     loop:
         if turn >= max_turns:
@@ -15,23 +14,29 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 5, system: String = 
             break
         
         # Execute all tool calls
-        tool_summary = ""
+        tool_results = []
         for call in current["tool_calls"]:
             name = call["name"]
             args = call["arguments"]
             result = invoke(name, args)
-            # Truncate large results
             result_str = f"{result}"
-            if result_str.length > 2000:
-                result_str = result_str[:2000] + "\n... (truncated)"
-            tool_summary = tool_summary + f"\n[{name} returned]:\n{result_str}\n"
+            if result_str.length > 3000:
+                result_str = result_str[:3000] + "\n... (truncated)"
+            tool_results = tool_results + [f"[{name}({args}) returned]:\n{result_str}"]
         
-        # Only keep the latest tool results (not full history) to avoid context bloat
-        prev_context = f"Tool results from turn {turn + 1}:{tool_summary}"
+        tool_output = tool_results.join("\n\n")
         
-        # Call LLM again with just the latest results
+        # Add to rolling history (keep last 3 turns)
+        history = history + [f"Turn {turn + 1} tool results:\n{tool_output}"]
+        if history.length > 3:
+            history = history[history.length - 3:]
+        
+        # Build context with history
+        context = history.join("\n---\n")
+        
+        # Call LLM with system prompt preserved + tool results
         current = think(
-            f"{prev_context}\n\nBased on these results, continue your task. Use tools if you need more info, or provide your final answer.",
+            f"Previous tool results:\n{context}\n\nContinue working on the task. Use tools if needed, or provide your final answer when done.",
             model=model,
             tools=tools,
             system=system
