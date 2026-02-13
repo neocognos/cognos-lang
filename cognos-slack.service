@@ -1,0 +1,19 @@
+[Unit]
+Description=Cognos Slack Dev Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=reza
+WorkingDirectory=/home/reza/clawd/neocognos/cognos-lang
+Environment=PATH=/home/reza/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/reza/clawd/neocognos/cognos-lang/.env
+ExecStart=/home/reza/clawd/neocognos/cognos-lang/target/release/cognos run --memory --allow-shell examples/slack-cognos-dev.cog
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
