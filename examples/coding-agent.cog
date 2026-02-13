@@ -114,29 +114,29 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     for fact in knowledge:
         context = context + f"- {fact}\n"
     
-    # Step 1: Read the file that needs editing
+    # Step 1: Read the file that needs editing (DeepSeek for better code understanding)
     r1 = think(
-        f"{context}\nFix plan:\n{plan}\n\nRead the file that needs to be fixed.",
-        model="MiniMax-M2.5",
+        f"{context}\nFix plan:\n{plan}\n\nRead the file that needs to be fixed. Use read_file or read_lines with the exact path.",
+        model="deepseek-chat",
         tools=["read_file", "read_lines", "search"],
-        system=f"You are working in repo at {repo_path}. Read the file that needs fixing. Use read_file with the exact path from the repo root."
+        system=f"You are working in repo at {repo_path}. Read the file that needs fixing. Be precise — use the file paths from the fix plan."
     )
     
     file_contents = ""
     if r1.has_tool_calls:
-        result = exec(r1, tools=["read_file", "read_lines", "search"], system=f"You are working in repo at {repo_path}. Read the file that needs fixing.")
+        result = exec(r1, tools=["read_file", "read_lines", "search"], model="deepseek-chat", system=f"You are working in repo at {repo_path}. Read the file that needs fixing.")
         file_contents = result.content
     
-    # Step 2: Apply the fix using shell + python3 for reliable file editing
+    # Step 2: Apply the fix (DeepSeek for reliable code edits)
     r2 = think(
-        f"{context}\nCurrent file contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nUse the shell tool to apply the fix. Use python3 to read the file, modify it, and write it back. Or use sed -i for simple replacements.",
-        model="MiniMax-M2.5",
+        f"{context}\nCurrent file contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nApply the fix now. Use shell() with sed -i or python3 to edit the file. For multi-line edits, write a python3 script to /tmp/fix.py then run it.",
+        model="deepseek-chat",
         tools=["shell", "read_file", "write_file"],
-        system=f"Apply the fix in {repo_path}. Use shell() to run python3 or sed commands that edit files in place. For complex edits, write a python3 script to /tmp/fix.py first using write_file, then run it with shell('python3 /tmp/fix.py'). Verify with shell('git diff --stat') after editing."
+        system=f"You are an expert coder working in {repo_path}. Apply the fix using shell(). For simple changes use sed -i. For complex changes write a python3 script to /tmp/fix.py and run it. ALWAYS verify with shell('cd {repo_path} && git diff') after editing."
     )
     
     if r2.has_tool_calls:
-        result = exec(r2, tools=["shell", "read_file", "write_file"], system=f"Apply the fix in {repo_path}. Use shell() for python3/sed edits. Verify with shell('cd {repo_path} && git diff --stat') after editing.")
+        result = exec(r2, tools=["shell", "read_file", "write_file"], model="deepseek-chat", system=f"Apply the fix in {repo_path}. Use shell() for edits. Verify with git diff after.")
         remember(f"Implementation result: {result.content}")
     
     # Check if changes were made

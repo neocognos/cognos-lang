@@ -1,11 +1,12 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 8, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "MiniMax-M2.5") -> Map:
+flow exec(response: Map, tools: List = [], max_turns: Int = 5, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "MiniMax-M2.5") -> Map:
     "Execute tool calls from a think() response in an agentic loop.
      Runs tool calls, feeds results back to the LLM, repeats until
-     the LLM responds without tool calls or max_turns is reached."
+     the LLM responds without tool calls or max_turns is reached.
+     Keeps only last 2 turns of context to avoid confusion."
     
     current = response
     turn = 0
-    context = ""
+    prev_context = ""
     
     loop:
         if turn >= max_turns:
@@ -19,17 +20,18 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 8, system: String = 
             name = call["name"]
             args = call["arguments"]
             result = invoke(name, args)
-            tool_summary = tool_summary + f"\n[{name} returned]:\n{result}\n"
+            # Truncate large results
+            result_str = f"{result}"
+            if result_str.length > 2000:
+                result_str = result_str[:2000] + "\n... (truncated)"
+            tool_summary = tool_summary + f"\n[{name} returned]:\n{result_str}\n"
         
-        # Build context
-        assistant_msg = current["content"]
-        if assistant_msg == none:
-            assistant_msg = ""
-        context = context + f"\nYour previous response: {assistant_msg}\n\nTool results:{tool_summary}\n---\n"
+        # Only keep the latest tool results (not full history) to avoid context bloat
+        prev_context = f"Tool results from turn {turn + 1}:{tool_summary}"
         
-        # Call LLM again with accumulated context
+        # Call LLM again with just the latest results
         current = think(
-            f"{context}\nContinue: use tools again if needed, or provide your final answer/analysis.",
+            f"{prev_context}\n\nBased on these results, continue your task. Use tools if you need more info, or provide your final answer.",
             model=model,
             tools=tools,
             system=system
