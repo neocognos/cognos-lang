@@ -560,7 +560,63 @@ run_inline "fuzz-slice" "flow main():
     write(stdout, f\"len={r.length}\")" "" "len="
 
 log ""
-log "=== SECTION 7: Chat Sessions with Varied Inputs ==="
+log "=== SECTION 7: Memory System ==="
+
+MEMDB="/tmp/cognos-test-memory-$$.db"
+rm -f "$MEMDB"
+
+# Basic remember + recall
+run_inline "mem-remember-recall" 'flow main():
+    remember("The sky is blue")
+    remember("Cognos is written in Rust")
+    remember("P11 means lean core runtime")
+    results = recall("what color is the sky", limit=3)
+    for r in results:
+        write(stdout, r)' "" "sky is blue" "--memory --memory-db $MEMDB" 15
+
+# Recall with keyword boost (hybrid search)
+run_inline "mem-hybrid-keyword" 'flow main():
+    remember("BUG-42: parser fails on empty blocks")
+    remember("The weather is nice today")
+    remember("Rust is a systems language")
+    results = recall("BUG-42", limit=3)
+    write(stdout, results[0])' "" "BUG-42" "--memory --memory-db $MEMDB" 15
+
+# Dedup: storing same fact twice should skip
+MEMDB_DEDUP="/tmp/cognos-test-dedup-$$.db"
+rm -f "$MEMDB_DEDUP"
+run_inline "mem-dedup" 'flow main():
+    remember("duplicate fact here")
+    remember("duplicate fact here")
+    results = recall("duplicate", limit=5)
+    write(stdout, f"count={results.length}")' "" "count=1" "--memory --memory-db $MEMDB_DEDUP" 15
+rm -f "$MEMDB_DEDUP"
+
+# Forget
+run_inline "mem-forget" 'flow main():
+    remember("temporary note about testing")
+    n = forget("temporary note")
+    write(stdout, f"forgot={n}")
+    results = recall("temporary note", limit=5)
+    write(stdout, f"remaining={results.length}")' "" "forgot=1" "--memory --memory-db $MEMDB" 15
+
+# Recall with no matches returns empty list
+run_inline "mem-recall-empty" 'flow main():
+    results = recall("xyzzy nonexistent query", limit=3)
+    write(stdout, f"len={results.length}")' "" "len=" "--memory --memory-db $MEMDB" 15
+
+# Namespace isolation
+MEMDB2="/tmp/cognos-test-memory2-$$.db"
+rm -f "$MEMDB2"
+run_inline "mem-namespace" 'flow main():
+    remember("agent-specific fact")
+    results = recall("agent-specific", limit=3)
+    write(stdout, f"found={results.length}")' "" "found=1" "--memory --memory-db $MEMDB2 --memory-ns test-agent" 15
+
+rm -f "$MEMDB" "$MEMDB2"
+
+log ""
+log "=== SECTION 8: Chat Sessions with Varied Inputs ==="
 
 # Randomized multi-turn chat
 GREETINGS=("Hello" "Hi there" "Hey" "Greetings" "Good day")
