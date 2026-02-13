@@ -1930,6 +1930,10 @@ impl Interpreter {
             if !images.is_empty() {
                 return self.call_anthropic_api_with_images(model, system, prompt, tools, images);
             }
+            // Use Anthropic API if key is available (native tool support), fall back to CLI
+            if std::env::var("ANTHROPIC_API_KEY").is_ok() || std::path::Path::new(".env").exists() {
+                return self.call_anthropic_api(model, system, prompt, tools);
+            }
             return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("deepseek") {
