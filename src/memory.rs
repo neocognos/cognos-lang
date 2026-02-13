@@ -153,7 +153,9 @@ impl MemoryStore {
             .collect::<Vec<f64>>();
 
         if embedding.is_empty() {
-            bail!("empty embedding returned");
+            log::warn!("empty embedding returned for text: {:?}", &text[..text.len().min(50)]);
+            // Return zero vector of expected dimension (768 for most models)
+            return Ok(vec![0.0; 768]);
         }
         Ok(embedding)
     }

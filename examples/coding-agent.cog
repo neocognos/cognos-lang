@@ -76,7 +76,7 @@ flow explore(repo_path: String, issue: String) -> String:
     )
     
     if r.has_tool_calls:
-        result = exec(r, tools=["search", "find_files", "read_file", "read_lines"])
+        result = exec(r, tools=["search", "find_files", "read_file", "read_lines"], system=f"You are working in repo at {repo_path}. Find the relevant source files for this bug. Use search() and read_file() to examine code. Be efficient.")
         remember(f"Exploration findings: {result.content}")
     else:
         remember(f"Exploration analysis: {r.content}")
@@ -99,7 +99,7 @@ flow plan_fix(issue: String) -> String:
     )
     
     if r.has_tool_calls:
-        result = exec(r, tools=["read_file", "read_lines", "search"])
+        result = exec(r, tools=["read_file", "read_lines", "search"], system="You are an expert software engineer. Plan the smallest possible fix. Be specific about file paths and line numbers.")
         plan = result.content
     else:
         plan = r.content
@@ -124,7 +124,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     
     file_contents = ""
     if r1.has_tool_calls:
-        result = exec(r1, tools=["read_file", "read_lines", "search"])
+        result = exec(r1, tools=["read_file", "read_lines", "search"], system=f"You are working in repo at {repo_path}. Read the file that needs fixing.")
         file_contents = result.content
     
     # Step 2: Apply the fix using shell + python3 for reliable file editing
@@ -136,7 +136,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     )
     
     if r2.has_tool_calls:
-        result = exec(r2, tools=["shell", "read_file", "write_file"])
+        result = exec(r2, tools=["shell", "read_file", "write_file"], system=f"Apply the fix in {repo_path}. Use shell() for python3/sed edits. Verify with shell('cd {repo_path} && git diff --stat') after editing.")
         remember(f"Implementation result: {result.content}")
     
     # Check if changes were made
@@ -191,7 +191,7 @@ flow self_correct(error: String, attempt: Int, issue: String, repo_path: String)
     )
     
     if r.has_tool_calls:
-        result = exec(r, tools=["read_file", "search", "shell", "read_lines"])
+        result = exec(r, tools=["read_file", "search", "shell", "read_lines"], system=f"You are debugging a failed fix in {repo_path}. Read code, understand the failure, propose a different strategy.")
         new_plan = result.content
     else:
         new_plan = r.content

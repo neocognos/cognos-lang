@@ -1,13 +1,39 @@
-flow exec(response: Map, tools: List = []) -> Map:
-    "Execute tool calls from a think() response by invoking named flows"
-    if response["has_tool_calls"] == false:
-        return response
-    results = []
-    for call in response["tool_calls"]:
-        name = call["name"]
-        args = call["arguments"]
-        result = invoke(name, args)
-        results = results + [f"[Tool result from {name}]: {result}"]
-    content = response["content"]
-    tool_output = results.join("\n")
-    return {"content": f"{content}\n{tool_output}", "has_tool_calls": false}
+flow exec(response: Map, tools: List = [], max_turns: Int = 8, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "MiniMax-M2.5") -> Map:
+    "Execute tool calls from a think() response in an agentic loop.
+     Runs tool calls, feeds results back to the LLM, repeats until
+     the LLM responds without tool calls or max_turns is reached."
+    
+    current = response
+    turn = 0
+    context = ""
+    
+    loop:
+        if turn >= max_turns:
+            break
+        if current["has_tool_calls"] == false:
+            break
+        
+        # Execute all tool calls
+        tool_summary = ""
+        for call in current["tool_calls"]:
+            name = call["name"]
+            args = call["arguments"]
+            result = invoke(name, args)
+            tool_summary = tool_summary + f"\n[{name} returned]:\n{result}\n"
+        
+        # Build context
+        assistant_msg = current["content"]
+        if assistant_msg == none:
+            assistant_msg = ""
+        context = context + f"\nYour previous response: {assistant_msg}\n\nTool results:{tool_summary}\n---\n"
+        
+        # Call LLM again with accumulated context
+        current = think(
+            f"{context}\nContinue: use tools again if needed, or provide your final answer/analysis.",
+            model=model,
+            tools=tools,
+            system=system
+        )
+        turn = turn + 1
+    
+    return {"content": current["content"], "has_tool_calls": false, "turns": turn}
