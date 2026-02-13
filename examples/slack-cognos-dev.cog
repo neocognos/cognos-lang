@@ -44,7 +44,12 @@ flow write_file(path: String, content: String) -> String:
     save(path, content)
     return f"Wrote {path}"
 
-flow respond(input: String, user: String, history: List) -> String:
+flow analyze_image(path: String, prompt: String) -> String:
+    "Analyze an image using a vision model"
+    r = think(prompt, model="minicpm-v", images=[path])
+    return r.content
+
+flow respond(input: String, user: String, history: List, image_paths: List = []) -> String:
     facts = recall(input, limit=5)
     recent = history[-6:]
 
@@ -66,11 +71,20 @@ flow respond(input: String, user: String, history: List) -> String:
             context = context + f"{msg}\n"
         context = context + "\n"
 
+    # If images were attached, analyze them first and include in context
+    if image_paths.length > 0:
+        for img_path in image_paths:
+            vision_prompt = input
+            if vision_prompt.strip() == "":
+                vision_prompt = "Describe this image in detail. If it contains code, errors, or technical content, explain what you see."
+            analysis = analyze_image(img_path, vision_prompt)
+            context = context + f"[Image analysis: {analysis}]\n\n"
+
     r = think(
         f"{context}User ({user}): {input}",
         model="deepseek-chat",
         tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"],
-        system="You are the Cognos Development Agent connected to Slack. Be concise and technical. Use tools to inspect code, run tests, and build. You can also write code when asked."
+        system="You are the Cognos Development Agent connected to Slack. Be concise and technical. Use tools to inspect code, run tests, and build. You can also write code when asked. If image analysis results are provided in context, incorporate them into your response."
     )
 
     if r.has_tool_calls:
@@ -110,12 +124,21 @@ flow main():
         input = msg.text
         user = msg.user
 
-        if input.strip() == "":
+        if input.strip() == "" and msg.files.length == 0:
             continue
+
+        # Download any image attachments
+        image_paths = []
+        if msg.files.length > 0:
+            for file in msg.files:
+                if file.mimetype.starts_with("image/"):
+                    dl_path = f"/tmp/cognos-slack-{file.name}"
+                    download(file.url, dl_path, channel=slack)
+                    image_paths = image_paths + [dl_path]
 
         history = history + [f"User ({user}): {input}"]
 
-        response = respond(input, user, history)
+        response = respond(input, user, history, image_paths=image_paths)
         write(slack, response)
 
         history = history + [f"Agent: {response}"]
