@@ -958,12 +958,23 @@ impl Interpreter {
                 let mut system = std::string::String::new();
                 let mut format_type: Option<std::string::String> = None;
                 let mut tool_names: Vec<std::string::String> = Vec::new();
+                let mut image_paths: Vec<std::string::String> = Vec::new();
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
                         "model" => model = val.to_string(),
                         "system" => system = val.to_string(),
                         "format" => format_type = Some(val.to_string()),
+                        "images" => {
+                            if let Value::List(items) = val {
+                                for item in items {
+                                    image_paths.push(item.to_string());
+                                }
+                            } else {
+                                // Single image path
+                                image_paths.push(val.to_string());
+                            }
+                        }
                         "tools" => {
                             if let Value::List(items) = val {
                                 for item in items {
@@ -1009,7 +1020,7 @@ impl Interpreter {
                 };
 
                 let prompt_text = context.to_string();
-                let result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone())?;
+                let result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
 
                 // Track conversation history
                 self.conversation_history.push(("user".to_string(), prompt_text.clone()));
@@ -1857,7 +1868,7 @@ impl Interpreter {
         })
     }
 
-    fn call_llm(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
+    fn call_llm(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, images: &[std::string::String]) -> Result<Value> {
         // Check if mock env handles LLM calls
         if self.env.lock().unwrap().is_mock() {
             // Mock environment — use env.call_llm
@@ -1894,6 +1905,10 @@ impl Interpreter {
         }
         // Real environment — route to correct provider
         if model.starts_with("claude") {
+            // If images are provided, use Anthropic API (CLI doesn't support images)
+            if !images.is_empty() {
+                return self.call_anthropic_api_with_images(model, system, prompt, tools, images);
+            }
             return self.call_claude_cli(model, system, prompt, tools);
         }
         if model.starts_with("deepseek") {
@@ -1903,7 +1918,7 @@ impl Interpreter {
         if model.starts_with("gpt-") || model.starts_with("o1-") || model.starts_with("o3-") {
             return self.call_openai(model, system, prompt, tools);
         }
-        self.call_ollama(model, system, prompt, tools)
+        self.call_ollama(model, system, prompt, tools, images)
     }
 
     fn call_claude_cli(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
@@ -2117,6 +2132,112 @@ impl Interpreter {
             ]));
         }
         self.trace_llm(model, "anthropic-api", latency, prompt, system, &content, false);
+        Ok(Value::String(content))
+    }
+
+    fn call_anthropic_api_with_images(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, images: &[String]) -> Result<Value> {
+        // Read ANTHROPIC_API_KEY from environment
+        let token = std::env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| anyhow::anyhow!("ANTHROPIC_API_KEY not set — needed for vision (Claude CLI doesn't support images)"))?;
+
+        let call_start = std::time::Instant::now();
+        log::info!("Calling Anthropic API (vision): model={}, images={}, tools={}", model, images.len(), tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        // Build multimodal content: images first, then text
+        let mut content_parts: Vec<serde_json::Value> = Vec::new();
+        for path in images {
+            let data = std::fs::read(path)
+                .map_err(|e| anyhow::anyhow!("Failed to read image {}: {}", path, e))?;
+            let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &data);
+            let media_type = if path.ends_with(".png") { "image/png" }
+                else if path.ends_with(".gif") { "image/gif" }
+                else if path.ends_with(".webp") { "image/webp" }
+                else { "image/jpeg" };
+            content_parts.push(serde_json::json!({
+                "type": "image",
+                "source": { "type": "base64", "media_type": media_type, "data": b64 }
+            }));
+        }
+        content_parts.push(serde_json::json!({ "type": "text", "text": prompt }));
+
+        let mut body = serde_json::json!({
+            "model": model,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": content_parts}]
+        });
+        if !system.is_empty() {
+            body["system"] = serde_json::json!(system);
+        }
+        if let Some(ref tool_defs) = tools {
+            let api_tools: Vec<serde_json::Value> = tool_defs.iter().map(|t| {
+                serde_json::json!({
+                    "name": t["function"]["name"].as_str().unwrap_or("unknown"),
+                    "description": t["function"]["description"].as_str().unwrap_or(""),
+                    "input_schema": t["function"]["parameters"]
+                })
+            }).collect();
+            body["tools"] = serde_json::json!(api_tools);
+        }
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client.post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &token)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Anthropic API request failed: {}", e))?;
+
+        let status = resp.status();
+        let resp_text = resp.text().map_err(|e| anyhow::anyhow!("Failed to read API response: {}", e))?;
+
+        if !status.is_success() {
+            bail!("Anthropic API error ({}): {}", status, &resp_text[..resp_text.len().min(500)]);
+        }
+
+        let parsed: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse API response: {}", e))?;
+
+        let latency = call_start.elapsed().as_millis() as u64;
+        let stop_reason = parsed["stop_reason"].as_str().unwrap_or("");
+        let content_blocks = parsed["content"].as_array()
+            .ok_or_else(|| anyhow::anyhow!("No content in API response"))?;
+
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => { if let Some(t) = block["text"].as_str() { text_parts.push(t.to_string()); } }
+                Some("tool_use") => {
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = self.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+        let content = text_parts.join("\n");
+        log::info!("Anthropic API (vision): {}ms, stop={}, tools={}", latency, stop_reason, tool_calls.len());
+
+        if stop_reason == "tool_use" || !tool_calls.is_empty() {
+            self.trace_llm(model, "anthropic-api-vision", latency, prompt, system, &content, true);
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("tool_calls".to_string(), Value::List(tool_calls)),
+                ("has_tool_calls".to_string(), Value::Bool(true)),
+            ]));
+        }
+        if tools.is_some() {
+            self.trace_llm(model, "anthropic-api-vision", latency, prompt, system, &content, false);
+            return Ok(Value::Map(vec![
+                ("content".to_string(), Value::String(content)),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]));
+        }
+        self.trace_llm(model, "anthropic-api-vision", latency, prompt, system, &content, false);
         Ok(Value::String(content))
     }
 
@@ -2473,15 +2594,31 @@ impl Interpreter {
         }
     }
 
-    fn call_ollama(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
-        log::info!("Calling Ollama: model={}, system={:?}, tools={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0));
+    fn call_ollama(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, images: &[std::string::String]) -> Result<Value> {
+        log::info!("Calling Ollama: model={}, system={:?}, tools={}, images={}", model, system, tools.as_ref().map(|t| t.len()).unwrap_or(0), images.len());
         let call_start = std::time::Instant::now();
 
         let mut messages = Vec::new();
         if !system.is_empty() {
             messages.push(serde_json::json!({"role": "system", "content": system}));
         }
-        messages.push(serde_json::json!({"role": "user", "content": prompt}));
+
+        // Build user message with optional images (base64-encoded)
+        let mut user_msg = serde_json::json!({"role": "user", "content": prompt});
+        if !images.is_empty() {
+            let mut b64_images = Vec::new();
+            for path in images {
+                let bytes = std::fs::read(path)
+                    .map_err(|e| anyhow::anyhow!("cannot read image '{}': {}", path, e))?;
+                use base64::Engine;
+                b64_images.push(serde_json::Value::String(
+                    base64::engine::general_purpose::STANDARD.encode(&bytes)
+                ));
+                log::info!("image: {} ({} bytes)", path, bytes.len());
+            }
+            user_msg["images"] = serde_json::Value::Array(b64_images);
+        }
+        messages.push(user_msg);
 
         let mut body = serde_json::json!({
             "model": model,

@@ -45,8 +45,8 @@ flow write_file(path: String, content: String) -> String:
     return f"Wrote {path}"
 
 flow analyze_image(path: String, prompt: String) -> String:
-    "Analyze an image using a vision model"
-    r = think(prompt, model="minicpm-v", images=[path])
+    "Analyze an image using Claude vision (Anthropic API)"
+    r = think(prompt, model="claude-sonnet-4-20250514", images=[path])
     return r.content
 
 flow respond(input: String, user: String, history: List, image_paths: List = []) -> String:
