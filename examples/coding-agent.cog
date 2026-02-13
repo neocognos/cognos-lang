@@ -13,28 +13,34 @@ flow shell(command: String) -> String:
     return __exec_shell__(command)
 
 flow read_file(path: String) -> String:
-    "Read a file from the repository"
-    return __exec_shell__(f"cat {path}")
+    "Read a file from the repository. Path can be relative (resolved from repo root) or absolute."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && cat {path}")
 
 flow read_lines(path: String, start: Int, end: Int) -> String:
     "Read specific lines from a file (sed)"
-    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && sed -n '{start},{end}p' {path}")
 
 flow search(pattern: String, path: String = ".") -> String:
     "Search for a pattern in code files (grep -rn)"
-    return __exec_shell__(f"grep -rn '{pattern}' {path} --include='*.py' | head -40")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rn '{pattern}' {path} --include='*.py' | head -40")
 
 flow find_files(pattern: String) -> String:
     "Find files matching a pattern"
-    return __exec_shell__(f"find . -name '{pattern}' -not -path './.git/*' | head -30")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
 
 flow list_dir(path: String = ".") -> String:
     "List directory contents"
-    return __exec_shell__(f"ls -la {path}")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
 
 flow run_test(test_cmd: String) -> String:
     "Run a test command and return output"
-    return __exec_shell__(f"{test_cmd} 2>&1 | tail -50")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && {test_cmd} 2>&1 | tail -50")
 
 flow apply_patch(patch: String) -> String:
     "Apply a patch using heredoc"
@@ -42,13 +48,14 @@ flow apply_patch(patch: String) -> String:
     return __exec_shell__("cd /tmp && cat cognos-patch.diff")
 
 flow write_file(path: String, content: String) -> String:
-    "Write content to a file"
+    "Write content to a file. For code edits, prefer using shell() with sed or python3 -c instead."
     save(path, content)
     return f"Wrote {path}"
 
 flow git_diff() -> String:
     "Show current uncommitted changes as unified diff"
-    return __exec_shell__("git diff")
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
 
 # --- Agent logic ---
 
@@ -98,26 +105,45 @@ flow plan_fix(issue: String) -> String:
     return plan
 
 flow implement_fix(plan: String, repo_path: String) -> String:
-    "Implement the planned fix by editing files"
+    "Implement the planned fix by reading code and applying edits"
     knowledge = recall(plan, limit=5)
     
     context = "Relevant context:\n"
     for fact in knowledge:
         context = context + f"- {fact}\n"
     
-    r = think(
-        f"{context}\nFix plan:\n{plan}\n\nImplement this fix. Edit the necessary files.",
+    # Step 1: Read the files that need editing
+    r1 = think(
+        f"{context}\nFix plan:\n{plan}\n\nWhich files do I need to read to implement this fix? Use read_file or read_lines to examine them.",
         model="deepseek-chat",
-        tools=["read_file", "write_file", "shell", "search", "read_lines"],
-        system=f"You are implementing a bug fix in {repo_path}. Use tools to read files, then write the fixed versions. Make minimal changes."
+        tools=["read_file", "read_lines", "search"],
+        system="Read the files needed for the fix. Do NOT edit yet, just read."
     )
     
-    if r.has_tool_calls:
-        result = exec(r, tools=["read_file", "write_file", "shell", "search", "read_lines"])
-        remember(f"Implementation result: {result.content}")
-        return result.content
+    file_contents = ""
+    if r1.has_tool_calls:
+        result = exec(r1, tools=["read_file", "read_lines", "search"])
+        file_contents = result.content
     
-    return r.content
+    # Step 2: Generate the exact edit as a shell command
+    r2 = think(
+        f"{context}\nFile contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nWrite a shell command using python3 -c or sed -i to apply the fix. The command must edit the file IN PLACE. Output ONLY the shell command, nothing else.",
+        model="deepseek-chat",
+        system="You are a coding agent. Output ONLY a shell command that applies the fix. Use python3 -c with open/read/write/replace for complex edits, or sed -i for simple ones. No explanation, no markdown, no code fences. Just the raw command."
+    )
+    
+    edit_cmd = r2.content.strip()
+    
+    # Step 3: Apply the edit
+    result = shell(f"cd {repo_path} && {edit_cmd}")
+    remember(f"Applied edit: {edit_cmd}")
+    remember(f"Edit result: {result}")
+    
+    # Verify the edit took effect
+    diff = shell(f"cd {repo_path} && git diff --stat")
+    remember(f"Files changed: {diff}")
+    
+    return f"Edit applied. Changes: {diff}"
 
 flow verify(repo_path: String, test_cmd: String) -> Map:
     "Run tests and return pass/fail with output"
@@ -159,7 +185,7 @@ flow self_correct(error: String, attempt: Int, issue: String, repo_path: String)
     remember(f"Attempt {attempt} failed: {error}. New plan: {new_plan}")
     return new_plan
 
-flow solve(issue: String, repo_path: String, test_cmd: String = "python -m pytest", max_attempts: Int = 3) -> String:
+flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pytest", max_attempts: Int = 3) -> String:
     "Solve a GitHub issue: explore → plan → implement → verify → self-correct"
     
     # Phase 1: Explore
@@ -195,21 +221,22 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python -m pytes
     return diff
 
 flow main():
-    # Read issue from stdin
-    write(stdout, "Enter issue description (then Ctrl+D):")
-    issue = read(stdin)
+    # Read issue from /tmp/cognos-issue.txt, repo path from /tmp/cognos-repo.txt
+    # (Set by wrapper script before running)
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
     
-    if issue == none:
-        write(stdout, "No issue provided")
-        return none
-    
-    write(stdout, "Enter repo path:")
-    repo_path = read(stdin)
-    
-    if repo_path == none:
-        repo_path = "."
-    
-    repo_path = repo_path.strip()
+    if issue.strip() == "":
+        # Fallback: interactive mode
+        write(stdout, "Enter issue (Ctrl+D to end):")
+        issue = read(stdin)
+        if issue == none:
+            return none
+        write(stdout, "Enter repo path:")
+        repo_path = read(stdin)
+        if repo_path == none:
+            repo_path = "."
+        repo_path = repo_path.strip()
     
     write(stdout, f"Solving issue in {repo_path}...")
     
