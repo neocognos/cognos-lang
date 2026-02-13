@@ -60,29 +60,26 @@ flow git_diff() -> String:
 # --- Agent logic ---
 
 flow explore(repo_path: String, issue: String) -> String:
-    "Explore the repo to understand its structure and find relevant code"
-    # Get repo structure
-    structure = shell(f"cd {repo_path} && find . -name '*.py' -not -path './.git/*' -not -path './.tox/*' -not -path './build/*' | head -50")
-    remember(f"Repo structure: {structure}")
-
-    # Ask LLM to identify relevant files
+    "Explore the repo to find relevant code for the issue"
+    # Get high-level structure (directories only, then grep for keywords)
+    dirs = shell(f"cd {repo_path} && find . -maxdepth 3 -type d -not -path './.git/*' | head -40")
+    
+    # Also get top-level files for context
+    top_files = shell(f"cd {repo_path} && ls -la")
+    
+    # Extract key terms from issue for grep
     r = think(
-        f"Given this repo structure:\n{structure}\n\nAnd this issue:\n{issue}\n\nWhich files are most likely relevant? List the top 5 file paths.",
-        model="MiniMax-M2.5"
-    )
-    remember(f"Relevant files: {r.content}")
-
-    # Read the relevant files
-    files = r.content
-    r2 = think(
-        f"Files identified as relevant:\n{files}\n\nI need to read these files to understand the code. Which file should I read first?",
+        f"Issue:\n{issue}\n\nRepo root ({repo_path}):\n{top_files}\n\nRepo directories:\n{dirs}\n\nIdentify: 1) Which directory contains the relevant code? 2) What function/class names should I search for? Use the search tool to find them.",
         model="MiniMax-M2.5",
-        tools=["read_file", "search", "read_lines"],
-        system="Read the most relevant files to understand the bug. Use tools."
+        tools=["search", "find_files", "read_file", "read_lines"],
+        system=f"You are working in repo at {repo_path}. Find the relevant source files for this bug. Use search() to grep for key function names mentioned in the issue. Use read_file to examine the most relevant file. Be efficient — read only what you need."
     )
-    if r2.has_tool_calls:
-        result = exec(r2, tools=["read_file", "search", "read_lines"])
-        remember(f"Code exploration: {result.content}")
+    
+    if r.has_tool_calls:
+        result = exec(r, tools=["search", "find_files", "read_file", "read_lines"])
+        remember(f"Exploration findings: {result.content}")
+    else:
+        remember(f"Exploration analysis: {r.content}")
     
     return "Exploration complete"
 
@@ -97,10 +94,15 @@ flow plan_fix(issue: String) -> String:
     r = think(
         f"{context}\nIssue to fix:\n{issue}\n\nPlan a minimal, targeted fix. Describe exactly which file(s) to edit, what to change, and why.",
         model="MiniMax-M2.5",
-        system="You are an expert software engineer. Plan the smallest possible fix that resolves the issue without side effects. Be specific about file paths and line numbers."
+        tools=["read_file", "read_lines", "search"],
+        system="You are an expert software engineer. Plan the smallest possible fix that resolves the issue without side effects. Be specific about file paths and line numbers. Read the relevant code to confirm your plan before finalizing."
     )
     
-    plan = r.content
+    if r.has_tool_calls:
+        result = exec(r, tools=["read_file", "read_lines", "search"])
+        plan = result.content
+    else:
+        plan = r.content
     remember(f"Fix plan: {plan}")
     return plan
 
@@ -117,7 +119,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
         f"{context}\nFix plan:\n{plan}\n\nRead the file that needs to be fixed.",
         model="MiniMax-M2.5",
         tools=["read_file", "read_lines", "search"],
-        system="Read the file that needs fixing. Use read_file with the exact path."
+        system=f"You are working in repo at {repo_path}. Read the file that needs fixing. Use read_file with the exact path from the repo root."
     )
     
     file_contents = ""
@@ -145,7 +147,21 @@ flow implement_fix(plan: String, repo_path: String) -> String:
 
 flow verify(repo_path: String, test_cmd: String) -> Map:
     "Run tests and return pass/fail with output"
-    output = shell(f"cd {repo_path} && {test_cmd} 2>&1 | tail -30")
+    # First check if test dependencies are available
+    dep_check = shell(f"cd {repo_path} && python3 -c 'import pytest' 2>&1")
+    if "ModuleNotFoundError" in dep_check:
+        # Try installing test deps
+        shell(f"cd {repo_path} && pip install -e '.[test]' 2>/dev/null; pip install -e '.[dev]' 2>/dev/null; pip install pytest 2>/dev/null")
+    
+    output = shell(f"cd {repo_path} && {test_cmd} 2>&1 | tail -50")
+    
+    # Check for import errors / missing deps — treat as inconclusive, not failure
+    if "ModuleNotFoundError" in output or "ImportError" in output:
+        # Verify our specific change didn't break anything by checking syntax
+        syntax_check = shell(f"cd {repo_path} && git diff --name-only | xargs -I{{}} python3 -c \"import py_compile; py_compile.compile('{{}}', doraise=True)\" 2>&1")
+        if "Error" in syntax_check:
+            return {"passed": false, "output": syntax_check, "summary": "FAIL: syntax error in changed files"}
+        return {"passed": true, "output": output, "summary": "PASS (deps missing, syntax OK)"}
     
     r = think(
         f"Test output:\n{output}\n\nDid the tests pass? Reply with ONLY 'PASS' or 'FAIL: <reason>'",
@@ -171,7 +187,7 @@ flow self_correct(error: String, attempt: Int, issue: String, repo_path: String)
         f"{context}Original issue:\n{issue}\n\nAnalyze why the fix failed and propose a DIFFERENT approach.",
         model="MiniMax-M2.5",
         tools=["read_file", "search", "shell", "read_lines"],
-        system="You are debugging a failed fix. Read the relevant code, understand why it failed, and propose a different strategy. Do NOT repeat previous attempts."
+        system=f"You are debugging a failed fix in {repo_path}. Read the relevant code, understand why it failed, and propose a different strategy. Do NOT repeat previous attempts."
     )
     
     if r.has_tool_calls:

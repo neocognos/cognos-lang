@@ -120,6 +120,26 @@ def run_instance(instance, timeout=600):
             "model_patch": patch
         }
 
+def estimate_difficulty(instance):
+    """Rough heuristic: shorter problem statements with clear error messages are easier."""
+    problem = instance["problem_statement"]
+    score = 0
+    # Short problems tend to be simpler
+    if len(problem) < 500:
+        score += 2
+    elif len(problem) < 1000:
+        score += 1
+    # Clear error traces help
+    if "TypeError" in problem or "AttributeError" in problem or "ValueError" in problem:
+        score += 2
+    if "Traceback" in problem:
+        score += 1
+    # Single-file repos are easier
+    repo = instance["repo"]
+    if repo.startswith("psf/requests") or repo.startswith("pallets/flask"):
+        score += 1
+    return score
+
 def main():
     # Load dataset
     ds = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
@@ -128,12 +148,25 @@ def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 5
     start = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     output_file = sys.argv[3] if len(sys.argv) > 3 else "/tmp/cognos-swe-predictions.jsonl"
+    easy_first = "--easy" in sys.argv
     
-    print(f"Running {n} instances starting from {start}")
+    if easy_first:
+        # Sort by estimated difficulty (easiest first)
+        indices = sorted(range(len(ds)), key=lambda i: -estimate_difficulty(ds[i]))
+        print(f"Running {n} EASIEST instances (sorted by heuristic)")
+    else:
+        indices = list(range(len(ds)))
+        print(f"Running {n} instances starting from {start}")
+    
     print(f"Output: {output_file}")
     
     predictions = []
-    for i in range(start, min(start + n, len(ds))):
+    if easy_first:
+        run_indices = indices[start:start + n]
+    else:
+        run_indices = list(range(start, min(start + n, len(ds))))
+    
+    for i in run_indices:
         pred = run_instance(ds[i])
         predictions.append(pred)
         
