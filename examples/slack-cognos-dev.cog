@@ -75,7 +75,13 @@ flow respond(input: String, user: String, history: List) -> String:
 
     if r.has_tool_calls:
         result = exec(r, tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"])
-        return result.content
+        # Synthesize a clean response from tool output
+        summary = think(
+            f"Tool results:\n{result.content}\n\nOriginal question from user: {input}\n\nSummarize the tool results into a concise, helpful response for the user.",
+            model="deepseek-chat",
+            system="You are the Cognos Development Agent. Summarize tool output into clean, concise responses. No raw dumps. Format nicely for Slack."
+        )
+        return summary.content
     return r.content
 
 flow bootstrap_memory():

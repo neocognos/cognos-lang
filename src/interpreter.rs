@@ -747,7 +747,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "channel", "__exec_shell__", "history", "clear_history"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "channel", "download", "__exec_shell__", "history", "clear_history"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -1068,6 +1068,73 @@ impl Interpreter {
                 }
                 log::info!("channel: created {} handle", provider);
                 Ok(Value::Handle(Handle::Channel { provider, config }))
+            }
+            "download" => {
+                // download(url, path, channel=handle) — HTTP GET → save to file
+                // channel= kwarg provides auth from channel handle automatically
+                if args.len() < 2 { bail!("download(url, path) or download(url, path, channel=handle)"); }
+                let url = self.eval(&args[0])?.to_string();
+                let path = self.eval(&args[1])?.to_string();
+
+                // Build auth headers from kwargs
+                let mut headers = reqwest::header::HeaderMap::new();
+                for (k, v) in kwargs {
+                    match k.as_str() {
+                        "channel" => {
+                            if let Value::Handle(Handle::Channel { ref provider, ref config }) = self.eval(v)? {
+                                match provider.as_str() {
+                                    "slack" => {
+                                        if let Some(token) = config.get("token") {
+                                            headers.insert(
+                                                reqwest::header::AUTHORIZATION,
+                                                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token))
+                                                    .map_err(|e| anyhow::anyhow!("invalid auth header: {}", e))?,
+                                            );
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        "headers" => {
+                            if let Value::Map(pairs) = self.eval(v)? {
+                                for (hk, hv) in &pairs {
+                                    headers.insert(
+                                        reqwest::header::HeaderName::from_bytes(hk.as_bytes())
+                                            .map_err(|e| anyhow::anyhow!("invalid header name '{}': {}", hk, e))?,
+                                        reqwest::header::HeaderValue::from_str(&hv.to_string())
+                                            .map_err(|e| anyhow::anyhow!("invalid header value: {}", e))?,
+                                    );
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let client = reqwest::blocking::Client::new();
+                let resp = client.get(&url)
+                    .headers(headers)
+                    .send()
+                    .map_err(|e| anyhow::anyhow!("download failed: {}", e))?;
+
+                if !resp.status().is_success() {
+                    bail!("download failed: HTTP {}", resp.status());
+                }
+
+                let bytes = resp.bytes()
+                    .map_err(|e| anyhow::anyhow!("download read failed: {}", e))?;
+
+                // Create parent dirs if needed
+                if let Some(parent) = std::path::Path::new(&path).parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| anyhow::anyhow!("cannot create directory: {}", e))?;
+                }
+                std::fs::write(&path, &bytes)
+                    .map_err(|e| anyhow::anyhow!("cannot write file '{}': {}", path, e))?;
+
+                log::info!("download: {} → {} ({} bytes)", url, path, bytes.len());
+                Ok(Value::Int(bytes.len() as i64))
             }
             "read" => {
                 // read() or read(handle) — default: stdin
@@ -2666,11 +2733,33 @@ impl Interpreter {
                     self.vars.insert(last_ts_key, Value::String(last_ts));
 
                     log::info!("slack: received message from {} in {}", user, channel);
-                    // Return as a Map with text, user, ts
+
+                    // Extract files (attachments, inline images, etc)
+                    let files = if let Some(file_arr) = msg["files"].as_array() {
+                        file_arr.iter().map(|f| {
+                            Value::Map(vec![
+                                ("name".to_string(), Value::String(
+                                    f["name"].as_str().unwrap_or("unknown").to_string())),
+                                ("url".to_string(), Value::String(
+                                    f["url_private_download"].as_str()
+                                        .or_else(|| f["url_private"].as_str())
+                                        .unwrap_or("").to_string())),
+                                ("mimetype".to_string(), Value::String(
+                                    f["mimetype"].as_str().unwrap_or("application/octet-stream").to_string())),
+                                ("size".to_string(), Value::Int(
+                                    f["size"].as_i64().unwrap_or(0))),
+                            ])
+                        }).collect()
+                    } else {
+                        vec![]
+                    };
+
+                    // Return normalized message shape: {text, user, ts, files}
                     return Ok(Value::Map(vec![
                         ("text".to_string(), Value::String(text)),
                         ("user".to_string(), Value::String(user)),
                         ("ts".to_string(), Value::String(ts.to_string())),
+                        ("files".to_string(), Value::List(files)),
                     ]));
                 }
             }
