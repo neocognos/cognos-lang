@@ -76,7 +76,7 @@ flow explore(repo_path: String, issue: String) -> String:
     )
     
     if r.has_tool_calls:
-        result = exec(r, tools=["search", "find_files", "read_file", "read_lines"], system=f"You are working in repo at {repo_path}. Find the relevant source files for this bug. Use search() and read_file() to examine code. Be efficient.")
+        result = exec(r, tools=["search", "find_files", "read_file", "read_lines"], system=f"You are working in repo at {repo_path}. Issue: {issue}\n\nFind the relevant source files for this bug. Use search() and read_file() to examine code. Be efficient.")
         remember(f"Exploration findings: {result.content}")
     else:
         remember(f"Exploration analysis: {r.content}")
@@ -124,7 +124,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     
     file_contents = ""
     if r1.has_tool_calls:
-        result = exec(r1, tools=["read_file", "read_lines", "search"], model="deepseek-chat", system=f"You are working in repo at {repo_path}. Read the file that needs fixing.")
+        result = exec(r1, tools=["read_file", "read_lines", "search"], model="deepseek-chat", system=f"You are working in repo at {repo_path}. Fix plan:\n{plan}\n\nRead the file that needs fixing based on this plan.")
         file_contents = result.content
     
     # Step 2: Apply the fix (DeepSeek for reliable code edits)
@@ -136,7 +136,7 @@ flow implement_fix(plan: String, repo_path: String) -> String:
     )
     
     if r2.has_tool_calls:
-        result = exec(r2, tools=["shell", "read_file", "write_file"], model="deepseek-chat", system=f"Apply the fix in {repo_path}. Use shell() for edits. Verify with git diff after.")
+        result = exec(r2, tools=["shell", "read_file", "write_file"], model="deepseek-chat", system=f"Apply the fix in {repo_path}. Fix plan:\n{plan}\n\nUse shell() with sed -i or python3 to edit files. Verify with shell('cd {repo_path} && git diff') after.")
         remember(f"Implementation result: {result.content}")
     
     # Check if changes were made
