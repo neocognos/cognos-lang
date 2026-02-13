@@ -1286,6 +1286,27 @@ impl Interpreter {
                 log::info!("Saved to {}", path);
                 Ok(Value::None)
             }
+            "write_text" => {
+                // write_text(path, content) — write raw text to a file
+                if args.len() < 2 { bail!("write_text(path, content)"); }
+                let path = self.eval(&args[0])?.to_string();
+                let content = self.eval(&args[1])?.to_string();
+                // Create parent directories if needed
+                if let Some(parent) = std::path::Path::new(&path).parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                self.env.lock().unwrap().write_file(&path, &content)?;
+                log::info!("write_text: {} ({} bytes)", path, content.len());
+                Ok(Value::None)
+            }
+            "read_text" => {
+                // read_text(path) — read raw text from a file
+                if args.is_empty() { bail!("read_text(path)"); }
+                let path = self.eval(&args[0])?.to_string();
+                let content = self.env.lock().unwrap().read_file(&path)?;
+                log::info!("read_text: {} ({} bytes)", path, content.len());
+                Ok(Value::String(content))
+            }
             "load" => {
                 // load(path) — load a JSON file back to a Value via Env
                 if args.is_empty() { bail!("load(path)"); }

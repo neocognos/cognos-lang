@@ -48,8 +48,8 @@ flow apply_patch(patch: String) -> String:
     return __exec_shell__("cd /tmp && cat cognos-patch.diff")
 
 flow write_file(path: String, content: String) -> String:
-    "Write content to a file. For code edits, prefer using shell() with sed or python3 -c instead."
-    save(path, content)
+    "Write raw text content to a file. Use for creating or overwriting files."
+    write_text(path, content)
     return f"Wrote {path}"
 
 flow git_diff() -> String:
@@ -105,19 +105,19 @@ flow plan_fix(issue: String) -> String:
     return plan
 
 flow implement_fix(plan: String, repo_path: String) -> String:
-    "Implement the planned fix by reading code and applying edits"
+    "Implement the planned fix: read file, generate fixed version, write it back"
     knowledge = recall(plan, limit=5)
     
     context = "Relevant context:\n"
     for fact in knowledge:
         context = context + f"- {fact}\n"
     
-    # Step 1: Read the files that need editing
+    # Step 1: Read the file that needs editing
     r1 = think(
-        f"{context}\nFix plan:\n{plan}\n\nWhich files do I need to read to implement this fix? Use read_file or read_lines to examine them.",
+        f"{context}\nFix plan:\n{plan}\n\nRead the file that needs to be fixed.",
         model="deepseek-chat",
         tools=["read_file", "read_lines", "search"],
-        system="Read the files needed for the fix. Do NOT edit yet, just read."
+        system="Read the file that needs fixing. Use read_file with the exact path."
     )
     
     file_contents = ""
@@ -125,25 +125,23 @@ flow implement_fix(plan: String, repo_path: String) -> String:
         result = exec(r1, tools=["read_file", "read_lines", "search"])
         file_contents = result.content
     
-    # Step 2: Generate the exact edit as a shell command
+    # Step 2: Apply the fix using shell + python3 for reliable file editing
     r2 = think(
-        f"{context}\nFile contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nWrite a shell command using python3 -c or sed -i to apply the fix. The command must edit the file IN PLACE. Output ONLY the shell command, nothing else.",
+        f"{context}\nCurrent file contents:\n{file_contents}\n\nFix plan:\n{plan}\n\nUse the shell tool to apply the fix. Use python3 to read the file, modify it, and write it back. Or use sed -i for simple replacements.",
         model="deepseek-chat",
-        system="You are a coding agent. Output ONLY a shell command that applies the fix. Use python3 -c with open/read/write/replace for complex edits, or sed -i for simple ones. No explanation, no markdown, no code fences. Just the raw command."
+        tools=["shell", "read_file", "write_file"],
+        system=f"Apply the fix in {repo_path}. Use shell() to run python3 or sed commands that edit files in place. For complex edits, write a python3 script to /tmp/fix.py first using write_file, then run it with shell('python3 /tmp/fix.py'). Verify with shell('git diff --stat') after editing."
     )
     
-    edit_cmd = r2.content.strip()
+    if r2.has_tool_calls:
+        result = exec(r2, tools=["shell", "read_file", "write_file"])
+        remember(f"Implementation result: {result.content}")
     
-    # Step 3: Apply the edit
-    result = shell(f"cd {repo_path} && {edit_cmd}")
-    remember(f"Applied edit: {edit_cmd}")
-    remember(f"Edit result: {result}")
-    
-    # Verify the edit took effect
+    # Check if changes were made
     diff = shell(f"cd {repo_path} && git diff --stat")
     remember(f"Files changed: {diff}")
     
-    return f"Edit applied. Changes: {diff}"
+    return f"Changes: {diff}"
 
 flow verify(repo_path: String, test_cmd: String) -> Map:
     "Run tests and return pass/fail with output"
