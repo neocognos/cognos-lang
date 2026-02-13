@@ -149,17 +149,17 @@ flow verify(repo_path: String, test_cmd: String) -> Map:
     "Run tests and return pass/fail with output"
     # First check if test dependencies are available
     dep_check = shell(f"cd {repo_path} && python3 -c 'import pytest' 2>&1")
-    if "ModuleNotFoundError" in dep_check:
+    if dep_check.contains("ModuleNotFoundError"):
         # Try installing test deps
         shell(f"cd {repo_path} && pip install -e '.[test]' 2>/dev/null; pip install -e '.[dev]' 2>/dev/null; pip install pytest 2>/dev/null")
     
     output = shell(f"cd {repo_path} && {test_cmd} 2>&1 | tail -50")
     
     # Check for import errors / missing deps — treat as inconclusive, not failure
-    if "ModuleNotFoundError" in output or "ImportError" in output:
+    if output.contains("ModuleNotFoundError") or output.contains("ImportError"):
         # Verify our specific change didn't break anything by checking syntax
         syntax_check = shell(f"cd {repo_path} && git diff --name-only | xargs -I{{}} python3 -c \"import py_compile; py_compile.compile('{{}}', doraise=True)\" 2>&1")
-        if "Error" in syntax_check:
+        if syntax_check.contains("Error"):
             return {"passed": false, "output": syntax_check, "summary": "FAIL: syntax error in changed files"}
         return {"passed": true, "output": output, "summary": "PASS (deps missing, syntax OK)"}
     
