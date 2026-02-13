@@ -49,18 +49,17 @@ flow analyze_image(path: String, prompt: String) -> String:
     r = think(prompt, model="claude-sonnet-4-20250514", images=[path])
     return r.content
 
-flow respond(input: String, user: String, history: List, image_paths: List = []) -> String:
+flow build_context(input: String, user: String, history: List, image_paths: List = []) -> String:
+    "Build context string from memory, history, and images"
     facts = recall(input, limit=5)
     recent = history[-6:]
 
     context = "You are the Cognos Development Agent — an expert on the Cognos agentic programming language (written in Rust).\n"
-    context = context + "You help design, implement, debug, and test Cognos features.\n"
     context = context + "The codebase is at /home/reza/clawd/neocognos/cognos-lang/\n"
-    context = context + "Key files: src/token.rs, src/lexer.rs, src/ast.rs, src/parser.rs, src/interpreter.rs, src/memory.rs, src/main.rs\n"
-    context = context + "Always use PATH=$HOME/.cargo/bin:$PATH for cargo commands.\n\n"
+    context = context + "Key files: src/token.rs, src/lexer.rs, src/ast.rs, src/parser.rs, src/interpreter.rs, src/memory.rs, src/main.rs\n\n"
 
     if facts.length > 0:
-        context = context + "Relevant knowledge:\n"
+        context = context + "Your knowledge:\n"
         for fact in facts:
             context = context + f"- {fact}\n"
         context = context + "\n"
@@ -71,7 +70,6 @@ flow respond(input: String, user: String, history: List, image_paths: List = [])
             context = context + f"{msg}\n"
         context = context + "\n"
 
-    # If images were attached, analyze them first and include in context
     if image_paths.length > 0:
         for img_path in image_paths:
             vision_prompt = input
@@ -80,20 +78,36 @@ flow respond(input: String, user: String, history: List, image_paths: List = [])
             analysis = analyze_image(img_path, vision_prompt)
             context = context + f"[Image analysis: {analysis}]\n\n"
 
+    return context
+
+flow respond(input: String, user: String, history: List, image_paths: List = []) -> String:
+    context = build_context(input, user, history, image_paths)
+    prompt = f"{context}User ({user}): {input}"
+
+    # Phase 1: Try answering from knowledge alone (no tools)
     r = think(
-        f"{context}User ({user}): {input}",
+        prompt,
+        model="deepseek-chat",
+        system="You are the Cognos Development Agent. Answer concisely and directly. If you can answer from your knowledge, do so. If you need to inspect code, run tests, read files, or check live system state, respond EXACTLY with: NEED_TOOLS"
+    )
+
+    if r.content.strip() != "NEED_TOOLS":
+        return r.content
+
+    # Phase 2: Question requires action — use tools
+    r = think(
+        prompt,
         model="deepseek-chat",
         tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"],
-        system="You are the Cognos Development Agent connected to Slack. Be concise and technical. Use tools to inspect code, run tests, and build. You can also write code when asked. If image analysis results are provided in context, incorporate them into your response."
+        system="You are the Cognos Development Agent. Use tools to inspect code, run tests, build, or check system state. Use PATH=$HOME/.cargo/bin:$PATH for cargo."
     )
 
     if r.has_tool_calls:
         result = exec(r, tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"])
-        # Synthesize a clean response from tool output
         summary = think(
-            f"Tool results:\n{result.content}\n\nOriginal question from user: {input}\n\nSummarize the tool results into a concise, helpful response for the user.",
+            f"Tool results:\n{result.content}\n\nOriginal question: {input}\n\nSummarize concisely for Slack.",
             model="deepseek-chat",
-            system="You are the Cognos Development Agent. Summarize tool output into clean, concise responses. No raw dumps. Format nicely for Slack."
+            system="Summarize tool output into a clean, direct response. No filler."
         )
         return summary.content
     return r.content
@@ -103,7 +117,7 @@ flow bootstrap_memory():
     remember("Key source files: token.rs, lexer.rs, ast.rs, parser.rs, interpreter.rs, memory.rs, main.rs")
     remember("Core builtins: think(), remember(), recall(), forget(), read(), write(), save(), load(), exec(), channel()")
     remember("LLM routing: claude-* -> CLI, deepseek-* -> DeepSeek API, gpt-* -> OpenAI, else -> Ollama")
-    remember("Design principle P11: Lean core runtime — think/act/observe/remember only")
+    remember("Design principle P11: Lean core runtime — Cognos handles think/act/observe/remember only. Everything else is out of scope. Resist general-purpose language creep. Math module was removed for this reason.")
     remember("Always use PATH=$HOME/.cargo/bin:$PATH for cargo (Rust 1.93 via rustup)")
     remember("Tests: cargo test for unit tests, test-harness.sh for integration, test-deep.sh for adversarial")
     remember("Concurrency: parallel/branch, async/await, select (first-to-complete)")

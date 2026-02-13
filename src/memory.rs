@@ -82,7 +82,7 @@ impl MemoryStore {
     /// Semantic search. Returns up to `limit` facts, most relevant first.
     pub fn recall(&self, query: &str, limit: usize) -> Result<Vec<String>> {
         let embedding = self.embed(query)?;
-        let results = self.search_raw(&embedding, limit)?;
+        let results = self.search_hybrid(&embedding, query, limit)?;
         
         // Update access counts
         let db = self.db.lock().unwrap();
@@ -159,12 +159,34 @@ impl MemoryStore {
     }
 
     fn search_raw(&self, query_embedding: &[f64], limit: usize) -> Result<Vec<(String, f64)>> {
+        self.search_hybrid(query_embedding, "", limit)
+    }
+
+    /// Hybrid search: semantic similarity + keyword boost.
+    /// Words from the query that appear in a fact's text boost its score.
+    /// This handles identifiers/labels (P11, BUG-3, etc.) that embeddings miss.
+    fn search_hybrid(&self, query_embedding: &[f64], query_text: &str, limit: usize) -> Result<Vec<(String, f64)>> {
         let all = self.all_with_embeddings()?;
+        // Extract query tokens for keyword matching (lowercase, 2+ chars)
+        let query_tokens: Vec<String> = query_text
+            .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+            .filter(|w| w.len() >= 2)
+            .map(|w| w.to_lowercase())
+            .collect();
+
         let mut scored: Vec<(String, f64)> = all
             .into_iter()
             .map(|(_id, text, emb)| {
-                let score = cosine_similarity(query_embedding, &emb);
-                (text, score)
+                let semantic_score = cosine_similarity(query_embedding, &emb);
+                // Keyword boost: for each query token found in the text, add a boost
+                let text_lower = text.to_lowercase();
+                let keyword_hits = query_tokens.iter()
+                    .filter(|token| text_lower.contains(token.as_str()))
+                    .count();
+                // Boost: 0.15 per keyword hit, capped at 0.3
+                let keyword_boost = (keyword_hits as f64 * 0.15).min(0.3);
+                let combined = semantic_score + keyword_boost;
+                (text, combined)
             })
             .collect();
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
