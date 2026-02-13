@@ -70,7 +70,7 @@ flow explore(repo_path: String, issue: String) -> String:
     # Extract key terms from issue for grep
     r = think(
         f"Issue:\n{issue}\n\nRepo root ({repo_path}):\n{top_files}\n\nRepo directories:\n{dirs}\n\nIdentify: 1) Which directory contains the relevant code? 2) What function/class names should I search for? Use the search tool to find them.",
-        model="MiniMax-M2.5",
+        model="deepseek-chat",
         tools=["search", "find_files", "read_file", "read_lines"],
         system=f"You are working in repo at {repo_path}. Find the relevant source files for this bug. Use search() to grep for key function names mentioned in the issue. Use read_file to examine the most relevant file. Be efficient — read only what you need."
     )
@@ -93,7 +93,7 @@ flow plan_fix(issue: String) -> String:
     
     r = think(
         f"{context}\nIssue to fix:\n{issue}\n\nPlan a minimal, targeted fix. Describe exactly which file(s) to edit, what to change, and why.",
-        model="MiniMax-M2.5",
+        model="deepseek-chat",
         tools=["read_file", "read_lines", "search"],
         system="You are an expert software engineer. Plan the smallest possible fix that resolves the issue without side effects. Be specific about file paths and line numbers. Read the relevant code to confirm your plan before finalizing."
     )
@@ -165,7 +165,7 @@ flow verify(repo_path: String, test_cmd: String) -> Map:
     
     r = think(
         f"Test output:\n{output}\n\nDid the tests pass? Reply with ONLY 'PASS' or 'FAIL: <reason>'",
-        model="MiniMax-M2.5"
+        model="deepseek-chat"
     )
     
     passed = r.content.strip().starts_with("PASS")
@@ -185,7 +185,7 @@ flow self_correct(error: String, attempt: Int, issue: String, repo_path: String)
     
     r = think(
         f"{context}Original issue:\n{issue}\n\nAnalyze why the fix failed and propose a DIFFERENT approach.",
-        model="MiniMax-M2.5",
+        model="deepseek-chat",
         tools=["read_file", "search", "shell", "read_lines"],
         system=f"You are debugging a failed fix in {repo_path}. Read the relevant code, understand why it failed, and propose a different strategy. Do NOT repeat previous attempts."
     )

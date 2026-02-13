@@ -1,4 +1,4 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 5, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "MiniMax-M2.5") -> Map:
+flow exec(response: Map, tools: List = [], max_turns: Int = 5, system: String = "Continue your task. Use tools if needed, or provide your final answer.", model: String = "deepseek-chat") -> Map:
     "Execute tool calls from a think() response in an agentic loop.
      Runs tool calls, feeds results back to the LLM, repeats until
      the LLM responds without tool calls or max_turns is reached.
