@@ -1,0 +1,220 @@
+# coding-agent.cog — Autonomous coding agent for resolving GitHub issues
+# Run: cognos run --memory --allow-shell examples/coding-agent.cog
+#
+# Input: issue description via stdin or params
+# Output: unified diff patch to stdout
+
+import "lib/exec.cog"
+
+# --- Tool flows (available to think()) ---
+
+flow shell(command: String) -> String:
+    "Run a shell command in the repository"
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file from the repository"
+    return __exec_shell__(f"cat {path}")
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read specific lines from a file (sed)"
+    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Search for a pattern in code files (grep -rn)"
+    return __exec_shell__(f"grep -rn '{pattern}' {path} --include='*.py' | head -40")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a pattern"
+    return __exec_shell__(f"find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory contents"
+    return __exec_shell__(f"ls -la {path}")
+
+flow run_test(test_cmd: String) -> String:
+    "Run a test command and return output"
+    return __exec_shell__(f"{test_cmd} 2>&1 | tail -50")
+
+flow apply_patch(patch: String) -> String:
+    "Apply a patch using heredoc"
+    save("/tmp/cognos-patch.diff", patch)
+    return __exec_shell__("cd /tmp && cat cognos-patch.diff")
+
+flow write_file(path: String, content: String) -> String:
+    "Write content to a file"
+    save(path, content)
+    return f"Wrote {path}"
+
+flow git_diff() -> String:
+    "Show current uncommitted changes as unified diff"
+    return __exec_shell__("git diff")
+
+# --- Agent logic ---
+
+flow explore(repo_path: String, issue: String) -> String:
+    "Explore the repo to understand its structure and find relevant code"
+    # Get repo structure
+    structure = shell(f"cd {repo_path} && find . -name '*.py' -not -path './.git/*' -not -path './.tox/*' -not -path './build/*' | head -50")
+    remember(f"Repo structure: {structure}")
+
+    # Ask LLM to identify relevant files
+    r = think(
+        f"Given this repo structure:\n{structure}\n\nAnd this issue:\n{issue}\n\nWhich files are most likely relevant? List the top 5 file paths.",
+        model="deepseek-chat"
+    )
+    remember(f"Relevant files: {r.content}")
+
+    # Read the relevant files
+    files = r.content
+    r2 = think(
+        f"Files identified as relevant:\n{files}\n\nI need to read these files to understand the code. Which file should I read first?",
+        model="deepseek-chat",
+        tools=["read_file", "search", "read_lines"],
+        system="Read the most relevant files to understand the bug. Use tools."
+    )
+    if r2.has_tool_calls:
+        result = exec(r2, tools=["read_file", "search", "read_lines"])
+        remember(f"Code exploration: {result.content}")
+    
+    return "Exploration complete"
+
+flow plan_fix(issue: String) -> String:
+    "Plan the fix based on what we know"
+    knowledge = recall(issue, limit=10)
+    
+    context = "What we know:\n"
+    for fact in knowledge:
+        context = context + f"- {fact}\n"
+    
+    r = think(
+        f"{context}\nIssue to fix:\n{issue}\n\nPlan a minimal, targeted fix. Describe exactly which file(s) to edit, what to change, and why.",
+        model="deepseek-chat",
+        system="You are an expert software engineer. Plan the smallest possible fix that resolves the issue without side effects. Be specific about file paths and line numbers."
+    )
+    
+    plan = r.content
+    remember(f"Fix plan: {plan}")
+    return plan
+
+flow implement_fix(plan: String, repo_path: String) -> String:
+    "Implement the planned fix by editing files"
+    knowledge = recall(plan, limit=5)
+    
+    context = "Relevant context:\n"
+    for fact in knowledge:
+        context = context + f"- {fact}\n"
+    
+    r = think(
+        f"{context}\nFix plan:\n{plan}\n\nImplement this fix. Edit the necessary files.",
+        model="deepseek-chat",
+        tools=["read_file", "write_file", "shell", "search", "read_lines"],
+        system=f"You are implementing a bug fix in {repo_path}. Use tools to read files, then write the fixed versions. Make minimal changes."
+    )
+    
+    if r.has_tool_calls:
+        result = exec(r, tools=["read_file", "write_file", "shell", "search", "read_lines"])
+        remember(f"Implementation result: {result.content}")
+        return result.content
+    
+    return r.content
+
+flow verify(repo_path: String, test_cmd: String) -> Map:
+    "Run tests and return pass/fail with output"
+    output = shell(f"cd {repo_path} && {test_cmd} 2>&1 | tail -30")
+    
+    r = think(
+        f"Test output:\n{output}\n\nDid the tests pass? Reply with ONLY 'PASS' or 'FAIL: <reason>'",
+        model="deepseek-chat"
+    )
+    
+    passed = r.content.strip().starts_with("PASS")
+    return {"passed": passed, "output": output, "summary": r.content}
+
+flow self_correct(error: String, attempt: Int, issue: String, repo_path: String) -> String:
+    "Analyze test failure and try a different approach"
+    # Recall what we've tried before
+    past_attempts = recall("attempt failed", limit=5)
+    
+    context = f"Test failure (attempt {attempt}):\n{error}\n\n"
+    if past_attempts.length > 0:
+        context = context + "Previous failed attempts:\n"
+        for attempt_info in past_attempts:
+            context = context + f"- {attempt_info}\n"
+        context = context + "\nDo NOT repeat these approaches.\n\n"
+    
+    r = think(
+        f"{context}Original issue:\n{issue}\n\nAnalyze why the fix failed and propose a DIFFERENT approach.",
+        model="deepseek-chat",
+        tools=["read_file", "search", "shell", "read_lines"],
+        system="You are debugging a failed fix. Read the relevant code, understand why it failed, and propose a different strategy. Do NOT repeat previous attempts."
+    )
+    
+    if r.has_tool_calls:
+        result = exec(r, tools=["read_file", "search", "shell", "read_lines"])
+        new_plan = result.content
+    else:
+        new_plan = r.content
+    
+    remember(f"Attempt {attempt} failed: {error}. New plan: {new_plan}")
+    return new_plan
+
+flow solve(issue: String, repo_path: String, test_cmd: String = "python -m pytest", max_attempts: Int = 3) -> String:
+    "Solve a GitHub issue: explore → plan → implement → verify → self-correct"
+    
+    # Phase 1: Explore
+    explore(repo_path, issue)
+    
+    # Phase 2: Plan
+    plan = plan_fix(issue)
+    
+    # Phase 3: Implement + verify loop
+    attempt = 1
+    loop:
+        if attempt > max_attempts:
+            write(stdout, "Max attempts reached. Returning best-effort patch.")
+            break
+        
+        # Implement
+        implement_fix(plan, repo_path)
+        
+        # Verify
+        result = verify(repo_path, test_cmd)
+        
+        if result.passed:
+            remember(f"Fix verified on attempt {attempt}")
+            break
+        
+        # Self-correct
+        remember(f"Attempt {attempt} failed: {result.summary}")
+        plan = self_correct(result.output, attempt, issue, repo_path)
+        attempt = attempt + 1
+    
+    # Generate diff
+    diff = shell(f"cd {repo_path} && git diff")
+    return diff
+
+flow main():
+    # Read issue from stdin
+    write(stdout, "Enter issue description (then Ctrl+D):")
+    issue = read(stdin)
+    
+    if issue == none:
+        write(stdout, "No issue provided")
+        return none
+    
+    write(stdout, "Enter repo path:")
+    repo_path = read(stdin)
+    
+    if repo_path == none:
+        repo_path = "."
+    
+    repo_path = repo_path.strip()
+    
+    write(stdout, f"Solving issue in {repo_path}...")
+    
+    diff = solve(issue, repo_path)
+    
+    write(stdout, "\n--- PATCH ---")
+    write(stdout, diff)
+    write(stdout, "--- END PATCH ---")
