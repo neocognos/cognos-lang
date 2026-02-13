@@ -24,7 +24,7 @@ flow read_lines(path: String, start: Int, end: Int) -> String:
 flow search(pattern: String, path: String = ".") -> String:
     "Grep for a pattern in Python files. Returns matching lines with file:line prefix."
     repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
-    return __exec_shell__(f"cd {repo} && grep -rn '{pattern}' {path} --include='*.py' | head -50")
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
 
 flow find_files(pattern: String) -> String:
     "Find files matching a glob pattern"
@@ -63,7 +63,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     system_prompt = f"You are an expert software engineer fixing a bug in a Python repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYOUR TASK: Fix the bug described below. Follow these steps:\n1. SEARCH for relevant code using search() and read_file()/read_lines()\n2. UNDERSTAND the bug — find the exact file and line causing the issue\n3. EDIT the code using edit_file(path, old_text, new_text) — be precise with old_text\n4. VERIFY your fix with git_diff() to confirm the change looks correct\n\nIMPORTANT RULES:\n- Use search() to find relevant code, don't guess file paths\n- Use read_lines() to read specific sections, not entire large files\n- Use edit_file() for edits — provide exact old_text that exists in the file\n- After editing, ALWAYS call git_diff() to verify\n- When done, say DONE and summarize what you changed\n\nBug report:\n{issue}"
 
     r = think(
-        f"Find and fix this bug. Start by using search() to find relevant code.\n\nBug report:\n{issue}",
+        f"Find and fix this bug. Start by using search() to find the relevant code, then read_lines() to see it, then edit_file() to fix it, then git_diff() to verify.\n\nBug report:\n{issue}",
         model="deepseek-chat",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
         system=system_prompt
