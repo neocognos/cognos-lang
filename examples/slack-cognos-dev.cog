@@ -1,0 +1,119 @@
+# slack-cognos-dev.cog — Cognos dev agent connected to #cognos-dev Slack channel
+# Run: cognos run --memory --allow-shell examples/slack-cognos-dev.cog
+
+import "lib/exec.cog"
+
+flow shell(command: String) -> String:
+    "Run a shell command in the cognos-lang repo"
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read contents of a file from the cognos-lang repo"
+    return __exec_shell__(f"cat {path}")
+
+flow run_tests() -> String:
+    "Run the Cognos test suite (cargo test)"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH cargo test 2>&1 | tail -5")
+
+flow run_harness() -> String:
+    "Run the integration test harness"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH bash test-harness.sh 2>&1 | tail -10")
+
+flow search_code(pattern: String) -> String:
+    "Search for a pattern in the Cognos source code (grep)"
+    return __exec_shell__(f"cd /home/reza/clawd/neocognos/cognos-lang && grep -rn '{pattern}' src/ --include='*.rs' | head -30")
+
+flow list_files() -> String:
+    "List source files in the Cognos repo"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && find src/ -name '*.rs' && find examples/ -name '*.cog' && find docs/ -name '*.md'")
+
+flow build() -> String:
+    "Build Cognos in release mode"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && PATH=$HOME/.cargo/bin:$PATH cargo build --release 2>&1 | tail -5")
+
+flow git_log() -> String:
+    "Show recent git commits"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && git log --oneline -15")
+
+flow git_diff() -> String:
+    "Show current uncommitted changes"
+    return __exec_shell__("cd /home/reza/clawd/neocognos/cognos-lang && git diff --stat")
+
+flow write_file(path: String, content: String) -> String:
+    "Write content to a file"
+    save(path, content)
+    return f"Wrote {path}"
+
+flow respond(input: String, user: String, history: List) -> String:
+    facts = recall(input, limit=5)
+    recent = history[-6:]
+
+    context = "You are the Cognos Development Agent — an expert on the Cognos agentic programming language (written in Rust).\n"
+    context = context + "You help design, implement, debug, and test Cognos features.\n"
+    context = context + "The codebase is at /home/reza/clawd/neocognos/cognos-lang/\n"
+    context = context + "Key files: src/token.rs, src/lexer.rs, src/ast.rs, src/parser.rs, src/interpreter.rs, src/memory.rs, src/main.rs\n"
+    context = context + "Always use PATH=$HOME/.cargo/bin:$PATH for cargo commands.\n\n"
+
+    if facts.length > 0:
+        context = context + "Relevant knowledge:\n"
+        for fact in facts:
+            context = context + f"- {fact}\n"
+        context = context + "\n"
+
+    if recent.length > 0:
+        context = context + "Recent conversation:\n"
+        for msg in recent:
+            context = context + f"{msg}\n"
+        context = context + "\n"
+
+    r = think(
+        f"{context}User ({user}): {input}",
+        model="deepseek-chat",
+        tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"],
+        system="You are the Cognos Development Agent connected to Slack. Be concise and technical. Use tools to inspect code, run tests, and build. You can also write code when asked."
+    )
+
+    if r.has_tool_calls:
+        result = exec(r, tools=["shell", "read_file", "run_tests", "run_harness", "search_code", "list_files", "build", "git_log", "git_diff", "write_file"])
+        return result.content
+    return r.content
+
+flow bootstrap_memory():
+    remember("Cognos is an agentic programming language written in Rust")
+    remember("Key source files: token.rs, lexer.rs, ast.rs, parser.rs, interpreter.rs, memory.rs, main.rs")
+    remember("Core builtins: think(), remember(), recall(), forget(), read(), write(), save(), load(), exec(), channel()")
+    remember("LLM routing: claude-* -> CLI, deepseek-* -> DeepSeek API, gpt-* -> OpenAI, else -> Ollama")
+    remember("Design principle P11: Lean core runtime — think/act/observe/remember only")
+    remember("Always use PATH=$HOME/.cargo/bin:$PATH for cargo (Rust 1.93 via rustup)")
+    remember("Tests: cargo test for unit tests, test-harness.sh for integration, test-deep.sh for adversarial")
+    remember("Concurrency: parallel/branch, async/await, select (first-to-complete)")
+    remember("Channel handles: channel('slack', channel='...') — read()/write() for I/O")
+    remember("Memory: remember/recall/forget backed by SQLite + Ollama nomic-embed-text")
+
+flow main():
+    # Token from SLACK_BOT_TOKEN env var, channel and bot_id from SLACK_CHANNEL / SLACK_BOT_ID
+    slack = channel("slack", channel="C0AENGDT005", bot_id="U0AD9CL961F")
+
+    bootstrap_memory()
+
+    write(slack, "🧬 Cognos Development Agent online. I can read code, run tests, search the codebase, build, and help develop Cognos. Ask me anything!")
+
+    history = []
+    loop:
+        msg = read(slack)
+        input = msg.text
+        user = msg.user
+
+        if input.strip() == "":
+            continue
+
+        history = history + [f"User ({user}): {input}"]
+
+        response = respond(input, user, history)
+        write(slack, response)
+
+        history = history + [f"Agent: {response}"]
+
+        # Remember design discussions
+        if input.contains("bug") or input.contains("fix") or input.contains("design") or input.contains("decision") or input.contains("remember"):
+            remember(f"Discussion with {user}: {input} -> {response}")

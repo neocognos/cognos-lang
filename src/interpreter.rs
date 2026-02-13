@@ -2578,7 +2578,7 @@ impl Interpreter {
 
     // --- Channel I/O: Slack ---
 
-    fn write_slack_channel(&self, config: &HashMap<std::string::String, std::string::String>, text: &str) -> Result<Value> {
+    fn write_slack_channel(&mut self, config: &HashMap<std::string::String, std::string::String>, text: &str) -> Result<Value> {
         let token = config.get("token").ok_or_else(|| anyhow::anyhow!("slack: missing token"))?;
         let channel = config.get("channel").ok_or_else(|| anyhow::anyhow!("slack: missing channel"))?;
 
@@ -2595,6 +2595,11 @@ impl Interpreter {
         let json: serde_json::Value = resp.json()?;
         if json["ok"].as_bool() != Some(true) {
             bail!("slack write error: {}", json["error"].as_str().unwrap_or("unknown"));
+        }
+        // Update last_ts so we don't read back our own message
+        if let Some(ts) = json["ts"].as_str() {
+            let last_ts_key = format!("__slack_last_ts_{}", channel);
+            self.vars.insert(last_ts_key, Value::String(ts.to_string()));
         }
         log::info!("slack: sent message to {}", channel);
         Ok(Value::None)
@@ -2642,9 +2647,12 @@ impl Interpreter {
                     if ts <= last_ts.as_str() {
                         continue;
                     }
-                    // Skip bot's own messages
+                    // Skip bot's own messages (by bot_id or user id)
                     if !bot_id.is_empty() {
-                        if let Some(uid) = msg["bot_id"].as_str() {
+                        if let Some(bid) = msg["bot_id"].as_str() {
+                            if bid == bot_id { continue; }
+                        }
+                        if let Some(uid) = msg["user"].as_str() {
                             if uid == bot_id { continue; }
                         }
                     }
