@@ -64,7 +64,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
 
     r = think(
         f"Find and fix this bug. Start by using search() to find the relevant code, then read_lines() to see it, then edit_file() to fix it, then git_diff() to verify.\n\nBug report:\n{issue}",
-        model="deepseek-chat",
+        model="claude-3-5-sonnet-20241022",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
         system=system_prompt
     )
@@ -72,7 +72,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     if r.has_tool_calls:
         result = exec(r, 
             tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
-            model="deepseek-chat",
+            model="claude-3-5-sonnet-20241022",
             max_turns=12,
             system=system_prompt
         )

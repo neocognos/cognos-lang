@@ -1,4 +1,4 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 15, system: String = "", model: String = "deepseek-chat") -> Map:
+flow exec(response: Map, tools: List = [], max_turns: Int = 15, system: String = "", model: String = "claude-3-5-sonnet-20241022") -> Map:
     "Agentic tool loop: run tool calls, feed results back to LLM, repeat.
      System prompt preserved. Full history maintained but summarized."
     
