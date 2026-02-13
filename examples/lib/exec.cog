@@ -1,10 +1,9 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 10, system: String = "", model: String = "deepseek-chat") -> Map:
+flow exec(response: Map, tools: List = [], max_turns: Int = 15, system: String = "", model: String = "deepseek-chat") -> Map:
     "Agentic tool loop: run tool calls, feed results back to LLM, repeat.
-     The system prompt is preserved across all turns for context continuity."
+     System prompt preserved. Full history maintained but summarized."
     
     current = response
     turn = 0
-    # Keep a rolling history of the last 3 turns to maintain context
     history = []
     
     loop:
@@ -20,23 +19,26 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 10, system: String =
             args = call["arguments"]
             result = invoke(name, args)
             result_str = f"{result}"
-            if result_str.length > 3000:
-                result_str = result_str[:3000] + "\n... (truncated)"
-            tool_results = tool_results + [f"[{name}({args}) returned]:\n{result_str}"]
+            if result_str.length > 2000:
+                result_str = result_str[:2000] + "\n...(truncated)"
+            tool_results = tool_results + [f"[{name} returned]: {result_str}"]
         
-        tool_output = tool_results.join("\n\n")
+        tool_output = tool_results.join("\n")
         
-        # Add to rolling history (keep last 3 turns)
-        history = history + [f"Turn {turn + 1} tool results:\n{tool_output}"]
-        if history.length > 3:
-            history = history[history.length - 3:]
+        # Keep rolling window of 4 turns
+        history = history + [f"Turn {turn + 1}:\n{tool_output}"]
+        if history.length > 4:
+            history = history[history.length - 4:]
         
-        # Build context with history
         context = history.join("\n---\n")
         
-        # Call LLM with system prompt preserved + tool results
+        # Urgency escalation after turn 8
+        urgency = ""
+        if turn >= 8:
+            urgency = "\n\nURGENT: You have used most of your turns. STOP searching and make your edit NOW using edit_file(). If you have identified the bug, fix it immediately."
+        
         current = think(
-            f"Previous tool results:\n{context}\n\nContinue working on the task. Use tools if needed, or provide your final answer when done.",
+            f"Previous results:\n{context}{urgency}\n\nContinue working. Use tools if needed, or provide your final answer.",
             model=model,
             tools=tools,
             system=system
