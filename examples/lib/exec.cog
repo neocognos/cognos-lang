@@ -1,7 +1,20 @@
-flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String = "", model: String = "claude-sonnet-4-20250514") -> Map:
-    "Agentic tool loop: run tool calls, feed results back to LLM, repeat.
-     Keeps first turn + last N turns for context. Urgency escalation prevents infinite searching."
+flow exec(response: Map, tools: List = [], max_turns: Int = 20,
+          model: String = "claude-sonnet-4-20250514", system: String = "") -> Map:
+    "Agentic tool loop. Accepts a think() response Map and executes tool calls in a loop.
+     If the response contains a 'conversation' field (multi-turn mode), uses full conversation context.
+     Otherwise, falls back to legacy rolling-window mode.
+     Returns: {status, turns, content, [conversation]}"
     
+    # Detect multi-turn: if response has a conversation field, use it
+    keys = response.keys()
+    if keys.contains("conversation"):
+        conv = response["conversation"]
+        return _exec_multi_turn(conv, tools, max_turns, model, system)
+    else:
+        return _exec_legacy(response, tools, max_turns, model, system)
+
+flow _exec_legacy(response: Map, tools: List, max_turns: Int, model: String, system: String) -> Map:
+    "Legacy tool loop: single-turn think() calls with rolling context window."
     current = response
     turn = 0
     history = []
@@ -49,4 +62,49 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
         )
         turn = turn + 1
     
-    return {"content": current["content"], "has_tool_calls": false, "turns": turn}
+    return {"content": current["content"], "has_tool_calls": false, "turns": turn, "status": "done"}
+
+flow _exec_multi_turn(conv: List, tools: List, max_turns: Int, model: String, system: String) -> Map:
+    "Multi-turn tool execution loop with full conversation context."
+    turn = 0
+    
+    loop:
+        if turn >= max_turns:
+            break
+        
+        # Check if last message has tool calls
+        if conv.length == 0:
+            break
+        last_msg = conv[conv.length - 1]
+        if last_msg["has_tool_calls"] == false:
+            break
+        
+        # Execute all tool calls
+        tool_results = []
+        for call in last_msg["tool_calls"]:
+            name = call["name"]
+            args = call["arguments"]
+            result = invoke(name, args)
+            result_str = f"{result}"
+            tool_results = tool_results + [{"tool_use_id": call["id"], "content": result_str}]
+        
+        # Final turn warning
+        remaining = max_turns - turn - 1
+        extra = ""
+        if remaining == 0:
+            extra = "\n\nThis is your FINAL turn. Make your best edit now or summarize findings."
+        
+        # Continue conversation with tool results
+        r = think(extra, model=model, tools=tools, system=system,
+                  conversation=conv, tool_results=tool_results)
+        conv = r["conversation"]
+        turn = turn + 1
+        
+        if r["has_tool_calls"] == false:
+            return {"status": "done", "turns": turn, "conversation": conv, "content": r["content"]}
+    
+    status = "max_turns"
+    if turn < max_turns:
+        status = "done"
+    
+    return {"status": status, "turns": turn, "conversation": conv}

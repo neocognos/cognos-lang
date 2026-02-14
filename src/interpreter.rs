@@ -959,12 +959,29 @@ impl Interpreter {
                 let mut format_type: Option<std::string::String> = None;
                 let mut tool_names: Vec<std::string::String> = Vec::new();
                 let mut image_paths: Vec<std::string::String> = Vec::new();
+                let mut conversation: Option<Vec<Value>> = None;
+                let mut tool_results: Option<Vec<Value>> = None;
+                
                 for (k, v) in kwargs {
                     let val = self.eval(v)?;
                     match k.as_str() {
                         "model" => model = val.to_string(),
                         "system" => system = val.to_string(),
                         "format" => format_type = Some(val.to_string()),
+                        "conversation" => {
+                            match val {
+                                Value::List(items) => conversation = Some(items),
+                                Value::None => conversation = None,
+                                _ => bail!("conversation= must be a List or none, got {}", type_name(&val)),
+                            }
+                        }
+                        "tool_results" => {
+                            match val {
+                                Value::List(items) => tool_results = Some(items),
+                                Value::None => tool_results = None,
+                                _ => bail!("tool_results= must be a List or none, got {}", type_name(&val)),
+                            }
+                        }
                         "images" => {
                             if let Value::List(items) = val {
                                 for item in items {
@@ -1020,9 +1037,20 @@ impl Interpreter {
                 };
 
                 let prompt_text = context.to_string();
+
+                // Multi-turn conversation mode
+                if let Some(conv) = conversation {
+                    // Multi-turn mode: use native Anthropic API with tool support
+                    // The API function handles token lookup (OpenClaw auth-profiles + ANTHROPIC_API_KEY)
+                    if model.starts_with("claude") {
+                        return self.call_anthropic_api_multi_turn(&model, &system, &prompt_text, tool_defs, conv, tool_results);
+                    }
+                }
+
+                // Single-turn mode (backward compatible)
                 let result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
 
-                // Track conversation history
+                // Track conversation history (for backward compatibility)
                 self.conversation_history.push(("user".to_string(), prompt_text.clone()));
                 let response_text = match &result {
                     Value::String(s) => s.clone(),
@@ -2715,6 +2743,295 @@ impl Interpreter {
         }
     }
 
+    fn call_anthropic_api_multi_turn(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, conversation: Vec<Value>, tool_results: Option<Vec<Value>>) -> Result<Value> {
+        let call_start = std::time::Instant::now();
+
+        // Read token: OpenClaw auth-profiles first, then ANTHROPIC_API_KEY env var
+        let home = std::env::var("HOME").unwrap_or_default();
+        let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+        let mut token: Option<String> = None;
+        
+        if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
+            for entry in entries.flatten() {
+                let auth_path = entry.path().join("agent/auth-profiles.json");
+                if let Ok(data) = std::fs::read_to_string(&auth_path) {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
+                        if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
+                            if !t.is_empty() {
+                                token = Some(t.to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if token.is_none() {
+            if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+                if !key.is_empty() {
+                    token = Some(key);
+                }
+            }
+        }
+        let token = token.ok_or_else(|| anyhow::anyhow!(
+            "No Anthropic token found. Run 'openclaw configure' or set ANTHROPIC_API_KEY."
+        ))?;
+
+        log::info!("Calling Anthropic API (multi-turn): model={}, conversation_msgs={}, tools={}", 
+                   model, conversation.len(), tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        // Build messages array from conversation
+        let mut messages: Vec<serde_json::Value> = Vec::new();
+        
+        // Convert conversation to API messages
+        for msg in &conversation {
+            if let Value::Map(entries) = msg {
+                let role = entries.iter().find(|(k, _)| k == "role")
+                    .map(|(_, v)| v.to_string()).unwrap_or_default();
+                let content = entries.iter().find(|(k, _)| k == "content");
+                
+                if let Some((_, content_val)) = content {
+                    match content_val {
+                        Value::String(text) => {
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": text
+                            }));
+                        }
+                        Value::List(blocks) => {
+                            // Content blocks (for tool results)
+                            let content_blocks: Vec<serde_json::Value> = blocks.iter().map(|block| {
+                                if let Value::Map(block_entries) = block {
+                                    let block_type = block_entries.iter().find(|(k, _)| k == "type")
+                                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                    match block_type.as_str() {
+                                        "tool_result" => {
+                                            let tool_use_id = block_entries.iter().find(|(k, _)| k == "tool_use_id")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let content = block_entries.iter().find(|(k, _)| k == "content")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "tool_result",
+                                                "tool_use_id": tool_use_id,
+                                                "content": content
+                                            })
+                                        }
+                                        _ => {
+                                            // Default to text block
+                                            let text = block_entries.iter().find(|(k, _)| k == "text" || k == "content")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "text",
+                                                "text": text
+                                            })
+                                        }
+                                    }
+                                } else {
+                                    // Fallback: convert value to text block
+                                    serde_json::json!({
+                                        "type": "text", 
+                                        "text": block.to_string()
+                                    })
+                                }
+                            }).collect();
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": content_blocks
+                            }));
+                        }
+                        _ => {
+                            // Fallback: convert to string
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": content_val.to_string()
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add new user message if prompt is provided
+        if !prompt.is_empty() {
+            if let Some(tr) = tool_results {
+                // Tool results message with content blocks
+                let tool_result_blocks: Vec<serde_json::Value> = tr.iter().map(|result| {
+                    if let Value::Map(entries) = result {
+                        let tool_use_id = entries.iter().find(|(k, _)| k == "tool_use_id")
+                            .map(|(_, v)| v.to_string()).unwrap_or_default();
+                        let content = entries.iter().find(|(k, _)| k == "content")
+                            .map(|(_, v)| v.to_string()).unwrap_or_default();
+                        serde_json::json!({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": content
+                        })
+                    } else {
+                        serde_json::json!({
+                            "type": "tool_result",
+                            "tool_use_id": "unknown",
+                            "content": result.to_string()
+                        })
+                    }
+                }).collect();
+                
+                if !prompt.trim().is_empty() {
+                    // Prepend prompt text if present
+                    let mut content_blocks = vec![serde_json::json!({
+                        "type": "text",
+                        "text": prompt
+                    })];
+                    content_blocks.extend(tool_result_blocks);
+                    messages.push(serde_json::json!({
+                        "role": "user",
+                        "content": content_blocks
+                    }));
+                } else {
+                    // Tool results only
+                    messages.push(serde_json::json!({
+                        "role": "user",
+                        "content": tool_result_blocks
+                    }));
+                }
+            } else {
+                // Regular text message
+                messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": prompt
+                }));
+            }
+        } else if let Some(tr) = tool_results {
+            // Tool results only, no prompt
+            let tool_result_blocks: Vec<serde_json::Value> = tr.iter().map(|result| {
+                if let Value::Map(entries) = result {
+                    let tool_use_id = entries.iter().find(|(k, _)| k == "tool_use_id")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let content = entries.iter().find(|(k, _)| k == "content")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": content
+                    })
+                } else {
+                    serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": "unknown", 
+                        "content": result.to_string()
+                    })
+                }
+            }).collect();
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": tool_result_blocks
+            }));
+        }
+
+        // Build request body
+        let mut body = serde_json::json!({
+            "model": model,
+            "max_tokens": 4096,
+            "messages": messages
+        });
+        
+        if !system.is_empty() {
+            body["system"] = serde_json::json!(system);
+        }
+
+        // Add native tools
+        if let Some(ref tool_defs) = tools {
+            let api_tools: Vec<serde_json::Value> = tool_defs.iter().map(|t| {
+                serde_json::json!({
+                    "name": t["function"]["name"].as_str().unwrap_or("unknown"),
+                    "description": t["function"]["description"].as_str().unwrap_or(""),
+                    "input_schema": t["function"]["parameters"]
+                })
+            }).collect();
+            body["tools"] = serde_json::json!(api_tools);
+        }
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client.post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &token)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Anthropic API request failed: {}", e))?;
+
+        let status = resp.status();
+        let resp_text = resp.text().map_err(|e| anyhow::anyhow!("Failed to read API response: {}", e))?;
+
+        if !status.is_success() {
+            bail!("Anthropic API error ({}): {}", status, &resp_text[..resp_text.len().min(500)]);
+        }
+
+        let parsed: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse API response: {}", e))?;
+
+        let latency = call_start.elapsed().as_millis() as u64;
+        let stop_reason = parsed["stop_reason"].as_str().unwrap_or("");
+        let content_blocks = parsed["content"].as_array()
+            .ok_or_else(|| anyhow::anyhow!("No content in API response"))?;
+
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+        let mut tool_call_id_counter = 0;
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    if let Some(t) = block["text"].as_str() {
+                        text_parts.push(t.to_string());
+                    }
+                }
+                Some("tool_use") => {
+                    let default_id = format!("call_{}", tool_call_id_counter);
+                    let id = block["id"].as_str().unwrap_or(&default_id);
+                    tool_call_id_counter += 1;
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = self.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("id".to_string(), Value::String(id.to_string())),
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        let content = text_parts.join("\n");
+        let has_tool_calls = !tool_calls.is_empty();
+
+        // Build updated conversation
+        let mut updated_conversation = conversation.clone();
+        
+        // Add the assistant's response
+        let mut assistant_msg = vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String(content.clone())),
+            ("has_tool_calls".to_string(), Value::Bool(has_tool_calls)),
+        ];
+        
+        if has_tool_calls {
+            assistant_msg.push(("tool_calls".to_string(), Value::List(tool_calls.clone())));
+        }
+        
+        updated_conversation.push(Value::Map(assistant_msg));
+
+        log::info!("Anthropic API (multi-turn): {}ms, stop={}, tools={}", latency, stop_reason, tool_calls.len());
+        self.trace_llm(model, "anthropic-api-multi-turn", latency, prompt, system, &content, has_tool_calls);
+
+        // Return structured response with conversation
+        Ok(Value::Map(vec![
+            ("content".to_string(), Value::String(content)),
+            ("conversation".to_string(), Value::List(updated_conversation)),
+            ("has_tool_calls".to_string(), Value::Bool(has_tool_calls)),
+            ("tool_calls".to_string(), Value::List(tool_calls)),
+        ]))
+    }
+
     fn eval_binop(&self, left: &Value, op: &BinOp, right: &Value) -> Result<Value> {
         match (left, op, right) {
             // String concat
@@ -2816,6 +3133,157 @@ impl Interpreter {
     }
 
     // --- Channel I/O: Slack ---
+
+    #[cfg(test)]
+    fn build_messages_from_conversation(&self, conversation: &[Value], prompt: &str, tool_results: Option<&[Value]>) -> Result<Vec<serde_json::Value>> {
+        let mut messages: Vec<serde_json::Value> = Vec::new();
+        
+        // Convert conversation to API messages
+        for msg in conversation {
+            if let Value::Map(entries) = msg {
+                let role = entries.iter().find(|(k, _)| k == "role")
+                    .map(|(_, v)| v.to_string()).unwrap_or_default();
+                let content = entries.iter().find(|(k, _)| k == "content");
+                
+                if let Some((_, content_val)) = content {
+                    match content_val {
+                        Value::String(text) => {
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": text
+                            }));
+                        }
+                        Value::List(blocks) => {
+                            // Content blocks (for tool results)
+                            let content_blocks: Vec<serde_json::Value> = blocks.iter().map(|block| {
+                                if let Value::Map(block_entries) = block {
+                                    let block_type = block_entries.iter().find(|(k, _)| k == "type")
+                                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                    match block_type.as_str() {
+                                        "tool_result" => {
+                                            let tool_use_id = block_entries.iter().find(|(k, _)| k == "tool_use_id")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let content = block_entries.iter().find(|(k, _)| k == "content")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "tool_result",
+                                                "tool_use_id": tool_use_id,
+                                                "content": content
+                                            })
+                                        }
+                                        _ => {
+                                            // Default to text block
+                                            let text = block_entries.iter().find(|(k, _)| k == "text" || k == "content")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "text",
+                                                "text": text
+                                            })
+                                        }
+                                    }
+                                } else {
+                                    // Fallback: convert value to text block
+                                    serde_json::json!({
+                                        "type": "text", 
+                                        "text": block.to_string()
+                                    })
+                                }
+                            }).collect();
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": content_blocks
+                            }));
+                        }
+                        _ => {
+                            // Fallback: convert to string
+                            messages.push(serde_json::json!({
+                                "role": role,
+                                "content": content_val.to_string()
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add new user message if prompt is provided
+        if !prompt.is_empty() {
+            if let Some(tr) = tool_results {
+                // Tool results message with content blocks
+                let tool_result_blocks: Vec<serde_json::Value> = tr.iter().map(|result| {
+                    if let Value::Map(entries) = result {
+                        let tool_use_id = entries.iter().find(|(k, _)| k == "tool_use_id")
+                            .map(|(_, v)| v.to_string()).unwrap_or_default();
+                        let content = entries.iter().find(|(k, _)| k == "content")
+                            .map(|(_, v)| v.to_string()).unwrap_or_default();
+                        serde_json::json!({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": content
+                        })
+                    } else {
+                        serde_json::json!({
+                            "type": "tool_result",
+                            "tool_use_id": "unknown",
+                            "content": result.to_string()
+                        })
+                    }
+                }).collect();
+                
+                if !prompt.trim().is_empty() {
+                    // Prepend prompt text if present
+                    let mut content_blocks = vec![serde_json::json!({
+                        "type": "text",
+                        "text": prompt
+                    })];
+                    content_blocks.extend(tool_result_blocks);
+                    messages.push(serde_json::json!({
+                        "role": "user",
+                        "content": content_blocks
+                    }));
+                } else {
+                    // Tool results only
+                    messages.push(serde_json::json!({
+                        "role": "user",
+                        "content": tool_result_blocks
+                    }));
+                }
+            } else {
+                // Regular text message
+                messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": prompt
+                }));
+            }
+        } else if let Some(tr) = tool_results {
+            // Tool results only, no prompt
+            let tool_result_blocks: Vec<serde_json::Value> = tr.iter().map(|result| {
+                if let Value::Map(entries) = result {
+                    let tool_use_id = entries.iter().find(|(k, _)| k == "tool_use_id")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let content = entries.iter().find(|(k, _)| k == "content")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": content
+                    })
+                } else {
+                    serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": "unknown", 
+                        "content": result.to_string()
+                    })
+                }
+            }).collect();
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": tool_result_blocks
+            }));
+        }
+
+        Ok(messages)
+    }
 
     fn write_slack_channel(&mut self, config: &HashMap<std::string::String, std::string::String>, text: &str) -> Result<Value> {
         let token = config.get("token").ok_or_else(|| anyhow::anyhow!("slack: missing token"))?;
