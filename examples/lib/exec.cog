@@ -1,92 +1,52 @@
 flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String = "", model: String = "claude-sonnet-4-20250514") -> Map:
-    "Two-phase agentic tool loop: explore → edit.
-     Phase 1: freely search/read, accumulate scratchpad of findings.
-     Phase 2: edit-only mode with full scratchpad as context.
-     Transition: model says READY, or after explore_budget turns."
-    
-    explore_tools = ["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "note", "notes", "git_diff"]
-    edit_tools = ["shell", "read_file", "read_lines", "edit_file", "git_diff", "note", "notes"]
-    explore_budget = max_turns * 2 / 3   # ~66% explore, ~33% edit
+    "Agentic tool loop: run tool calls, feed results back to LLM, repeat.
+     Keeps first turn + last N turns for context. Urgency escalation prevents infinite searching."
     
     current = response
     turn = 0
-    scratchpad = []
-    phase = "explore"
+    history = []
     
     loop:
         if turn >= max_turns:
             break
-        
-        # Handle no-tool-call responses
         if current["has_tool_calls"] == false:
-            content_val = current["content"]
-            content = f"{content_val}"
-            if phase == "explore" and content.contains("READY"):
-                # Transition to edit phase — prompt model with edit instructions
-                phase = "edit"
-                context = scratchpad.join("\n---\n")
-                phase_msg = f"\n\n## EDIT PHASE (turn {turn + 1}/{max_turns})\nYou are now in EDIT mode. Make your changes using edit_file(). You have all findings in the scratchpad above.\nAvailable tools: {edit_tools}"
-                current = think(
-                    f"Scratchpad:\n{context}{phase_msg}\n\nMake the fix now.",
-                    model=model,
-                    tools=edit_tools,
-                    system=system
-                )
-                turn = turn + 1
-                # Loop back to check if model made tool calls
-            else:
-                break
-        else:
-            # Force phase transition after explore budget
-            if phase == "explore" and turn >= explore_budget:
-                phase = "edit"
-            
-            # Determine allowed tools for this phase
-            if phase == "explore":
-                phase_tools = explore_tools
-            else:
-                phase_tools = edit_tools
-            
-            # Execute tool calls
-            tool_results = []
-            for call in current["tool_calls"]:
-                name = call["name"]
-                args = call["arguments"]
-                if phase == "edit" and name == "search":
-                    tool_results = tool_results + [f"[{name}]: BLOCKED — you are in edit phase. Use your scratchpad."]
-                else:
-                    result = invoke(name, args)
-                    result_str = f"{result}"
-                    if result_str.length > 2000:
-                        result_str = result_str[:2000] + "\n...(truncated)"
-                    tool_results = tool_results + [f"[{name}({args})]: {result_str}"]
-            
-            tool_output = tool_results.join("\n")
-            scratchpad = scratchpad + [f"Turn {turn + 1} ({phase}):\n{tool_output}"]
-            
-            # Build context
-            if phase == "edit":
-                if scratchpad.length > 8:
-                    context_parts = scratchpad[:3] + ["...(earlier turns omitted)..."] + scratchpad[scratchpad.length - 3:]
-                else:
-                    context_parts = scratchpad
-                context = context_parts.join("\n---\n")
-                phase_msg = f"\n\n## EDIT PHASE (turn {turn + 1}/{max_turns})\nYou are in EDIT mode. Continue making changes or say DONE.\nAvailable tools: {edit_tools}"
-            else:
-                if scratchpad.length > 5:
-                    context_parts = [scratchpad[0]] + scratchpad[scratchpad.length - 4:]
-                else:
-                    context_parts = scratchpad
-                context = context_parts.join("\n---\n")
-                remaining = explore_budget - turn
-                phase_msg = f"\n\n## EXPLORE PHASE (turn {turn + 1}/{max_turns}, {remaining} explore turns left)\nKeep investigating. Use note() to save important findings. When you understand the root cause and know exactly what to edit, say READY (with no tool calls) to switch to edit mode."
-            
-            current = think(
-                f"Scratchpad:\n{context}{phase_msg}\n\nContinue.",
-                model=model,
-                tools=phase_tools,
-                system=system
-            )
-            turn = turn + 1
+            break
+        
+        # Execute all tool calls
+        tool_results = []
+        for call in current["tool_calls"]:
+            name = call["name"]
+            args = call["arguments"]
+            result = invoke(name, args)
+            result_str = f"{result}"
+            if result_str.length > 1500:
+                result_str = result_str[:1500] + "\n...(truncated)"
+            tool_results = tool_results + [f"[{name}]: {result_str}"]
+        
+        tool_output = tool_results.join("\n")
+        
+        # Keep first turn + last 5 turns (total max 6)
+        history = history + [f"Turn {turn + 1}:\n{tool_output}"]
+        if history.length > 6:
+            first = [history[0]]
+            rest = history[history.length - 5:]
+            history = first + rest
+        
+        context = history.join("\n---\n")
+        
+        # Urgency escalation
+        urgency = ""
+        if turn >= 8:
+            urgency = f"\n\nYou have used {turn + 1} of {max_turns} turns. Prioritize making edits over more searching."
+        if turn >= 12:
+            urgency = f"\n\nURGENT: Turn {turn + 1}/{max_turns}. Make your edit NOW with edit_file(). You have enough information."
+        
+        current = think(
+            f"Previous results:\n{context}{urgency}\n\nContinue working. Use tools if needed, or provide your final answer.",
+            model=model,
+            tools=tools,
+            system=system
+        )
+        turn = turn + 1
     
-    return {"content": current["content"], "has_tool_calls": false, "turns": turn, "phase": phase}
+    return {"content": current["content"], "has_tool_calls": false, "turns": turn}

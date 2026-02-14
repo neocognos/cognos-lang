@@ -8,7 +8,7 @@ import tempfile
 from datasets import load_dataset
 
 COGNOS = os.path.expanduser("~/clawd/neocognos/cognos-lang/target/release/cognos")
-AGENT = os.path.expanduser("~/clawd/neocognos/cognos-lang/examples/coding-agent.cog")
+AGENT = os.path.expanduser("~/clawd/neocognos/cognos-lang/examples/coding-agent-opus.cog")
 COGNOS_DIR = os.path.expanduser("~/clawd/neocognos/cognos-lang")
 
 def run_instance(instance, timeout=600):
