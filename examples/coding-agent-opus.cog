@@ -76,7 +76,8 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
         f"Fix this bug:\n\n{issue}",
         model="claude-opus-4-6",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff", "note", "notes"],
-        system=system_prompt
+        system=system_prompt,
+        conversation=[]
     )
     
     if r.has_tool_calls:

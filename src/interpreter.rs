@@ -2816,8 +2816,30 @@ impl Interpreter {
                                                 "content": content
                                             })
                                         }
+                                        "tool_use" => {
+                                            let id = block_entries.iter().find(|(k, _)| k == "id")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let name = block_entries.iter().find(|(k, _)| k == "name")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let input = block_entries.iter().find(|(k, _)| k == "input")
+                                                .map(|(_, v)| self.value_to_json(v))
+                                                .unwrap_or(serde_json::json!({}));
+                                            serde_json::json!({
+                                                "type": "tool_use",
+                                                "id": id,
+                                                "name": name,
+                                                "input": input
+                                            })
+                                        }
+                                        "text" => {
+                                            let text = block_entries.iter().find(|(k, _)| k == "text")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "text",
+                                                "text": text
+                                            })
+                                        }
                                         _ => {
-                                            // Default to text block
                                             let text = block_entries.iter().find(|(k, _)| k == "text" || k == "content")
                                                 .map(|(_, v)| v.to_string()).unwrap_or_default();
                                             serde_json::json!({
@@ -3007,10 +3029,16 @@ impl Interpreter {
         // Build updated conversation
         let mut updated_conversation = conversation.clone();
         
-        // Add the assistant's response
+        // Add the assistant's response — store raw content blocks for API fidelity
+        // The Anthropic API needs tool_use blocks in assistant messages so that
+        // subsequent tool_result user messages can reference them by id.
+        let raw_content_blocks: Vec<Value> = content_blocks.iter().map(|block| {
+            self.json_to_value(block.clone())
+        }).collect();
+        
         let mut assistant_msg = vec![
             ("role".to_string(), Value::String("assistant".to_string())),
-            ("content".to_string(), Value::String(content.clone())),
+            ("content".to_string(), Value::List(raw_content_blocks)),
             ("has_tool_calls".to_string(), Value::Bool(has_tool_calls)),
         ];
         
@@ -3171,8 +3199,30 @@ impl Interpreter {
                                                 "content": content
                                             })
                                         }
+                                        "tool_use" => {
+                                            let id = block_entries.iter().find(|(k, _)| k == "id")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let name = block_entries.iter().find(|(k, _)| k == "name")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            let input = block_entries.iter().find(|(k, _)| k == "input")
+                                                .map(|(_, v)| self.value_to_json(v))
+                                                .unwrap_or(serde_json::json!({}));
+                                            serde_json::json!({
+                                                "type": "tool_use",
+                                                "id": id,
+                                                "name": name,
+                                                "input": input
+                                            })
+                                        }
+                                        "text" => {
+                                            let text = block_entries.iter().find(|(k, _)| k == "text")
+                                                .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                            serde_json::json!({
+                                                "type": "text",
+                                                "text": text
+                                            })
+                                        }
                                         _ => {
-                                            // Default to text block
                                             let text = block_entries.iter().find(|(k, _)| k == "text" || k == "content")
                                                 .map(|(_, v)| v.to_string()).unwrap_or_default();
                                             serde_json::json!({
@@ -3406,6 +3456,699 @@ impl Interpreter {
 
             // No new messages — poll again
             std::thread::sleep(std::time::Duration::from_secs(poll_interval));
+        }
+    }
+}
+
+#[cfg(test)]
+mod multi_turn_tests {
+    use super::*;
+    use crate::environment::MockEnv;
+
+    fn create_test_interpreter() -> Interpreter {
+        Interpreter::with_env(Box::new(MockEnv::new()), None)
+    }
+
+    fn create_flow_def(name: &str, params: Vec<(&str, &str)>, description: Option<&str>) -> FlowDef {
+        let parameters = params.into_iter().map(|(param_name, param_type)| {
+            Param {
+                name: param_name.to_string(),
+                ty: TypeExpr::Named(param_type.to_string()),
+                default: None,
+            }
+        }).collect();
+
+        FlowDef {
+            name: name.to_string(),
+            params: parameters,
+            body: vec![],
+            description: description.map(|s| s.to_string()),
+            return_type: None,
+        }
+    }
+
+    // 1. CONVERSATION BUILDING TESTS
+
+    #[test]
+    fn test_conversation_building_empty() {
+        let interp = create_test_interpreter();
+        let conversation = vec![];
+        let messages = interp.build_messages_from_conversation(&conversation, "Hello", None).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[0]["content"], "Hello");
+    }
+
+    #[test]
+    fn test_conversation_building_single_turn() {
+        let interp = create_test_interpreter();
+        let conversation = vec![
+            Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::String("What's 2+2?".to_string())),
+            ]),
+            Value::Map(vec![
+                ("role".to_string(), Value::String("assistant".to_string())),
+                ("content".to_string(), Value::String("2+2 equals 4.".to_string())),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ])
+        ];
+        
+        let messages = interp.build_messages_from_conversation(&conversation, "What about 3+3?", None).unwrap();
+        
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[0]["content"], "What's 2+2?");
+        assert_eq!(messages[1]["role"], "assistant");
+        assert_eq!(messages[1]["content"], "2+2 equals 4.");
+        assert_eq!(messages[2]["role"], "user");
+        assert_eq!(messages[2]["content"], "What about 3+3?");
+    }
+
+    #[test]
+    fn test_conversation_building_multiple_turns() {
+        let interp = create_test_interpreter();
+        let conversation = vec![
+            Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::String("Hello".to_string())),
+            ]),
+            Value::Map(vec![
+                ("role".to_string(), Value::String("assistant".to_string())),
+                ("content".to_string(), Value::String("Hi there!".to_string())),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ]),
+            Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::String("How are you?".to_string())),
+            ]),
+            Value::Map(vec![
+                ("role".to_string(), Value::String("assistant".to_string())),
+                ("content".to_string(), Value::String("I'm doing well!".to_string())),
+                ("has_tool_calls".to_string(), Value::Bool(false)),
+            ])
+        ];
+        
+        let messages = interp.build_messages_from_conversation(&conversation, "Great!", None).unwrap();
+        
+        assert_eq!(messages.len(), 5);
+        assert_eq!(messages[4]["role"], "user");
+        assert_eq!(messages[4]["content"], "Great!");
+    }
+
+    #[test]
+    fn test_conversation_building_with_tool_result_blocks() {
+        let interp = create_test_interpreter();
+        let conversation = vec![
+            Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::List(vec![
+                    Value::Map(vec![
+                        ("type".to_string(), Value::String("tool_result".to_string())),
+                        ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                        ("content".to_string(), Value::String("File contents here".to_string())),
+                    ])
+                ])),
+            ])
+        ];
+        
+        let messages = interp.build_messages_from_conversation(&conversation, "", None).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 1);
+        assert_eq!(content_blocks[0]["type"], "tool_result");
+        assert_eq!(content_blocks[0]["tool_use_id"], "call_123");
+        assert_eq!(content_blocks[0]["content"], "File contents here");
+    }
+
+    // 2. TOOL SCHEMA GENERATION TESTS
+
+    #[test]
+    fn test_tool_schema_generation_no_params() {
+        let interp = create_test_interpreter();
+        let flow = create_flow_def("simple_tool", vec![], Some("A simple tool with no parameters"));
+        
+        let schema = interp.flow_to_tool_json(&flow);
+        
+        assert_eq!(schema["function"]["name"], "simple_tool");
+        assert_eq!(schema["function"]["description"], "A simple tool with no parameters");
+        assert_eq!(schema["function"]["parameters"]["type"], "object");
+        assert_eq!(schema["function"]["parameters"]["properties"].as_object().unwrap().len(), 0);
+        assert_eq!(schema["function"]["parameters"]["required"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_tool_schema_generation_typed_params() {
+        let interp = create_test_interpreter();
+        let flow = create_flow_def("read_file", vec![("path", "String"), ("encoding", "String")], Some("Read a file"));
+        
+        let schema = interp.flow_to_tool_json(&flow);
+        
+        assert_eq!(schema["function"]["name"], "read_file");
+        assert_eq!(schema["function"]["description"], "Read a file");
+        
+        let properties = schema["function"]["parameters"]["properties"].as_object().unwrap();
+        assert_eq!(properties.len(), 2);
+        assert_eq!(properties["path"]["type"], "string");
+        assert_eq!(properties["encoding"]["type"], "string");
+        
+        let required = schema["function"]["parameters"]["required"].as_array().unwrap();
+        assert_eq!(required.len(), 2);
+        assert!(required.contains(&serde_json::Value::String("path".to_string())));
+        assert!(required.contains(&serde_json::Value::String("encoding".to_string())));
+    }
+
+    #[test]
+    fn test_tool_schema_generation_no_description() {
+        let interp = create_test_interpreter();
+        let flow = create_flow_def("mystery_tool", vec![("input", "Int")], None);
+        
+        let schema = interp.flow_to_tool_json(&flow);
+        
+        assert_eq!(schema["function"]["name"], "mystery_tool");
+        assert_eq!(schema["function"]["description"], "Flow 'mystery_tool'");
+    }
+
+    // 3. RESPONSE PARSING TESTS
+
+    #[test]
+    fn test_response_parsing_text_only() {
+        let interp = create_test_interpreter();
+        
+        // Mock an Anthropic API response with text only
+        let api_response = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Hello! I can help you with that."
+                }
+            ],
+            "stop_reason": "end_turn"
+        });
+
+        let content_blocks = api_response["content"].as_array().unwrap();
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    if let Some(t) = block["text"].as_str() {
+                        text_parts.push(t.to_string());
+                    }
+                }
+                Some("tool_use") => {
+                    let id = block["id"].as_str().unwrap_or("call_0");
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = interp.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("id".to_string(), Value::String(id.to_string())),
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        let content = text_parts.join("\n");
+        assert_eq!(content, "Hello! I can help you with that.");
+        assert_eq!(tool_calls.len(), 0);
+    }
+
+    #[test]
+    fn test_response_parsing_single_tool_call() {
+        let interp = create_test_interpreter();
+        
+        let api_response = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I'll read that file for you."
+                },
+                {
+                    "type": "tool_use",
+                    "id": "call_abc123",
+                    "name": "read_file",
+                    "input": {
+                        "path": "main.py"
+                    }
+                }
+            ],
+            "stop_reason": "tool_use"
+        });
+
+        let content_blocks = api_response["content"].as_array().unwrap();
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    if let Some(t) = block["text"].as_str() {
+                        text_parts.push(t.to_string());
+                    }
+                }
+                Some("tool_use") => {
+                    let id = block["id"].as_str().unwrap_or("call_0");
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = interp.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("id".to_string(), Value::String(id.to_string())),
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        let content = text_parts.join("\n");
+        assert_eq!(content, "I'll read that file for you.");
+        assert_eq!(tool_calls.len(), 1);
+        
+        if let Value::Map(ref call) = tool_calls[0] {
+            let id = call.iter().find(|(k, _)| k == "id").unwrap().1.to_string();
+            let name = call.iter().find(|(k, _)| k == "name").unwrap().1.to_string();
+            assert_eq!(id, "call_abc123");
+            assert_eq!(name, "read_file");
+            
+            if let Value::Map(ref args) = call.iter().find(|(k, _)| k == "arguments").unwrap().1 {
+                let path = args.iter().find(|(k, _)| k == "path").unwrap().1.to_string();
+                assert_eq!(path, "main.py");
+            }
+        }
+    }
+
+    #[test]
+    fn test_response_parsing_multiple_tool_calls() {
+        let interp = create_test_interpreter();
+        
+        let api_response = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I'll need to check both files."
+                },
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "read_file",
+                    "input": {
+                        "path": "file1.py"
+                    }
+                },
+                {
+                    "type": "tool_use",
+                    "id": "call_2", 
+                    "name": "read_file",
+                    "input": {
+                        "path": "file2.py"
+                    }
+                }
+            ],
+            "stop_reason": "tool_use"
+        });
+
+        let content_blocks = api_response["content"].as_array().unwrap();
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut tool_calls: Vec<Value> = Vec::new();
+
+        for block in content_blocks {
+            match block["type"].as_str() {
+                Some("text") => {
+                    if let Some(t) = block["text"].as_str() {
+                        text_parts.push(t.to_string());
+                    }
+                }
+                Some("tool_use") => {
+                    let id = block["id"].as_str().unwrap_or("call_0");
+                    let name = block["name"].as_str().unwrap_or("").to_string();
+                    let arguments = interp.json_to_value(block["input"].clone());
+                    tool_calls.push(Value::Map(vec![
+                        ("id".to_string(), Value::String(id.to_string())),
+                        ("name".to_string(), Value::String(name)),
+                        ("arguments".to_string(), arguments),
+                    ]));
+                }
+                _ => {}
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 2);
+        
+        if let Value::Map(ref call1) = tool_calls[0] {
+            let id = call1.iter().find(|(k, _)| k == "id").unwrap().1.to_string();
+            assert_eq!(id, "call_1");
+        }
+        
+        if let Value::Map(ref call2) = tool_calls[1] {
+            let id = call2.iter().find(|(k, _)| k == "id").unwrap().1.to_string();
+            assert_eq!(id, "call_2");
+        }
+    }
+
+    // 4. TOOL RESULT INJECTION TESTS
+
+    #[test]
+    fn test_tool_result_injection_single() {
+        let interp = create_test_interpreter();
+        
+        let tool_results = vec![
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                ("content".to_string(), Value::String("def main():\n    print('hello')".to_string())),
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "", Some(&tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 1);
+        assert_eq!(content_blocks[0]["type"], "tool_result");
+        assert_eq!(content_blocks[0]["tool_use_id"], "call_123");
+        assert_eq!(content_blocks[0]["content"], "def main():\n    print('hello')");
+    }
+
+    #[test]
+    fn test_tool_result_injection_multiple() {
+        let interp = create_test_interpreter();
+        
+        let tool_results = vec![
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_1".to_string())),
+                ("content".to_string(), Value::String("content1".to_string())),
+            ]),
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_2".to_string())),
+                ("content".to_string(), Value::String("content2".to_string())),
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "", Some(&tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 2);
+        
+        assert_eq!(content_blocks[0]["tool_use_id"], "call_1");
+        assert_eq!(content_blocks[0]["content"], "content1");
+        assert_eq!(content_blocks[1]["tool_use_id"], "call_2");
+        assert_eq!(content_blocks[1]["content"], "content2");
+    }
+
+    #[test]
+    fn test_tool_result_injection_with_prompt() {
+        let interp = create_test_interpreter();
+        
+        let tool_results = vec![
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                ("content".to_string(), Value::String("file content".to_string())),
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "Here's the result:", Some(&tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 2);
+        
+        // First block should be the prompt text
+        assert_eq!(content_blocks[0]["type"], "text");
+        assert_eq!(content_blocks[0]["text"], "Here's the result:");
+        
+        // Second block should be the tool result
+        assert_eq!(content_blocks[1]["type"], "tool_result");
+        assert_eq!(content_blocks[1]["tool_use_id"], "call_123");
+    }
+
+    // 5. CONVERSATION ACCUMULATION TESTS
+
+    #[test]
+    fn test_conversation_accumulation_grows_correctly() {
+        let _interp = create_test_interpreter();
+        
+        // Start with empty conversation
+        let mut conversation = vec![];
+        
+        // Add user message
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("user".to_string())),
+            ("content".to_string(), Value::String("Hello".to_string())),
+        ]));
+        
+        // Simulate adding assistant response
+        let assistant_msg = Value::Map(vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String("Hi there!".to_string())),
+            ("has_tool_calls".to_string(), Value::Bool(false)),
+        ]);
+        conversation.push(assistant_msg);
+        
+        assert_eq!(conversation.len(), 2);
+        
+        // Add another turn
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("user".to_string())),
+            ("content".to_string(), Value::String("How are you?".to_string())),
+        ]));
+        
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String("I'm doing well!".to_string())),
+            ("has_tool_calls".to_string(), Value::Bool(false)),
+        ]));
+        
+        assert_eq!(conversation.len(), 4);
+    }
+
+    #[test]
+    fn test_conversation_accumulation_tool_use_turn() {
+        let _interp = create_test_interpreter();
+        
+        let mut conversation = vec![
+            Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::String("Read main.py".to_string())),
+            ])
+        ];
+
+        // Add assistant response with tool calls
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String("I'll read that file.".to_string())),
+            ("has_tool_calls".to_string(), Value::Bool(true)),
+            ("tool_calls".to_string(), Value::List(vec![
+                Value::Map(vec![
+                    ("id".to_string(), Value::String("call_123".to_string())),
+                    ("name".to_string(), Value::String("read_file".to_string())),
+                    ("arguments".to_string(), Value::Map(vec![
+                        ("path".to_string(), Value::String("main.py".to_string()))
+                    ])),
+                ])
+            ])),
+        ]));
+
+        // Add user message with tool results
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("user".to_string())),
+            ("content".to_string(), Value::List(vec![
+                Value::Map(vec![
+                    ("type".to_string(), Value::String("tool_result".to_string())),
+                    ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                    ("content".to_string(), Value::String("def main(): pass".to_string())),
+                ])
+            ])),
+        ]));
+
+        // Add final assistant response
+        conversation.push(Value::Map(vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String("The file contains a simple main function.".to_string())),
+            ("has_tool_calls".to_string(), Value::Bool(false)),
+        ]));
+
+        // A complete tool-use turn should add exactly 4 messages:
+        // 1. User request, 2. Assistant with tool calls, 3. User with tool results, 4. Assistant final response
+        assert_eq!(conversation.len(), 4);
+    }
+
+    // 6. BACKWARD COMPATIBILITY TESTS
+
+    #[test]
+    fn test_backward_compatibility_think_without_conversation() {
+        // This test verifies that think() without conversation kwarg still works
+        // We can't easily test the full think() function here without mocking the LLM,
+        // but we can test the core logic components
+        let interp = create_test_interpreter();
+        
+        // Test that None conversation doesn't trigger multi-turn mode
+        let conversation: Option<Vec<Value>> = None;
+        assert!(conversation.is_none());
+        
+        // Test that empty build_messages works correctly for single-turn  
+        let messages = interp.build_messages_from_conversation(&[], "Hello", None).unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["content"], "Hello");
+    }
+
+    // 7. EDGE CASES TESTS
+
+    #[test]
+    fn test_edge_case_empty_tool_calls() {
+        let interp = create_test_interpreter();
+        
+        let api_response = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I don't need to use any tools."
+                }
+            ],
+            "stop_reason": "end_turn"
+        });
+
+        let content_blocks = api_response["content"].as_array().unwrap();
+        let mut tool_calls: Vec<Value> = Vec::new();
+
+        for block in content_blocks {
+            if block["type"].as_str() == Some("tool_use") {
+                let id = block["id"].as_str().unwrap_or("call_0");
+                let name = block["name"].as_str().unwrap_or("").to_string();
+                let arguments = interp.json_to_value(block["input"].clone());
+                tool_calls.push(Value::Map(vec![
+                    ("id".to_string(), Value::String(id.to_string())),
+                    ("name".to_string(), Value::String(name)),
+                    ("arguments".to_string(), arguments),
+                ]));
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 0);
+    }
+
+    #[test]
+    fn test_edge_case_tool_empty_result() {
+        let interp = create_test_interpreter();
+        
+        let tool_results = vec![
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                ("content".to_string(), Value::String("".to_string())), // Empty result
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "", Some(&tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 1);
+        assert_eq!(content_blocks[0]["content"], ""); // Should handle empty content
+    }
+
+    #[test]
+    fn test_edge_case_very_long_tool_output() {
+        let interp = create_test_interpreter();
+        
+        let long_content = "a".repeat(10000); // 10k characters
+        let tool_results = vec![
+            Value::Map(vec![
+                ("tool_use_id".to_string(), Value::String("call_123".to_string())),
+                ("content".to_string(), Value::String(long_content.clone())),
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "", Some(&tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks[0]["content"], long_content); // Should handle long content
+    }
+
+    #[test]
+    fn test_edge_case_malformed_conversation_input() {
+        let interp = create_test_interpreter();
+        
+        // Test conversation with missing role
+        let malformed_conversation = vec![
+            Value::Map(vec![
+                ("content".to_string(), Value::String("Hello".to_string())),
+                // Missing "role" field
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&malformed_conversation, "Hi", None).unwrap();
+        
+        // Should handle gracefully, using empty role
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0]["role"], ""); // Empty role for malformed message
+        assert_eq!(messages[1]["content"], "Hi"); // New message should still work
+    }
+
+    #[test]
+    fn test_edge_case_malformed_tool_result() {
+        let interp = create_test_interpreter();
+        
+        // Tool result missing tool_use_id
+        let malformed_tool_results = vec![
+            Value::Map(vec![
+                ("content".to_string(), Value::String("some content".to_string())),
+                // Missing "tool_use_id" field
+            ])
+        ];
+
+        let messages = interp.build_messages_from_conversation(&[], "", Some(&malformed_tool_results)).unwrap();
+        
+        assert_eq!(messages.len(), 1);
+        let content_blocks = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content_blocks.len(), 1);
+        assert_eq!(content_blocks[0]["tool_use_id"], ""); // Should default to empty string
+        assert_eq!(content_blocks[0]["content"], "some content");
+    }
+
+    #[test] 
+    fn test_json_value_conversion_roundtrip() {
+        let interp = create_test_interpreter();
+        
+        // Test complex nested structure
+        let original = Value::Map(vec![
+            ("text".to_string(), Value::String("hello".to_string())),
+            ("number".to_string(), Value::Int(42)),
+            ("list".to_string(), Value::List(vec![
+                Value::String("item1".to_string()),
+                Value::Int(123),
+                Value::Bool(true)
+            ])),
+            ("nested".to_string(), Value::Map(vec![
+                ("inner".to_string(), Value::String("value".to_string()))
+            ]))
+        ]);
+
+        // Convert to JSON and back
+        let json = interp.value_to_json(&original);
+        let roundtrip = interp.json_to_value(json);
+
+        // Should be equivalent (though order might differ for maps)
+        if let Value::Map(ref orig_map) = original {
+            if let Value::Map(ref rt_map) = roundtrip {
+                assert_eq!(orig_map.len(), rt_map.len());
+                
+                // Check each field
+                for (key, orig_val) in orig_map {
+                    let rt_val = &rt_map.iter().find(|(k, _)| k == key).unwrap().1;
+                    // For this test, just verify the structure is preserved
+                    assert_eq!(std::mem::discriminant(orig_val), std::mem::discriminant(rt_val));
+                }
+            } else {
+                panic!("Roundtrip should preserve Map type");
+            }
         }
     }
 }
