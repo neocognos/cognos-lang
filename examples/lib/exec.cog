@@ -25,10 +25,12 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 15, system: String =
         
         tool_output = tool_results.join("\n")
         
-        # Keep rolling window of 6 turns
+        # Keep first turn + rolling window of last 5 turns
         history = history + [f"Turn {turn + 1}:\n{tool_output}"]
         if history.length > 6:
-            history = history[history.length - 6:]
+            first = [history[0]]
+            rest = history[history.length - 5:]
+            history = first + rest
         
         context = history.join("\n---\n")
         
