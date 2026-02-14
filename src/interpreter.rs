@@ -2746,30 +2746,31 @@ impl Interpreter {
     fn call_anthropic_api_multi_turn(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, conversation: Vec<Value>, tool_results: Option<Vec<Value>>) -> Result<Value> {
         let call_start = std::time::Instant::now();
 
-        // Read token: OpenClaw auth-profiles first, then ANTHROPIC_API_KEY env var
-        let home = std::env::var("HOME").unwrap_or_default();
-        let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+        // Read token: ANTHROPIC_API_KEY env var first (explicit), then OpenClaw auth-profiles
         let mut token: Option<String> = None;
         
-        if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
-            for entry in entries.flatten() {
-                let auth_path = entry.path().join("agent/auth-profiles.json");
-                if let Ok(data) = std::fs::read_to_string(&auth_path) {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
-                        if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
-                            if !t.is_empty() {
-                                token = Some(t.to_string());
-                                break;
+        if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            if !key.is_empty() {
+                token = Some(key);
+            }
+        }
+        
+        if token.is_none() {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+            if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
+                for entry in entries.flatten() {
+                    let auth_path = entry.path().join("agent/auth-profiles.json");
+                    if let Ok(data) = std::fs::read_to_string(&auth_path) {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
+                            if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
+                                if !t.is_empty() {
+                                    token = Some(t.to_string());
+                                    break;
+                                }
                             }
                         }
                     }
-                }
-            }
-        }
-        if token.is_none() {
-            if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
-                if !key.is_empty() {
-                    token = Some(key);
                 }
             }
         }
