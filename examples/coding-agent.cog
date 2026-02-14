@@ -77,7 +77,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
             max_turns=20,
             system=system_prompt
         )
-        write(stdout, f"Agent finished: {result['status']} after {result['turns']} turns")
+        write(stdout, f"Agent finished after {result['turns']} turns")
     
     # Get final diff
     diff = shell(f"cd {repo_path} && git diff")

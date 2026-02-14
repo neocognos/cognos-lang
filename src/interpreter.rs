@@ -3051,8 +3051,14 @@ impl Interpreter {
         let content = text_parts.join("\n");
         let has_tool_calls = !tool_calls.is_empty();
 
-        // Build updated conversation
+        // Build updated conversation — must include both user message and assistant response
         let mut updated_conversation = conversation.clone();
+        
+        // Add the user message that was sent in this call.
+        // Grab the last user message from the messages array we just built (it has the right format).
+        if let Some(last_user_msg) = messages.iter().rev().find(|m| m["role"] == "user") {
+            updated_conversation.push(self.json_to_value(last_user_msg.clone()));
+        }
         
         // Add the assistant's response — store raw content blocks for API fidelity
         // The Anthropic API needs tool_use blocks in assistant messages so that
