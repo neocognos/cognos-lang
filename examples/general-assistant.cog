@@ -25,7 +25,7 @@ flow respond(input: String, tasks: Map, history: List) -> Map:
     response = think(prompt, model="deepseek-chat", system="Be concise and helpful. You have shell and file tools. Use them when needed.", tools=["shell", "read_file", "web_search"])
     if response.has_tool_calls:
         write(stdout, "🔧 Running tools...\n")
-        executed = exec(response, tools=["shell", "read_file", "web_search"])
+        executed = exec(response, tools=["shell", "read_file", "web_search"], max_turns=3, model="deepseek-chat")
         final = think(f"{prompt}\nTool results:\n{executed.content}", model="deepseek-chat", system="Answer concisely based on these results.")
         write(stdout, f"{final.content}\n")
     else:

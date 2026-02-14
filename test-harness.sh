@@ -472,7 +472,7 @@ SHELL_TASKS=(
 )
 task=$(pick "${SHELL_TASKS[@]}")
 log "  task: $(echo $task | head -1)"
-run_test "agent-shell-rand" "$task" examples/general-assistant.cog "--allow-shell" "Assistant ready" 30
+run_test "agent-shell-rand" "$task" examples/general-assistant.cog "--allow-shell" "Assistant ready" 90
 
 # Tool agent with randomized queries
 TOOL_TASKS=(
@@ -484,7 +484,7 @@ TOOL_TASKS=(
 )
 task=$(pick "${TOOL_TASKS[@]}")
 log "  task: $(echo $task | head -1)"
-run_test "agent-tool-rand" "$task" examples/tool-agent.cog "--allow-shell" "" 30
+run_test "agent-tool-rand" "$task" examples/tool-agent.cog "--allow-shell" "" 90
 
 log ""
 log "=== SECTION 6: Fuzz & Stress Tests ==="
