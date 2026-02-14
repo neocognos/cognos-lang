@@ -19,25 +19,25 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 15, system: String =
             args = call["arguments"]
             result = invoke(name, args)
             result_str = f"{result}"
-            if result_str.length > 2000:
-                result_str = result_str[:2000] + "\n...(truncated)"
+            if result_str.length > 1500:
+                result_str = result_str[:1500] + "\n...(truncated)"
             tool_results = tool_results + [f"[{name} returned]: {result_str}"]
         
         tool_output = tool_results.join("\n")
         
-        # Keep rolling window of 4 turns
+        # Keep rolling window of 6 turns
         history = history + [f"Turn {turn + 1}:\n{tool_output}"]
-        if history.length > 4:
-            history = history[history.length - 4:]
+        if history.length > 6:
+            history = history[history.length - 6:]
         
         context = history.join("\n---\n")
         
-        # Urgency escalation after turn 8
+        # Urgency escalation to prevent infinite searching
         urgency = ""
         if turn >= 5:
-            urgency = f"\n\nWARNING: You have used {turn + 1} of {max_turns} turns. Focus on making edits, not more searching."
+            urgency = f"\n\nYou have used {turn + 1} of {max_turns} turns. Prioritize making edits over more searching."
         if turn >= 8:
-            urgency = f"\n\nURGENT: Turn {turn + 1}/{max_turns}. STOP searching. Make your edit NOW using edit_file(). You have enough information."
+            urgency = f"\n\nURGENT: Turn {turn + 1}/{max_turns}. Make your edit NOW with edit_file(). You have enough information."
         
         current = think(
             f"Previous results:\n{context}{urgency}\n\nContinue working. Use tools if needed, or provide your final answer.",
