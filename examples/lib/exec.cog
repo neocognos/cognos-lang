@@ -20,17 +20,10 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
             call_id = call["id"]
             result = invoke(name, args)
             result_str = f"{result}"
-            # Truncate large results to keep conversation manageable
+            # Truncate large results
             if result_str.length > 2000:
                 result_str = result_str[:2000] + "\n...(truncated)"
             results = results + [{"tool_use_id": call_id, "content": result_str}]
-        
-        # Prune old conversation to stay under token limits
-        # Keep first 2 messages (user prompt + assistant response) and last 10 messages
-        if conversation.length > 14:
-            first = [conversation[0], conversation[1]]
-            rest = conversation[conversation.length - 10:]
-            conversation = first + rest
         
         # Send tool results back with conversation history
         current = think(

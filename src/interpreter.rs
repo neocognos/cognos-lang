@@ -2950,6 +2950,30 @@ impl Interpreter {
             }));
         }
 
+        // Truncate old tool_result content to stay under context limits.
+        // Keep last 6 messages at full size, truncate tool_result content in older messages.
+        let msg_count = messages.len();
+        if msg_count > 8 {
+            let keep_full_from = msg_count.saturating_sub(6);
+            for (i, msg) in messages.iter_mut().enumerate() {
+                if i >= keep_full_from { break; }
+                if let Some(content) = msg.get_mut("content") {
+                    if let Some(blocks) = content.as_array_mut() {
+                        for block in blocks.iter_mut() {
+                            if block.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
+                                if let Some(c) = block.get_mut("content") {
+                                    let text = c.as_str().unwrap_or("").to_string();
+                                    if text.len() > 200 {
+                                        *c = serde_json::json!(format!("{}...(truncated)", &text[..200]));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Build request body
         let mut body = serde_json::json!({
             "model": model,
