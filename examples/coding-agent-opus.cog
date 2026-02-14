@@ -60,10 +60,10 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     dirs = shell(f"cd {repo_path} && find . -maxdepth 2 -type f -name '*.py' | head -30")
     top = shell(f"cd {repo_path} && ls -la")
     
-    system_prompt = f"You are an expert software engineer fixing a bug in a Python repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYOUR TASK: Fix the bug described below. Follow these steps:\n1. SEARCH for relevant code using search() and read_file()/read_lines()\n2. UNDERSTAND the bug — find the exact file and line causing the issue\n3. EDIT the code using edit_file(path, old_text, new_text) — be precise with old_text\n4. VERIFY your fix with git_diff() to confirm the change looks correct\n\nIMPORTANT RULES:\n- Use search() to find relevant code, don't guess file paths\n- Use read_lines() to read specific sections, not entire large files\n- Use edit_file() for edits — provide exact old_text that exists in the file\n- After editing, ALWAYS call git_diff() to verify\n- When done, say DONE and summarize what you changed\n\nBug report:\n{issue}"
+    system_prompt = f"You are an expert software engineer fixing a bug in a Python repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYOUR TASK: Fix the bug described below. You have LIMITED turns — be efficient!\n\nSTRATEGY (follow this order strictly):\n1. SEARCH (2-3 turns max): Use search() to find the relevant code\n2. READ (1-2 turns): Use read_lines() to understand the buggy code\n3. EDIT (1 turn): Use edit_file(path, old_text, new_text) to fix it\n4. VERIFY (1 turn): Use git_diff() to confirm your fix\n\nCRITICAL RULES:\n- You MUST call edit_file() by turn 6 at the latest. Do NOT keep searching forever.\n- If you have a reasonable hypothesis after 3-4 searches, START EDITING immediately.\n- Use read_lines() for specific sections (20-50 lines), never read whole files.\n- old_text in edit_file must match the file EXACTLY (copy from read_lines output).\n- After editing, ALWAYS call git_diff() to verify.\n- When done, say DONE and summarize what you changed.\n- If edit_file fails (old_text not found), re-read the exact lines and try again.\n\nBug report:\n{issue}"
 
     r = think(
-        f"Find and fix this bug. Start by using search() to find the relevant code, then read_lines() to see it, then edit_file() to fix it, then git_diff() to verify.\n\nBug report:\n{issue}",
+        f"Find and fix this bug. Search for relevant code (2-3 turns), then edit_file() to fix it, then git_diff() to verify. You MUST edit by turn 6.\n\nBug report:\n{issue}",
         model="claude-opus-4-20250514",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
         system=system_prompt
@@ -73,7 +73,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
         result = exec(r, 
             tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
             model="claude-opus-4-20250514",
-            max_turns=12,
+            max_turns=20,
             system=system_prompt
         )
     
