@@ -789,7 +789,7 @@ impl Interpreter {
                 });
 
                 let id = self.next_future_id;
-                self.next_future_id.fetch_add(1, Ordering::Relaxed);
+                self.next_future_id += 1;
                 self.async_handles.insert(id, (handle, cancel_token));
                 Ok(Value::Future(id))
             }
