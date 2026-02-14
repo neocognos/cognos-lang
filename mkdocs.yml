@@ -26,6 +26,7 @@ nav:
     - Error Handling: docs/error-handling.md
     - Environments & Testing: docs/environments.md
     - Tracing & Diagnostics: docs/tracing.md
+    - Multi-Turn Conversations: docs/multi-turn.md
     - Memory Design: docs/memory.md
   - Agents:
     - Overview: docs/agents/index.md
