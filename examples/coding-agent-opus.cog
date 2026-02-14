@@ -70,7 +70,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     dirs = shell(f"cd {repo_path} && find . -maxdepth 2 -type f -name '*.py' | head -30")
     top = shell(f"cd {repo_path} && ls -la")
     
-    system_prompt = f"You are an expert software engineer. Fix the bug described below in this repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYou have tools to search, read, edit code, and take notes.\n\nIMPORTANT: Use note() to save key findings as you go — file paths, root causes, code snippets you'll need later. Use notes() to retrieve them. This is your persistent memory; your conversation context is limited.\n\nUse edit_file() to make changes and git_diff() to verify. Say DONE when finished.\n\nBug report:\n{issue}"
+    system_prompt = f"You are an expert software engineer. Fix the bug described below.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYou work in two phases:\n1. EXPLORE: Search, read code, understand the bug. Use note() to save key findings (file paths, root causes, exact code to change). When you know exactly what to edit, respond with just READY.\n2. EDIT: Make surgical fixes with edit_file(). Then git_diff() to verify.\n\nBug report:\n{issue}"
 
     r = think(
         f"Fix this bug:\n\n{issue}",
