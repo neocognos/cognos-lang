@@ -51,6 +51,16 @@ flow git_diff() -> String:
     repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
     return __exec_shell__(f"cd {repo} && git diff")
 
+flow note(fact: String) -> String:
+    "Save an important finding to memory (survives context window). Use this to remember key code locations, root causes, and plans."
+    remember(fact)
+    return f"Noted: {fact}"
+
+flow notes(query: String) -> String:
+    "Search your saved notes/findings by meaning. Use this to retrieve what you found earlier."
+    results = recall(query)
+    return results
+
 # --- Main agent ---
 
 flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pytest") -> String:
@@ -60,18 +70,18 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     dirs = shell(f"cd {repo_path} && find . -maxdepth 2 -type f -name '*.py' | head -30")
     top = shell(f"cd {repo_path} && ls -la")
     
-    system_prompt = f"You are an expert software engineer. Fix the bug described below in this repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYou have tools to search, read, and edit code. Use edit_file() to make changes and git_diff() to verify. Say DONE when finished.\n\nBug report:\n{issue}"
+    system_prompt = f"You are an expert software engineer. Fix the bug described below in this repository.\n\nRepository: {repo_path}\nTop-level files:\n{top}\n\nPython files:\n{dirs}\n\nYou have tools to search, read, edit code, and take notes.\n\nIMPORTANT: Use note() to save key findings as you go — file paths, root causes, code snippets you'll need later. Use notes() to retrieve them. This is your persistent memory; your conversation context is limited.\n\nUse edit_file() to make changes and git_diff() to verify. Say DONE when finished.\n\nBug report:\n{issue}"
 
     r = think(
         f"Fix this bug:\n\n{issue}",
         model="claude-sonnet-4-20250514",
-        tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
+        tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff", "note", "notes"],
         system=system_prompt
     )
     
     if r.has_tool_calls:
         result = exec(r, 
-            tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
+            tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff", "note", "notes"],
             model="claude-sonnet-4-20250514",
             max_turns=20,
             system=system_prompt
