@@ -632,6 +632,86 @@ e=$(pick "${EXITS[@]}")
 run_test "assist-greet-rand" "Hello, how are you?\n$e" examples/general-assistant.cog "--allow-shell" "Assistant ready" 20
 
 log ""
+log "=== SECTION 9: Multi-turn Conversation & Exec Loop ==="
+
+# 9.1: exec.cog import succeeds (must run from repo dir)
+run_test "exec-import" "" <(echo 'import "examples/lib/exec.cog"
+flow main():
+    write(stdout, "import ok")') "" "import ok" 5
+
+# 9.2: Map key access — accessing missing key should error, not silently pass
+run_inline_fail "map-missing-key" 'flow main():
+    m = {"a": 1, "b": 2}
+    x = m["nonexistent"]
+    write(stdout, x)' "" "undefined" 5
+
+# 9.3: exec return structure has expected keys (content, turns, has_tool_calls)
+run_inline "exec-return-keys" 'flow main():
+    result = {"content": "done", "has_tool_calls": false, "turns": 3}
+    write(stdout, f"turns={result['"'"'turns'"'"']}")
+    write(stdout, f"content={result['"'"'content'"'"']}")
+    has = result["has_tool_calls"]
+    write(stdout, f"tc={has}")' "" "turns=3" "" 5
+
+# 9.4: List as Map value (conversation stores lists of maps)
+run_inline "conv-structure" 'flow main():
+    conv = []
+    msg1 = {"role": "user", "content": "hello"}
+    conv = conv + [msg1]
+    msg2 = {"role": "assistant", "content": "hi there"}
+    conv = conv + [msg2]
+    write(stdout, f"len={conv.length}")
+    write(stdout, conv[0]["role"])
+    write(stdout, conv[1]["role"])' "" "len=2" "" 5
+
+# 9.5: Nested map with list content blocks (simulates tool_use/tool_result structure)
+run_inline "conv-content-blocks" 'flow main():
+    blocks = [
+        {"type": "text", "text": "Let me look at that"},
+        {"type": "tool_use", "id": "toolu_123", "name": "read_file"}
+    ]
+    msg = {"role": "assistant", "content": blocks}
+    write(stdout, msg["content"][0]["type"])
+    write(stdout, msg["content"][1]["type"])
+    write(stdout, msg["content"][1]["id"])' "" "text" "" 5
+
+# 9.6: Tool result blocks structure
+run_inline "conv-tool-results" 'flow main():
+    results = [
+        {"type": "tool_result", "tool_use_id": "toolu_123", "content": "file contents here"}
+    ]
+    msg = {"role": "user", "content": results}
+    write(stdout, msg["content"][0]["tool_use_id"])' "" "toolu_123" "" 5
+
+# 9.7: String truncation (used in exec.cog for tool result truncation)
+run_inline "string-truncate" 'flow main():
+    s = "a" * 5000
+    write(stdout, f"full={s.length}")
+    truncated = s[:2000]
+    write(stdout, f"trunc={truncated.length}")' "" "trunc=2000" "" 5
+
+# 9.8: Conversation pruning — list slicing for old message removal
+run_inline "conv-pruning" 'flow main():
+    conv = []
+    i = 0
+    loop:
+        if i >= 20:
+            break
+        conv = conv + [{"role": "msg", "idx": i}]
+        i = i + 1
+    write(stdout, f"before={conv.length}")
+    if conv.length > 14:
+        first = [conv[0], conv[1]]
+        rest = conv[conv.length - 10:]
+        conv = first + rest
+    write(stdout, f"after={conv.length}")' "" "after=12" "" 5
+
+# 9.9: invoke() with known tool works (shell)
+run_inline "invoke-shell" 'flow main():
+    result = invoke("shell", {"command": "echo hello-invoke"})
+    write(stdout, result)' "" "hello-invoke" "--allow-shell" 10
+
+log ""
 log "=========================================="
 RESULT_LINE="RESULTS: $PASS passed, $FAIL failed, $TOTAL total (seed=$SEED)"
 log "$RESULT_LINE"
