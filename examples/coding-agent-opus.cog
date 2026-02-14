@@ -64,7 +64,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
 
     r = think(
         f"Find and fix this bug. Search for relevant code (2-3 turns), then edit_file() to fix it, then git_diff() to verify. You MUST edit by turn 6.\n\nBug report:\n{issue}",
-        model="claude-opus-4-20250514",
+        model="claude-opus-4-6",
         tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
         system=system_prompt
     )
@@ -72,7 +72,7 @@ flow solve(issue: String, repo_path: String, test_cmd: String = "python3 -m pyte
     if r.has_tool_calls:
         result = exec(r, 
             tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"],
-            model="claude-opus-4-20250514",
+            model="claude-opus-4-6",
             max_turns=20,
             system=system_prompt
         )
