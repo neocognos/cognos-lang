@@ -16,70 +16,77 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
     loop:
         if turn >= max_turns:
             break
+        
+        # Handle no-tool-call responses
         if current["has_tool_calls"] == false:
-            # Check if model said READY to transition
-            content = f"{current['content']}"
-            if phase == "explore" and content.find("READY") >= 0:
+            content_val = current["content"]
+            content = f"{content_val}"
+            if phase == "explore" and content.contains("READY"):
+                # Transition to edit phase — prompt model with edit instructions
                 phase = "edit"
-                # Continue — don't break, start edit phase
+                context = scratchpad.join("\n---\n")
+                phase_msg = f"\n\n## EDIT PHASE (turn {turn + 1}/{max_turns})\nYou are now in EDIT mode. Make your changes using edit_file(). You have all findings in the scratchpad above.\nAvailable tools: {edit_tools}"
+                current = think(
+                    f"Scratchpad:\n{context}{phase_msg}\n\nMake the fix now.",
+                    model=model,
+                    tools=edit_tools,
+                    system=system
+                )
+                turn = turn + 1
+                # Loop back to check if model made tool calls
             else:
                 break
-        
-        # Force phase transition after explore budget
-        if phase == "explore" and turn >= explore_budget:
-            phase = "edit"
-        
-        # Determine allowed tools for this phase
-        if phase == "explore":
-            phase_tools = explore_tools
         else:
-            phase_tools = edit_tools
-        
-        # Filter tool calls to only allowed tools
-        tool_results = []
-        for call in current["tool_calls"]:
-            name = call["name"]
-            args = call["arguments"]
-            if phase == "edit" and name == "search":
-                tool_results = tool_results + [f"[{name}]: BLOCKED — you are in edit phase. Use your scratchpad."]
+            # Force phase transition after explore budget
+            if phase == "explore" and turn >= explore_budget:
+                phase = "edit"
+            
+            # Determine allowed tools for this phase
+            if phase == "explore":
+                phase_tools = explore_tools
             else:
-                result = invoke(name, args)
-                result_str = f"{result}"
-                if result_str.length > 2000:
-                    result_str = result_str[:2000] + "\n...(truncated)"
-                tool_results = tool_results + [f"[{name}({args})]: {result_str}"]
-        
-        tool_output = tool_results.join("\n")
-        
-        # Scratchpad: always append findings
-        scratchpad = scratchpad + [f"Turn {turn + 1} ({phase}):\n{tool_output}"]
-        
-        # Build context: full scratchpad (compact) for edit phase,
-        # rolling window for explore phase
-        if phase == "edit":
-            # In edit phase, include full scratchpad summary + last 3 turns
-            if scratchpad.length > 8:
-                context_parts = scratchpad[:3] + ["...(earlier turns omitted)..."] + scratchpad[scratchpad.length - 3:]
+                phase_tools = edit_tools
+            
+            # Execute tool calls
+            tool_results = []
+            for call in current["tool_calls"]:
+                name = call["name"]
+                args = call["arguments"]
+                if phase == "edit" and name == "search":
+                    tool_results = tool_results + [f"[{name}]: BLOCKED — you are in edit phase. Use your scratchpad."]
+                else:
+                    result = invoke(name, args)
+                    result_str = f"{result}"
+                    if result_str.length > 2000:
+                        result_str = result_str[:2000] + "\n...(truncated)"
+                    tool_results = tool_results + [f"[{name}({args})]: {result_str}"]
+            
+            tool_output = tool_results.join("\n")
+            scratchpad = scratchpad + [f"Turn {turn + 1} ({phase}):\n{tool_output}"]
+            
+            # Build context
+            if phase == "edit":
+                if scratchpad.length > 8:
+                    context_parts = scratchpad[:3] + ["...(earlier turns omitted)..."] + scratchpad[scratchpad.length - 3:]
+                else:
+                    context_parts = scratchpad
+                context = context_parts.join("\n---\n")
+                phase_msg = f"\n\n## EDIT PHASE (turn {turn + 1}/{max_turns})\nYou are in EDIT mode. Continue making changes or say DONE.\nAvailable tools: {edit_tools}"
             else:
-                context_parts = scratchpad
-            context = context_parts.join("\n---\n")
-            phase_msg = f"\n\n## EDIT PHASE (turn {turn + 1}/{max_turns})\nYou are now in EDIT mode. Make your changes using edit_file(). You have all findings in the scratchpad above.\nAvailable tools: {edit_tools}"
-        else:
-            # In explore phase, rolling window: first + last 4
-            if scratchpad.length > 5:
-                context_parts = [scratchpad[0]] + scratchpad[scratchpad.length - 4:]
-            else:
-                context_parts = scratchpad
-            context = context_parts.join("\n---\n")
-            remaining = explore_budget - turn
-            phase_msg = f"\n\n## EXPLORE PHASE (turn {turn + 1}/{max_turns}, {remaining} explore turns left)\nKeep investigating. Use note() to save important findings. When you understand the root cause and know exactly what to edit, say READY (with no tool calls) to switch to edit mode."
-        
-        current = think(
-            f"Scratchpad:\n{context}{phase_msg}\n\nContinue.",
-            model=model,
-            tools=phase_tools,
-            system=system
-        )
-        turn = turn + 1
+                if scratchpad.length > 5:
+                    context_parts = [scratchpad[0]] + scratchpad[scratchpad.length - 4:]
+                else:
+                    context_parts = scratchpad
+                context = context_parts.join("\n---\n")
+                remaining = explore_budget - turn
+                phase_msg = f"\n\n## EXPLORE PHASE (turn {turn + 1}/{max_turns}, {remaining} explore turns left)\nKeep investigating. Use note() to save important findings. When you understand the root cause and know exactly what to edit, say READY (with no tool calls) to switch to edit mode."
+            
+            current = think(
+                f"Scratchpad:\n{context}{phase_msg}\n\nContinue.",
+                model=model,
+                tools=phase_tools,
+                system=system
+            )
+            turn = turn + 1
     
     return {"content": current["content"], "has_tool_calls": false, "turns": turn, "phase": phase}
