@@ -112,7 +112,7 @@ flow main():
     
     grammar = read_text("prompts/cognos-flow-generator.md")
     dirs = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -40")
-    top = shell(f"cd {repo_path} && ls -la")
+    top = shell(f"cd {repo_path} && ls -la | head -50")
     
     # --- Phase 1: Task analysis and decomposition ---
     write(stdout, "Phase 1: Analyzing task complexity...")
@@ -135,8 +135,8 @@ PLAN:
 ...
 
 Rules:
-- "simple" = single logical change (one file, one concept)
-- "multi-step" = requires investigation THEN separate changes, OR multiple files/concepts
+- simple = single logical change (one file, one concept)
+- multi-step = requires investigation THEN separate changes, OR multiple files/concepts
 - Keep steps to 2-4 max. Each step should produce a testable change.
 - Each step description should be specific and actionable."""
     
