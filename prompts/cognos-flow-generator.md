@@ -101,21 +101,22 @@ write_text("path.txt", content)    # write file
 
 ### LLM Reasoning
 ```
-# Simple reasoning — returns a String directly
-answer = think("Analyze this code", model="claude-sonnet-4-20250514")
-write(stdout, answer)  # answer is a String, NOT a Map
+# think() ALWAYS returns a Map with at least "content" and "has_tool_calls" keys.
 
-# With system prompt — also returns String
-answer = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
+# Simple reasoning
+result = think("Analyze this code", model="claude-sonnet-4-20250514")
+write(stdout, result["content"])  # result["content"] is the response String
 
-# With tools — returns a Map (different from above!)
+# With system prompt
+result = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
+answer = result["content"]
+
+# With tools — same Map, plus tool_calls when present
 result = think("Find and fix the bug", tools=["shell", "read_file", "edit_file"], conversation=[])
 # result["content"] → String
 # result["has_tool_calls"] → Bool
-# result["tool_calls"] → List of {name, arguments, id}
-# result["conversation"] → List for multi-turn
-
-# IMPORTANT: think() WITHOUT tools= returns String. think() WITH tools= returns Map.
+# result["tool_calls"] → List of {name, arguments, id} (when has_tool_calls is true)
+# result["conversation"] → List for multi-turn (when conversation= was passed)
 ```
 
 ### Tool Execution Loop
@@ -184,6 +185,7 @@ flow analyze(file: String):
 flow smart(task: String):
     triage = think(f"Classify: {task}", model="claude-sonnet-4-20250514")
     solution = think(f"Solve: {task}\n{triage['content']}", model="claude-opus-4-6")
+    write(stdout, solution["content"])
 ```
 
 ### Memory-Augmented
@@ -193,17 +195,34 @@ flow learn(task: String):
     context = ""
     for p in past:
         context = context + p + "\n"
-    solution = think(f"Task: {task}\nPast:\n{context}")
-    remember(f"For '{task}': {solution['content'][:200]}")
+    result = think(f"Task: {task}\nPast:\n{context}")
+    remember(f"For '{task}': {result['content'][:200]}")
 ```
 
 ### Meta (Flow Generates Flow)
 ```
 flow meta(task: String):
     grammar = read_text("prompts/cognos-flow-generator.md")
-    code = think(f"Write a Cognos flow 'solution' for:\n{task}", system=grammar, model="claude-opus-4-6")
-    eval(code["content"])
+    result = think(f"Write a Cognos flow 'solution' for:\n{task}", system=grammar, model="claude-opus-4-6")
+    eval(result["content"])
     result = invoke("solution", {"task": task})
+```
+
+### Multi-Step Meta (Decompose → Generate → Compose)
+```
+# For complex tasks: decompose into sub-tasks, generate a flow per step, run sequentially
+flow multi_meta(task: String):
+    grammar = read_text("prompts/cognos-flow-generator.md")
+    # Phase 1: decompose
+    plan = think(f"Break this into 2-4 steps:\n{task}", model="claude-sonnet-4-20250514")
+    steps = parse_steps(plan["content"])
+    # Phase 2: generate and execute each step
+    context = ""
+    for step in steps:
+        code = think(f"Write flow 'step_n' for: {step}\nContext: {context}", system=grammar, model="claude-opus-4-6")
+        eval(code["content"])
+        result = invoke("step_n", {})
+        context = context + f"\n{step}: {result}"
 ```
 
 ## Available Tools (pre-imported)
@@ -242,7 +261,7 @@ note(key: String, value: String) -> String
 ## Rules
 1. Parameters MUST have type annotations: `flow f(x: String)`, not `flow f(x)`
 2. Use `f"..."` for interpolation
-3. `think()` returns a Map — access via `result["content"]`
+3. `think()` ALWAYS returns a Map — access content via `result["content"]`
 4. Indentation: 4 spaces, significant (like Python)
 5. No `while` — use `loop:` with `if condition: break`
 6. `none` is lowercase

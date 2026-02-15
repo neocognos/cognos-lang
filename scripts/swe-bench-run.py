@@ -8,8 +8,14 @@ import tempfile
 from datasets import load_dataset
 
 COGNOS = os.path.expanduser("~/clawd/neocognos/cognos-lang/target/release/cognos")
-AGENT = os.path.expanduser("~/clawd/neocognos/cognos-lang/examples/coding-agent-opus.cog")
 COGNOS_DIR = os.path.expanduser("~/clawd/neocognos/cognos-lang")
+
+AGENTS = {
+    "coding": os.path.join(COGNOS_DIR, "examples/coding-agent-opus.cog"),
+    "meta": os.path.join(COGNOS_DIR, "examples/meta-agent.cog"),
+    "meta-multi": os.path.join(COGNOS_DIR, "examples/meta-agent-multi.cog"),
+}
+AGENT = AGENTS["coding"]  # default
 
 def run_instance(instance, timeout=600):
     """Run the coding agent on a single SWE-bench instance."""
@@ -149,6 +155,19 @@ def main():
     start = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     output_file = sys.argv[3] if len(sys.argv) > 3 else "/tmp/cognos-swe-predictions.jsonl"
     easy_first = "--easy" in sys.argv
+    
+    # Agent selection
+    agent_name = "coding"
+    for arg in sys.argv:
+        if arg.startswith("--agent="):
+            agent_name = arg.split("=", 1)[1]
+    if agent_name in AGENTS:
+        global AGENT
+        AGENT = AGENTS[agent_name]
+        print(f"Using agent: {agent_name} ({AGENT})")
+    else:
+        print(f"Unknown agent '{agent_name}', available: {list(AGENTS.keys())}")
+        sys.exit(1)
     
     if easy_first:
         # Sort by estimated difficulty (easiest first)
