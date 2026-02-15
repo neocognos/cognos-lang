@@ -44,8 +44,11 @@ flow edit_file(path: String, old_text: String, new_text: String) -> String:
         full_path = f"{repo}/{path}"
     write_text("/tmp/cognos-old.txt", old_text)
     write_text("/tmp/cognos-new.txt", new_text)
-    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content: print('ERROR: old_text not found'); sys.exit(1)\ncontent = content.replace(old, new, 1)\nwith open(sys.argv[1], 'w') as f: f.write(content)\nprint('OK: edited ' + sys.argv[1])")
-    return __exec_shell__(f"python3 /tmp/cognos-edit.py {full_path}")
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content:\n    print('ERROR: old_text not found in ' + sys.argv[1] + ' | Looking for: ' + repr(old[:200]))\nelse:\n    content = content.replace(old, new, 1)\n    with open(sys.argv[1], 'w') as f: f.write(content)\n    print('OK: edited ' + sys.argv[1])")
+    result = __exec_shell__(f"python3 /tmp/cognos-edit.py {full_path}")
+    if "ERROR" in result:
+        log(f"edit_file failed: {result}")
+    return result
 
 flow git_diff() -> String:
     "Show current uncommitted changes as unified diff"
@@ -84,9 +87,18 @@ flow main():
     grammar = read_text("prompts/cognos-flow-generator.md")
     
     # Ask the master LLM to generate a task-specific flow
-    master_prompt = f"Write a Cognos flow called `solve` that fixes this bug.\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly, NOT a Map. Example: answer = think(\"question\", model=\"claude-sonnet-4-20250514\")\n- ALWAYS pass model=\"claude-sonnet-4-20250514\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY including whitespace/indentation. path is ABSOLUTE.\n- Do NOT use .split() — it's not available. Use shell() for text processing if needed.\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nTop-level:\n{top}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
+    master_prompt = f"Write a Cognos flow called `solve` that fixes this bug.\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly, NOT a Map\n- ALWAYS pass model=\"claude-sonnet-4-20250514\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY including whitespace/indentation. path is ABSOLUTE.\n- NEVER hardcode old_text from the bug report. The report may describe old code versions.\n- Pattern: 1) read_lines to get exact current code 2) use think() to determine what to change 3) pass exact text from the file to edit_file\n- The old_text MUST be copied from actual file content, not from memory or the bug report\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nTop-level:\n{top}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
 
     generated_code = think(master_prompt, system=grammar, model="claude-opus-4-6")
+    
+    # Strip markdown fences if present
+    if "```" in generated_code:
+        lines = generated_code.split("\n")
+        clean_lines = []
+        for line in lines:
+            if line.strip()[:3] != "```":
+                clean_lines = clean_lines + [line]
+        generated_code = "\n".join(clean_lines)
     
     # Save the generated flow for inspection
     write_text("/tmp/cognos-generated-flow.cog", generated_code)
@@ -124,8 +136,16 @@ flow main():
                 # Reset repo
                 shell(f"cd {repo_path} && git checkout -- .")
                 
-                retry_prompt = f"Your generated Cognos flow failed with this error:\n\n{error_msg}\n\nHere was your flow:\n{generated_code}\n\nFix the error and return the corrected flow. Remember:\n- think() WITHOUT tools= returns a String, not a Map\n- Do NOT use import\n- edit_file(path, old_text, new_text) needs exact matching text\n- All tool flows are already available\n\nReturn ONLY the corrected Cognos flow source code."
+                retry_prompt = f"Your generated Cognos flow failed with this error:\n\n{error_msg}\n\nHere was your flow:\n{generated_code}\n\nFix the error and return the corrected flow. Remember:\n- think() WITHOUT tools= returns a String, not a Map\n- Do NOT use import\n- edit_file(path, old_text, new_text) needs exact matching text\n- All tool flows are already available\n- Do NOT wrap output in markdown fences\n\nReturn ONLY the corrected Cognos flow source code. No markdown, no explanation."
                 generated_code = think(retry_prompt, system=grammar, model="claude-opus-4-6")
+                # Strip markdown fences if present
+                if "```" in generated_code:
+                    lines = generated_code.split("\n")
+                    clean_lines = []
+                    for line in lines:
+                        if line.strip()[:3] != "```":
+                            clean_lines = clean_lines + [line]
+                    generated_code = "\n".join(clean_lines)
                 write_text("/tmp/cognos-generated-flow.cog", generated_code)
                 write(stdout, f"\n--- Revised Flow ---")
                 write(stdout, generated_code)
