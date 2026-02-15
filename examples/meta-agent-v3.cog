@@ -1,0 +1,175 @@
+# meta-agent-v3.cog — Scout → Architect → Execute
+# Scout finds the bug (read-only). Architect writes a minimal Cognos fix. Execute runs it.
+# The key: context window reset between scout and architect.
+
+import "lib/exec.cog"
+
+# --- Tool flows ---
+
+flow shell(command: String) -> String:
+    "Run a shell command and return stdout."
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file."
+    return read_text(path)
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read specific lines from a file (1-indexed)."
+    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Grep for a pattern in Python files."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a glob."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
+
+flow edit_file(path: String, old_text: String, new_text: String) -> String:
+    "Replace old_text with new_text in a file."
+    write_text("/tmp/cognos-old.txt", old_text)
+    write_text("/tmp/cognos-new.txt", new_text)
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content:\n    print('ERROR: old_text not found in ' + sys.argv[1] + ' | Looking for: ' + repr(old[:200]))\nelse:\n    content = content.replace(old, new, 1)\n    with open(sys.argv[1], 'w') as f: f.write(content)\n    print('OK: edited ' + sys.argv[1])")
+    result = __exec_shell__(f"python3 /tmp/cognos-edit.py {path}")
+    if "ERROR" in result:
+        log(f"edit_file failed: {result}")
+    return result
+
+flow git_diff() -> String:
+    "Show git diff."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
+
+flow save_note(key: String, value: String) -> String:
+    "Save a finding to the dossier file."
+    shell(f"echo '### {key}' >> /tmp/cognos-dossier.txt")
+    write_text("/tmp/cognos-note-tmp.txt", value)
+    shell("cat /tmp/cognos-note-tmp.txt >> /tmp/cognos-dossier.txt")
+    shell("echo '' >> /tmp/cognos-dossier.txt")
+    return f"Saved: {key}"
+
+# --- Main ---
+
+flow main():
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    
+    if issue.strip() == "":
+        write(stdout, "No issue found.")
+        return none
+    
+    shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+    shell("rm -f /tmp/cognos-dossier.txt")
+    write(stdout, "Meta-agent v3: Scout → Architect → Execute")
+    
+    # ========================================
+    # PHASE 1: SCOUT (read-only)
+    # ========================================
+    write(stdout, "\n=== Phase 1: Scout ===")
+    
+    scout_system = f"You are investigating a bug. Find the exact code that needs to change.\n\nTools: search, read_lines, find_files, list_dir, shell, save_note.\nRepo: {repo_path}\n\nYou CANNOT edit files. Explore only.\n\nYour job:\n1. Use search() to find the relevant file and function\n2. Use read_lines(path, start, end) to read the exact code\n3. Call save_note('file', absolute_path) — which file to edit\n4. Call save_note('lines', 'start-end') — which line numbers\n5. Call save_note('current_code', exact_code) — copy the EXACT text from read_lines\n6. Call save_note('diagnosis', what_causes_the_bug)\n7. Call save_note('fix', what_to_change)\n\nYou MUST call save_note at least 5 times. The current_code must be VERBATIM from read_lines output."
+    
+    scout_prompt = f"Find the bug:\n\n{issue}\n\nRepo: {repo_path}"
+    
+    r = think(scout_prompt, system=scout_system, tools=["search", "read_lines", "find_files", "list_dir", "shell", "save_note"], model="claude-sonnet-4-20250514", conversation=[])
+    
+    if r["has_tool_calls"]:
+        result = exec(r, tools=["search", "read_lines", "find_files", "list_dir", "shell", "save_note"], max_turns=15, model="claude-sonnet-4-20250514", system=scout_system)
+    
+    dossier = shell("cat /tmp/cognos-dossier.txt 2>/dev/null || echo 'Scout produced no notes'")
+    write(stdout, f"\nDossier:\n{dossier}")
+    
+    # ========================================
+    # PHASE 2: ARCHITECT (generate fix)
+    # ========================================
+    write(stdout, "\n=== Phase 2: Architect ===")
+    
+    grammar = read_text("prompts/cognos-flow-generator.md")
+    
+    architect_prompt = f"Write a Cognos flow called `solve` to fix this bug.\n\nBug:\n{issue}\n\nScout findings:\n{dossier}\n\nRules:\n- flow solve() -> String:\n- Available: shell(), read_file(), write_text(), read_lines(), edit_file(path, old, new), git_diff()\n- Do NOT use think(). Do NOT use import.\n- For SIMPLE one-line fixes: shell(\"sed -i 's/old/new/' filepath\")\n- For COMPLEX multi-line fixes: Write a Python fix script and run it:\n    write_text(\"/tmp/fix.py\", python_code)\n    shell(\"python3 /tmp/fix.py\")\n  The Python script should read the file, do string replacement with exact old/new text, and write it back.\n- Repo: {repo_path}\n- End with: return git_diff()\n- Keep the Cognos flow under 10 lines. Put complexity in the Python script.\n\nReturn ONLY Cognos source. No markdown."
+    
+    generated_code = think(architect_prompt, system=grammar, model="claude-sonnet-4-20250514")
+    
+    # Strip markdown fences
+    if "```" in generated_code:
+        lines = generated_code.split("\n")
+        clean = []
+        for line in lines:
+            if line.strip()[:3] != "```":
+                clean = clean + [line]
+        generated_code = clean.join("\n")
+    
+    write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    write(stdout, f"\nGenerated:\n{generated_code}")
+    
+    # ========================================
+    # PHASE 3: EXECUTE (with retry)
+    # ========================================
+    write(stdout, "\n=== Phase 3: Execute ===")
+    
+    attempt = 0
+    loop:
+        if attempt >= 3:
+            write(stdout, "Flow failed 3 times. Falling back to agent mode...")
+            shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+            
+            fb_system = f"Fix the bug. Tools: shell, read_file, read_lines, edit_file, search, find_files, git_diff.\nRepo: {repo_path}\nMake the edit and call git_diff(). You have 15 turns."
+            fb_prompt = f"Fix this bug using the scout's findings:\n\n{dossier}\n\nOriginal issue:\n{issue}"
+            
+            r2 = think(fb_prompt, system=fb_system, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "git_diff"], model="claude-sonnet-4-20250514", conversation=[])
+            if r2["has_tool_calls"]:
+                exec(r2, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "git_diff"], max_turns=15, model="claude-sonnet-4-20250514", system=fb_system)
+            break
+        
+        attempt = attempt + 1
+        write(stdout, f"\n--- Attempt {attempt}/3 ---")
+        
+        try:
+            eval(generated_code)
+            diff = invoke("solve", {})
+            
+            if diff.strip() == "":
+                write(stdout, "Empty diff — fix not applied.")
+                shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+                if attempt < 3:
+                    generated_code = think(f"Flow produced empty diff. Dossier:\n{dossier}\n\nYour flow:\n{generated_code}\n\nRewrite to actually apply the fix. Use edit_file or sed. Return ONLY Cognos source.", system=grammar, model="claude-sonnet-4-20250514")
+                    if "```" in generated_code:
+                        l2 = generated_code.split("\n")
+                        c2 = []
+                        for l in l2:
+                            if l.strip()[:3] != "```":
+                                c2 = c2 + [l]
+                        generated_code = c2.join("\n")
+                    write_text("/tmp/cognos-generated-flow.cog", generated_code)
+            else:
+                write(stdout, "\n--- PATCH ---")
+                write(stdout, diff)
+                write(stdout, "--- END PATCH ---")
+                return diff
+        catch e:
+            write(stdout, f"Error: {e}")
+            shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+            if attempt < 3:
+                generated_code = think(f"Flow crashed: {e}\n\nDossier:\n{dossier}\n\nFlow:\n{generated_code}\n\nFix it. Keep it simple — prefer sed or edit_file. Return ONLY Cognos source.", system=grammar, model="claude-sonnet-4-20250514")
+                if "```" in generated_code:
+                    l3 = generated_code.split("\n")
+                    c3 = []
+                    for l in l3:
+                        if l.strip()[:3] != "```":
+                            c3 = c3 + [l]
+                    generated_code = c3.join("\n")
+                write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    
+    diff = git_diff()
+    write(stdout, "\n--- PATCH ---")
+    write(stdout, diff)
+    write(stdout, "--- END PATCH ---")
+    return diff
