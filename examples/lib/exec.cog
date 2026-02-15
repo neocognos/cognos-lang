@@ -4,7 +4,12 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
     
     current = response
     turn = 0
-    conversation = current["conversation"]
+    # Support both multi-turn (has conversation) and single-turn/mock mode
+    conversation = none
+    try:
+        conversation = current["conversation"]
+    catch e:
+        conversation = none
     
     loop:
         if turn >= max_turns:
@@ -30,16 +35,34 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
                 result_str = result_str[:2000] + f"\n\n... ({result_str.length} chars total, truncated) ...\n\n" + result_str[result_str.length - 1000:]
             results = results + [{"tool_use_id": call_id, "content": result_str}]
         
-        # Send tool results back with conversation history
-        current = think(
-            "",
-            model=model,
-            tools=tools,
-            system=system,
-            conversation=conversation,
-            tool_results=results
-        )
-        conversation = current["conversation"]
+        # Send tool results back — use conversation mode if available, else single-turn
+        if conversation != none:
+            current = think(
+                "",
+                model=model,
+                tools=tools,
+                system=system,
+                conversation=conversation,
+                tool_results=results
+            )
+        else:
+            # Single-turn fallback: build context from tool results
+            tool_context = ""
+            for r in results:
+                tid = r["tool_use_id"]
+                tcontent = r["content"]
+                tool_context = tool_context + f"Tool {tid}: {tcontent}\n"
+            current = think(
+                f"Tool results:\n{tool_context}\n\nContinue with the task. Use more tools if needed, or provide your final answer.",
+                model=model,
+                tools=tools,
+                system=system
+            )
+        
+        try:
+            conversation = current["conversation"]
+        catch e:
+            log("No conversation in response, continuing without history")
         turn = turn + 1
     
     return {"content": current["content"], "has_tool_calls": false, "turns": turn}
