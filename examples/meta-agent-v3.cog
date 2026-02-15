@@ -56,6 +56,21 @@ flow save_note(key: String, value: String) -> String:
     shell("echo '' >> /tmp/cognos-dossier.txt")
     return f"Saved: {key}"
 
+flow validate_dossier(dossier: String) -> String:
+    "Check dossier for required fields. Returns comma-separated list of missing fields, or 'ok'."
+    missing = []
+    if "### file" not in dossier:
+        missing = missing + ["file"]
+    if "### current_code" not in dossier:
+        missing = missing + ["current_code"]
+    if "### diagnosis" not in dossier:
+        missing = missing + ["diagnosis"]
+    if "### fix" not in dossier:
+        missing = missing + ["fix"]
+    if len(missing) == 0:
+        return "ok"
+    return missing.join(", ")
+
 # --- Main ---
 
 flow main():
@@ -85,6 +100,28 @@ flow main():
         result = exec(r, tools=["search", "read_lines", "find_files", "list_dir", "shell", "save_note"], max_turns=15, model="claude-sonnet-4-20250514", system=scout_system)
     
     dossier = shell("cat /tmp/cognos-dossier.txt 2>/dev/null || echo 'Scout produced no notes'")
+    
+    # Validate dossier — retry scout if missing required fields
+    validation = validate_dossier(dossier)
+    scout_retry = 0
+    loop:
+        if validation == "ok":
+            break
+        if scout_retry >= 2:
+            write(stdout, f"\nWARNING: Dossier still incomplete after retries. Missing: {validation}")
+            break
+        scout_retry = scout_retry + 1
+        write(stdout, f"\nDossier incomplete (missing: {validation}). Retry {scout_retry}/2...")
+        
+        repair_prompt = f"The dossier is missing these fields: {validation}\n\nYou already found:\n{dossier}\n\nCall save_note() for EACH missing field. Required fields:\n- file: absolute path to the file to edit\n- current_code: VERBATIM code from read_lines\n- diagnosis: root cause\n- fix: what to change\n\nDo NOT repeat fields already saved. Only add the missing ones."
+        
+        r_repair = think(repair_prompt, system=scout_system, tools=["search", "read_lines", "find_files", "list_dir", "shell", "save_note"], model="claude-sonnet-4-20250514", conversation=[])
+        if r_repair["has_tool_calls"]:
+            exec(r_repair, tools=["search", "read_lines", "find_files", "list_dir", "shell", "save_note"], max_turns=8, model="claude-sonnet-4-20250514", system=scout_system)
+        
+        dossier = shell("cat /tmp/cognos-dossier.txt 2>/dev/null || echo 'Scout produced no notes'")
+        validation = validate_dossier(dossier)
+    
     write(stdout, f"\nDossier:\n{dossier}")
     
     # ========================================
