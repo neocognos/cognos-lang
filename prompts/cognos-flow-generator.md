@@ -155,6 +155,24 @@ eval("flow f(a: Int): return a * 2")   # register a new flow
 invoke("f", {"a": 5})                  # call it → 10
 ```
 
+### Concurrency
+```
+# Parallel branches — all run simultaneously, block until all complete
+# Variables assigned inside branches are merged back into the parent scope
+parallel:
+    branch:
+        a = shell("grep -c 'def ' file1.py")
+    branch:
+        b = shell("grep -c 'def ' file2.py")
+# After parallel: both a and b are available
+
+# Async — launch a background task, await later
+future = async think("Analyze this code", model="claude-sonnet-4-20250514")
+# ... do other work ...
+result = await(future)    # block until done, get the return value
+cancel(future)            # cancel a running future (optional)
+```
+
 ### Memory
 ```
 remember("Django admin uses get_queryset for filtering")
@@ -218,6 +236,22 @@ flow learn(task: String):
         context = context + p + "\n"
     result = think(f"Task: {task}\nPast:\n{context}")
     remember(f"For '{task}': {result['content'][:200]}")
+```
+
+### Parallel Investigation
+```
+flow investigate(task: String):
+    # Run multiple investigations simultaneously
+    parallel:
+        branch:
+            code = read_file("src/main.py")
+            analysis = think(f"Analyze:\n{code}", model="claude-sonnet-4-20250514")
+        branch:
+            tests = shell("cd /repo && python -m pytest --tb=short 2>&1 | tail -30")
+        branch:
+            structure = shell("find . -name '*.py' | head -20")
+    # All results available here
+    combined = think(f"Plan fix:\nCode analysis: {analysis}\nTests: {tests}\nStructure: {structure}")
 ```
 
 ### Meta (Flow Generates Flow)

@@ -129,15 +129,18 @@ Python files:
 Respond in EXACTLY this format (no markdown):
 COMPLEXITY: simple | multi-step
 PLAN:
-- step 1 description
-- step 2 description
+- step 1 description [depends: none]
+- step 2 description [depends: none]
+- step 3 description [depends: 1, 2]
 ...
 
 Rules:
 - simple = single logical change (one file, one concept)
 - multi-step = requires investigation THEN separate changes, OR multiple files/concepts
 - Keep steps to 2-4 max. Each step should produce a testable change.
-- Each step description should be specific and actionable."""
+- Each step description should be specific and actionable.
+- Mark dependencies: [depends: none] for independent steps, [depends: 1, 2] for steps needing prior results.
+- Investigation/read-only steps are usually independent of each other."""
     
     analysis_text = think(decompose_prompt, model="claude-sonnet-4-20250514")
     write(stdout, f"\n{analysis_text}\n")
@@ -145,17 +148,31 @@ Rules:
     # Parse complexity
     is_multi = "COMPLEXITY: multi-step" in analysis_text
     
-    # Parse steps
+    # Parse steps with dependency info
     steps = []
+    step_deps = []
     in_plan = false
     for line in analysis_text.split("\n"):
         if line.strip() == "PLAN:":
             in_plan = true
         elif in_plan and line.strip()[:2] == "- ":
-            steps = steps + [line.strip()[2:]]
+            raw = line.strip()[2:]
+            # Extract [depends: ...] tag
+            deps = []
+            if "[depends:" in raw:
+                dep_start = raw.index("[depends:")
+                dep_end = raw.index("]", dep_start)
+                dep_text = raw[dep_start + 9:dep_end].strip()
+                raw = raw[:dep_start].strip()
+                if dep_text != "none":
+                    for d in dep_text.split(","):
+                        deps = deps + [int(d.strip())]
+            steps = steps + [raw]
+            step_deps = step_deps + [deps]
     
     if steps.length == 0:
         steps = ["Fix the issue as described"]
+        step_deps = [[]]
         is_multi = false
     
     # --- Check for cached flows (scored) ---
@@ -195,42 +212,71 @@ Rules:
         else:
             write(stdout, "Failed to solve.")
     else:
-        # --- Multi-step mode: generate and execute sub-flows sequentially ---
+        # --- Multi-step mode with parallel generation for independent steps ---
         write(stdout, f"\nMulti-step task — {steps.length} phases:")
         idx = 0
         for s in steps:
             idx = idx + 1
-            write(stdout, f"  {idx}. {s}")
+            deps_str = "none"
+            if step_deps[idx - 1].length > 0:
+                dep_parts = []
+                for d in step_deps[idx - 1]:
+                    dep_parts = dep_parts + [str(d)]
+                deps_str = dep_parts.join(", ")
+            write(stdout, f"  {idx}. {s} [depends: {deps_str}]")
         
         all_context = ""
-        step_num = 0
+        step_results = {}
+        completed = []
         
-        for step in steps:
+        # Execute steps respecting dependencies, parallelizing where possible
+        remaining = []
+        step_num = 0
+        for s in steps:
             step_num = step_num + 1
-            sep = "=" * 50
-            write(stdout, f"\n{sep}")
-            write(stdout, f"Step {step_num}/{steps.length}: {step}")
-            write(stdout, sep)
+            remaining = remaining + [step_num]
+        
+        loop:
+            if remaining.length == 0:
+                break
             
-            # Get current state of the repo (may have changed from prior steps)
-            current_diff = shell(f"cd {repo_path} && git diff --stat")
+            # Find steps whose dependencies are all satisfied
+            ready = []
+            for sn in remaining:
+                deps = step_deps[sn - 1]
+                all_met = true
+                for d in deps:
+                    if d not in completed:
+                        all_met = false
+                        break
+                if all_met:
+                    ready = ready + [sn]
             
-            # Generate a flow for this specific step
-            step_flow_name = f"step_{step_num}"
+            if ready.length == 0:
+                write(stdout, "ERROR: circular dependency detected")
+                break
             
-            prev_changes = "No changes applied yet."
-            if current_diff.strip() != "":
-                prev_changes = f"Previous steps already applied these changes:\n{current_diff}"
-            
-            prev_context = ""
-            if all_context != "":
-                prev_context = f"Context from previous steps:\n{all_context}"
-            
-            step_prompt = f"""Write a Cognos flow called `{step_flow_name}` for this specific step of a larger task.{cache_hint}
+            # Generate flows for all ready steps in parallel (async)
+            write(stdout, f"\n--- Generating {ready.length} flow(s) in parallel ---")
+            futures = {}
+            for sn in ready:
+                step = steps[sn - 1]
+                step_flow_name = f"step_{sn}"
+                current_diff = shell(f"cd {repo_path} && git diff --stat")
+                
+                prev_changes = "No changes applied yet."
+                if current_diff.strip() != "":
+                    prev_changes = f"Previous steps already applied these changes:\n{current_diff}"
+                
+                prev_context = ""
+                if all_context != "":
+                    prev_context = f"Context from previous steps:\n{all_context}"
+                
+                step_prompt = f"""Write a Cognos flow called `{step_flow_name}` for this specific step of a larger task.{cache_hint}
 
 Overall task: {issue}
 
-This is step {step_num} of {steps.length}.
+This is step {sn} of {steps.length}.
 Current step: {step}
 
 {prev_changes}
@@ -252,21 +298,43 @@ Python files:
 {dirs}
 
 Return ONLY the Cognos flow source code."""
+                
+                f = async think(step_prompt, system=grammar, model="claude-opus-4-6")
+                futures = __map_set__(futures, str(sn), f)
             
-            code = strip_fences(think(step_prompt, system=grammar, model="claude-opus-4-6"))
-            write_text(f"/tmp/cognos-step-{step_num}.cog", code)
-            write(stdout, f"\n--- Step {step_num} Flow ---")
-            write(stdout, code)
-            write(stdout, "--- End ---\n")
-            
-            outcome = execute_with_retry(code, step_flow_name, grammar)
-            
-            if outcome["success"]:
-                write(stdout, f"Step {step_num} completed: {outcome['result'][:200]}")
-                all_context = all_context + f"\nStep {step_num} ({step}): {outcome['result'][:300]}"
-            else:
-                write(stdout, f"Step {step_num} FAILED — stopping pipeline.")
-                break
+            # Collect generated flows and execute sequentially (edits are ordered)
+            for sn in ready:
+                step = steps[sn - 1]
+                step_flow_name = f"step_{sn}"
+                sep = "=" * 50
+                write(stdout, f"\n{sep}")
+                write(stdout, f"Step {sn}/{steps.length}: {step}")
+                write(stdout, sep)
+                
+                code = strip_fences(await(futures[str(sn)]))
+                write_text(f"/tmp/cognos-step-{sn}.cog", code)
+                write(stdout, f"\n--- Step {sn} Flow ---")
+                write(stdout, code)
+                write(stdout, "--- End ---\n")
+                
+                outcome = execute_with_retry(code, step_flow_name, grammar)
+                
+                if outcome["success"]:
+                    write(stdout, f"Step {sn} completed: {outcome['result'][:200]}")
+                    all_context = all_context + f"\nStep {sn} ({step}): {outcome['result'][:300]}"
+                    step_results = __map_set__(step_results, str(sn), outcome["result"])
+                    completed = completed + [sn]
+                else:
+                    write(stdout, f"Step {sn} FAILED — stopping pipeline.")
+                    remaining = []
+                    break
+                
+                # Remove from remaining
+                new_remaining = []
+                for r in remaining:
+                    if r != sn:
+                        new_remaining = new_remaining + [r]
+                remaining = new_remaining
         
         # Final result
         diff = shell(f"cd {repo_path} && git diff")

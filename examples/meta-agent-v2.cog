@@ -150,7 +150,7 @@ flow main():
         # --- AGENT MODE: LLM solves interactively with tools ---
         write(stdout, "Starting agent mode...")
         
-        agent_system = f"You are an expert software engineer. Fix the bug described below.\n\nYou have tools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.\n- edit_file(path, old_text, new_text) replaces exact text. old_text MUST match exactly including whitespace.\n- All paths are absolute. Repo is at {repo_path}.\n- When done, call git_diff() to verify your changes.\n- Do NOT explain — just use tools to fix the bug."
+        agent_system = f"You are an expert software engineer. Fix the bug described below.\n\nTools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.\nRules:\n- Use search() and read_lines(path, start, end) to explore. AVOID read_file() on large files — it overflows context.\n- edit_file(path, old_text, new_text) replaces exact text. old_text MUST match exactly including whitespace.\n- For simple replacements, prefer shell(\"sed -i 's/old/new/g' filepath\").\n- All paths are absolute. Repo is at {repo_path}.\n- When done, call git_diff() to verify your changes.\n- Be surgical. Don't read whole files. Use grep to find, read_lines to inspect, edit_file or sed to fix."
         
         agent_prompt = f"Fix this bug:\n\n{issue}\n\nRepo: {repo_path}\nPython files:\n{py_files}\n\nStart by reading the relevant files to understand the code, then make the fix."
         
