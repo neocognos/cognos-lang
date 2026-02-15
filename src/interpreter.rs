@@ -1392,10 +1392,18 @@ impl Interpreter {
                 }
                 
                 // If there's a __eval_main__ (wrapped bare statements), execute its body directly
-                // in the current scope so injected variables are visible
+                // in the current scope so injected variables are visible.
+                // Save vars snapshot so we can restore on failure (prevents scope corruption).
                 if let Some(eval_flow) = program.flows.iter().find(|f| f.name == "__eval_main__") {
-                    self.run_block(&eval_flow.body)?;
-                    return Ok(Value::None);
+                    let saved_vars = self.vars.clone();
+                    match self.run_block(&eval_flow.body) {
+                        Ok(_) => return Ok(Value::None),
+                        Err(e) => {
+                            // Restore caller's scope on eval failure
+                            self.vars = saved_vars;
+                            return Err(e);
+                        }
+                    }
                 }
                 
                 // If there's a "main" flow, call it
