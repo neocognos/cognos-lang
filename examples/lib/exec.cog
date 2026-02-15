@@ -1,6 +1,6 @@
 flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String = "", model: String = "claude-sonnet-4-20250514") -> Map:
     "Multi-turn agentic tool loop with conversation history.
-     Uses native Anthropic conversation API. Truncates tool results aggressively to prevent context overflow."
+     Uses native Anthropic conversation API. Progressive truncation prevents context overflow."
     
     current = response
     turn = 0
@@ -17,12 +17,18 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
         if current["has_tool_calls"] == false:
             break
         
+        # Progressive truncation: shorter limits as conversation grows
+        max_result = 4000
+        if turn > 5:
+            max_result = 2000
+        if turn > 10:
+            max_result = 1000
+        
         # Execute all tool calls and build tool_results
         results = []
         for call in current["tool_calls"]:
             name = call["name"]
             args = call["arguments"]
-            # id may not exist for non-Anthropic APIs
             call_id = ""
             try:
                 call_id = call["id"]
@@ -30,9 +36,11 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
                 call_id = f"call_{turn}_{name}"
             result = invoke(name, args)
             result_str = f"{result}"
-            # Truncate to prevent context overflow, but keep enough for code edits
-            if result_str.length > 4000:
-                result_str = result_str[:2000] + f"\n\n... ({result_str.length} chars total, truncated) ...\n\n" + result_str[result_str.length - 1000:]
+            # Truncate with head+tail preservation
+            if result_str.length > max_result:
+                head_size = max_result * 6 / 10
+                tail_size = max_result * 3 / 10
+                result_str = result_str[:head_size] + f"\n\n... ({result_str.length} chars, truncated at turn {turn}) ...\n\n" + result_str[result_str.length - tail_size:]
             results = results + [{"tool_use_id": call_id, "content": result_str}]
         
         # Send tool results back — use conversation mode if available, else single-turn
@@ -65,4 +73,9 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
             log("No conversation in response, continuing without history")
         turn = turn + 1
     
-    return {"content": current["content"], "has_tool_calls": false, "turns": turn}
+    # Add final turn warning if we hit max
+    status = "done"
+    if turn >= max_turns:
+        status = "max_turns"
+    
+    return {"content": current["content"], "has_tool_calls": false, "turns": turn, "status": status}
