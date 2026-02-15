@@ -1,0 +1,115 @@
+# agent-direct.cog — Direct agent mode: LLM uses tools to fix bugs
+# No flow generation, no complexity analysis — just fix the bug.
+# Run: cognos run --allow-shell examples/agent-direct.cog
+
+import "lib/exec.cog"
+
+# --- Tool flows ---
+
+flow shell(command: String) -> String:
+    "Run a shell command and return stdout+stderr."
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file's contents."
+    return read_text(path)
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read lines start..end (1-indexed) from a file."
+    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Grep for a pattern in Python files."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a glob pattern."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory contents."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
+
+flow edit_file(path: String, old_text: String, new_text: String) -> String:
+    "Replace old_text with new_text in a file. old_text must match exactly."
+    write_text("/tmp/cognos-old.txt", old_text)
+    write_text("/tmp/cognos-new.txt", new_text)
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content:\n    print('ERROR: old_text not found in ' + sys.argv[1] + ' | Looking for: ' + repr(old[:200]))\nelse:\n    content = content.replace(old, new, 1)\n    with open(sys.argv[1], 'w') as f: f.write(content)\n    print('OK: edited ' + sys.argv[1])")
+    result = __exec_shell__(f"python3 /tmp/cognos-edit.py {path}")
+    if "ERROR" in result:
+        log(f"edit_file failed: {result}")
+    return result
+
+flow git_diff() -> String:
+    "Show current uncommitted changes as unified diff."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
+
+# --- Main ---
+
+flow main():
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    
+    if issue.strip() == "":
+        write(stdout, "Enter issue (Ctrl+D to end):")
+        issue = read(stdin)
+        if issue == none:
+            return none
+        write(stdout, "Enter repo path:")
+        repo_path = read(stdin)
+        if repo_path == none:
+            repo_path = "."
+        repo_path = repo_path.strip()
+    
+    # Reset repo
+    shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+    
+    # Gather context
+    py_files = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -40")
+    
+    system = f"""You are an expert software engineer. Fix the bug below with minimal changes.
+
+Tools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.
+
+Strategy:
+1. search() to find relevant code — grep for keywords from the bug report
+2. read_lines(path, start, end) to understand the code around matches
+3. Fix with edit_file() or shell("sed -i ...") — prefer sed for simple changes
+4. git_diff() to verify — call this as your LAST action
+
+Rules:
+- All paths are absolute. Repo: {repo_path}
+- NEVER read_file() on large files. Use search+read_lines.
+- Be surgical. One bug, one fix. Minimal diff.
+- edit_file old_text must match EXACTLY (whitespace matters).
+- For sed: escape special chars, use | as delimiter if / appears in text."""
+    
+    prompt = f"""Fix this bug:
+
+{issue}
+
+Repo: {repo_path}
+Python files:
+{py_files}
+
+Start by searching for relevant code."""
+    
+    write(stdout, "Agent starting...")
+    
+    r = think(prompt, system=system, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff"], model="claude-sonnet-4-20250514", conversation=[])
+    
+    if r["has_tool_calls"]:
+        result = exec(r, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff"], max_turns=25, model="claude-sonnet-4-20250514")
+        write(stdout, f"\nAgent done: {result['content']}")
+    else:
+        write(stdout, f"No tools used: {r['content']}")
+    
+    diff = git_diff()
+    write(stdout, "\n--- PATCH ---")
+    write(stdout, diff)
+    write(stdout, "--- END PATCH ---")
+    return diff

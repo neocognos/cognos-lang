@@ -14,6 +14,8 @@ AGENTS = {
     "coding": os.path.join(COGNOS_DIR, "examples/coding-agent-opus.cog"),
     "meta": os.path.join(COGNOS_DIR, "examples/meta-agent.cog"),
     "meta-multi": os.path.join(COGNOS_DIR, "examples/meta-agent-multi.cog"),
+    "v2": os.path.join(COGNOS_DIR, "examples/meta-agent-v2.cog"),
+    "direct": os.path.join(COGNOS_DIR, "examples/agent-direct.cog"),
 }
 AGENT = AGENTS["coding"]  # default
 
