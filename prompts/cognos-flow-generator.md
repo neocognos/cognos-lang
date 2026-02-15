@@ -198,6 +198,39 @@ flow meta(task: String):
     result = invoke("solution", {"task": task})
 ```
 
+## Available Tools (pre-imported)
+These flows are already imported — do NOT use `import` in generated code.
+
+```
+shell(command: String) -> String
+    # Run any shell command. Returns stdout.
+
+read_file(path: String) -> String
+    # Read file contents. Path relative to repo root.
+
+read_lines(path: String, start: Int, end: Int) -> String
+    # Read specific lines from a file (1-indexed, inclusive).
+
+search(pattern: String, path: String = ".") -> String
+    # Grep for pattern in Python files. Returns file:line:match lines.
+
+find_files(pattern: String) -> String
+    # Find files matching glob. Returns newline-separated paths.
+
+list_dir(path: String = ".") -> String
+    # List directory contents (ls -la).
+
+edit_file(path: String, old_text: String, new_text: String) -> String
+    # Replace old_text with new_text in file. old_text must match EXACTLY.
+    # Returns "OK: edited <path>" on success, "ERROR: old_text not found" on failure.
+
+git_diff() -> String
+    # Show uncommitted changes as unified diff.
+
+note(key: String, value: String) -> String
+    # Store a note in memory for later reference.
+```
+
 ## Rules
 1. Parameters MUST have type annotations: `flow f(x: String)`, not `flow f(x)`
 2. Use `f"..."` for interpolation
