@@ -17,14 +17,17 @@ flow exec(response: Map, tools: List = [], max_turns: Int = 20, system: String =
         for call in current["tool_calls"]:
             name = call["name"]
             args = call["arguments"]
-            call_id = call["id"]
+            # id may not exist for non-Anthropic APIs
+            call_id = ""
+            try:
+                call_id = call["id"]
+            catch e:
+                call_id = f"call_{turn}_{name}"
             result = invoke(name, args)
             result_str = f"{result}"
-            # Aggressive truncation to prevent context overflow
-            # read_file and search can return huge results
-            if result_str.length > 800:
-                # Keep first 400 and last 200 chars with indicator
-                result_str = result_str[:400] + f"\n\n... ({result_str.length} chars total, truncated) ...\n\n" + result_str[result_str.length - 200:]
+            # Truncate to prevent context overflow, but keep enough for code edits
+            if result_str.length > 4000:
+                result_str = result_str[:2000] + f"\n\n... ({result_str.length} chars total, truncated) ...\n\n" + result_str[result_str.length - 1000:]
             results = results + [{"tool_use_id": call_id, "content": result_str}]
         
         # Send tool results back with conversation history

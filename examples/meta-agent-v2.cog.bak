@@ -107,7 +107,7 @@ flow main():
             for line in lines:
                 if line.strip()[:3] != "```":
                     clean = clean + [line]
-            generated_code = clean.join("\n")
+            generated_code = "\n".join(clean)
         
         write_text("/tmp/cognos-generated-flow.cog", generated_code)
         write(stdout, "\n--- Generated Flow ---")
@@ -143,27 +143,25 @@ flow main():
                         for line in lines:
                             if line.strip()[:3] != "```":
                                 clean = clean + [line]
-                        generated_code = clean.join("\n")
+                        generated_code = "\n".join(clean)
                     write_text("/tmp/cognos-generated-flow.cog", generated_code)
     
     if mode == "agent":
         # --- AGENT MODE: LLM solves interactively with tools ---
         write(stdout, "Starting agent mode...")
         
-        agent_system = f"You are an expert software engineer. Fix bugs by editing code.\n\nTools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.\n\nCRITICAL RULES:\n- You have LIMITED turns. Do NOT over-explore. Fix quickly.\n- WORKFLOW: 1) ONE grep/search to find the file, 2) read_lines to see the exact code, 3) edit_file or sed to fix, 4) git_diff to verify. DONE.\n- edit_file(path, old_text, new_text): old_text must match EXACTLY (whitespace matters).\n- Prefer shell(\"sed -i ...\") for simple pattern replacements.\n- All paths are absolute. Repo: {repo_path}\n- Do NOT read whole files. Use read_lines(path, start, end) for specific sections.\n- MAKE THE EDIT within 5-10 turns. Stop exploring and start fixing."
+        agent_system = f"You are an expert software engineer. Fix the bug described below.\n\nTools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.\nRules:\n- Use search() and read_lines(path, start, end) to explore. AVOID read_file() on large files.\n- edit_file(path, old_text, new_text) replaces exact text. old_text MUST match exactly including whitespace.\n- For simple replacements, prefer shell(\"sed -i 's/old/new/g' filepath\").\n- All paths are absolute. Repo is at {repo_path}.\n- Be surgical: minimal changes only. One bug, one fix.\n- WORKFLOW: 1) grep to locate relevant code, 2) read_lines to understand, 3) edit or sed to fix, 4) git_diff to verify.\n- When DONE, call git_diff() as your LAST tool call. This signals completion."
         
-        agent_prompt = f"Fix this bug:\n\n{issue}\n\nRepo: {repo_path}\n\nQuickly find the relevant code, make the minimal fix, and call git_diff()."
+        agent_prompt = f"Fix this bug:\n\n{issue}\n\nRepo: {repo_path}\nPython files:\n{py_files}\n\nStart by grepping for relevant code, then make the minimal fix."
         
         # Use think() with tools in a conversation loop
         r = think(agent_prompt, system=agent_system, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], model="claude-sonnet-4-20250514", conversation=[])
         
         if r["has_tool_calls"]:
             result = exec(r, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], max_turns=30, model="claude-sonnet-4-20250514")
-            agent_result = result["content"]
-            write(stdout, f"\nAgent finished: {agent_result}")
+            write(stdout, f"\nAgent finished: {result['content']}")
         else:
-            no_tool_content = r["content"]
-            write(stdout, f"Agent response (no tools used): {no_tool_content}")
+            write(stdout, f"Agent response (no tools used): {r['content']}")
         
         diff = git_diff()
         write(stdout, "\n--- PATCH ---")

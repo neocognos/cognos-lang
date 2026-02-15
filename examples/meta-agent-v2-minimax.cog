@@ -1,0 +1,90 @@
+# meta-agent-v2-minimax.cog — Agent-only mode with MiniMax
+# MiniMax doesn't follow Cognos grammar instructions well enough for flow mode,
+# so we skip mode selection and go straight to agent mode.
+
+import "lib/exec.cog"
+
+# --- Tool flows ---
+
+flow shell(command: String) -> String:
+    "Run a shell command and return stdout."
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file's contents."
+    return read_text(path)
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read specific lines from a file (1-indexed)."
+    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Grep for a pattern in Python files under path."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a glob pattern."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory contents."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
+
+flow edit_file(path: String, old_text: String, new_text: String) -> String:
+    "Replace old_text with new_text in a file. old_text must match exactly."
+    write_text("/tmp/cognos-old.txt", old_text)
+    write_text("/tmp/cognos-new.txt", new_text)
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content:\n    print('ERROR: old_text not found in ' + sys.argv[1] + ' | Looking for: ' + repr(old[:200]))\nelse:\n    content = content.replace(old, new, 1)\n    with open(sys.argv[1], 'w') as f: f.write(content)\n    print('OK: edited ' + sys.argv[1])")
+    result = __exec_shell__(f"python3 /tmp/cognos-edit.py {path}")
+    if "ERROR" in result:
+        log(f"edit_file failed: {result}")
+    return result
+
+flow git_diff() -> String:
+    "Show current uncommitted changes as unified diff."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
+
+flow note(key: String, value: String) -> String:
+    "Store a note for later reference."
+    return f"Noted: {key}={value}"
+
+# --- Main ---
+
+flow main():
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    
+    if issue.strip() == "":
+        write(stdout, "No issue found.")
+        return none
+    
+    # Reset repo
+    shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+    write(stdout, "Meta-agent (MiniMax agent mode): repo reset, starting...")
+    
+    # Gather context
+    py_files = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -30")
+    
+    agent_system = f"Fix the bug. Use tools. Do NOT explain. Repo: {repo_path}"
+    
+    agent_prompt = f"{issue}\n\nUse search() to find relevant code, then fix it with edit_file() or shell(sed). Call git_diff() when done."
+    
+    r = think(agent_prompt, system=agent_system, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], model="MiniMax-Text-01", conversation=[])
+    
+    if r["has_tool_calls"]:
+        result = exec(r, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], max_turns=20, model="MiniMax-Text-01")
+        agent_content = result["content"]
+        write(stdout, f"\nAgent finished: {agent_content}")
+    else:
+        agent_content = r["content"]
+        write(stdout, f"No tools used: {agent_content}")
+    
+    diff = git_diff()
+    write(stdout, "\n--- PATCH ---")
+    write(stdout, diff)
+    write(stdout, "--- END PATCH ---")
+    return diff

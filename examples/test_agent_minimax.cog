@@ -1,0 +1,17 @@
+import "lib/exec.cog"
+
+flow shell(command: String) -> String:
+    "Run a shell command."
+    return __exec_shell__(command)
+
+flow main():
+    write(stdout, "Testing agent mode with MiniMax...")
+    r = think("Use shell to run 'echo hello world' and tell me the output.", tools=["shell"], model="MiniMax-Text-01", conversation=[])
+    write(stdout, f"has_tool_calls: {r[\"has_tool_calls\"]}")
+    if r["has_tool_calls"]:
+        result = exec(r, tools=["shell"], max_turns=5, model="MiniMax-Text-01")
+        agent_content = result["content"]
+        write(stdout, f"Agent done: {agent_content}")
+    else:
+        agent_content = r["content"]
+        write(stdout, f"No tools used: {agent_content}")
