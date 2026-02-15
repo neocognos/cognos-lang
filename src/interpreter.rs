@@ -2314,7 +2314,7 @@ impl Interpreter {
 
         let client = reqwest::blocking::Client::new();
         let mut req = client.post("https://api.anthropic.com/v1/messages");
-        if token.starts_with("sk-ant-api") {
+        if !token.starts_with("sk-ant-oat") {
             req = req.header("x-api-key", &token);
         } else {
             req = req.header("Authorization", format!("Bearer {}", token));
@@ -2425,8 +2425,14 @@ impl Interpreter {
         }
 
         let client = reqwest::blocking::Client::new();
-        let resp = client.post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", &token)
+        let mut req = client.post("https://api.anthropic.com/v1/messages");
+        if !token.starts_with("sk-ant-oat") {
+            req = req.header("x-api-key", &token);
+        } else {
+            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("anthropic-beta", "oauth-2025-04-20");
+        }
+        let resp = req
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)
@@ -2554,7 +2560,7 @@ impl Interpreter {
 
         let client = reqwest::blocking::Client::new();
         let mut req = client.post("https://api.anthropic.com/v1/messages");
-        if token.starts_with("sk-ant-api") {
+        if !token.starts_with("sk-ant-oat") {
             req = req.header("x-api-key", &token);
         } else {
             req = req.header("Authorization", format!("Bearer {}", token));
@@ -3191,8 +3197,14 @@ impl Interpreter {
         }
 
         let client = reqwest::blocking::Client::new();
-        let resp = client.post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", &token)
+        let mut req = client.post("https://api.anthropic.com/v1/messages");
+        if !token.starts_with("sk-ant-oat") {
+            req = req.header("x-api-key", &token);
+        } else {
+            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("anthropic-beta", "oauth-2025-04-20");
+        }
+        let resp = req
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)

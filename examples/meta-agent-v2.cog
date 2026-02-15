@@ -1,0 +1,170 @@
+# meta-agent-v2.cog — Dual-mode: LLM chooses between flow generation and agent mode
+# Run: cognos run --allow-shell examples/meta-agent-v2.cog
+
+import "lib/exec.cog"
+
+# --- Tool flows available to generated code AND agent mode ---
+
+flow shell(command: String) -> String:
+    "Run a shell command and return stdout."
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file's contents."
+    return read_text(path)
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read specific lines from a file (1-indexed)."
+    return __exec_shell__(f"sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Grep for a pattern in Python files under path."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a glob pattern."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory contents."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
+
+flow edit_file(path: String, old_text: String, new_text: String) -> String:
+    "Replace old_text with new_text in a file. old_text must match exactly."
+    write_text("/tmp/cognos-old.txt", old_text)
+    write_text("/tmp/cognos-new.txt", new_text)
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content:\n    print('ERROR: old_text not found in ' + sys.argv[1] + ' | Looking for: ' + repr(old[:200]))\nelse:\n    content = content.replace(old, new, 1)\n    with open(sys.argv[1], 'w') as f: f.write(content)\n    print('OK: edited ' + sys.argv[1])")
+    result = __exec_shell__(f"python3 /tmp/cognos-edit.py {path}")
+    if "ERROR" in result:
+        log(f"edit_file failed: {result}")
+    return result
+
+flow git_diff() -> String:
+    "Show current uncommitted changes as unified diff."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
+
+flow note(key: String, value: String) -> String:
+    "Store a note for later reference."
+    return f"Noted: {key}={value}"
+
+# --- Master agent ---
+
+flow main():
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    
+    if issue.strip() == "":
+        write(stdout, "Enter issue (Ctrl+D to end):")
+        issue = read(stdin)
+        if issue == none:
+            return none
+        write(stdout, "Enter repo path:")
+        repo_path = read(stdin)
+        if repo_path == none:
+            repo_path = "."
+        repo_path = repo_path.strip()
+    
+    # Reset repo to clean state
+    shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+    write(stdout, "Meta-agent v2: repo reset, analyzing task...")
+    
+    # Gather repo context
+    top = shell(f"cd {repo_path} && ls -la")
+    py_files = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -40")
+    
+    # Load Cognos grammar (for flow mode)
+    grammar = read_text("prompts/cognos-flow-generator.md")
+    
+    # Step 1: Master decides mode — "flow" or "agent"
+    mode_prompt = f"Choose ONE word — flow or agent.\n\nflow = if you can write a sed command or simple edit to fix the bug based on the description alone. Examples: adding an exception type, changing a string, fixing a regex.\nagent = if you need to READ the actual source code first to understand what to change.\n\nBug:\n{issue}\n\nOne word:"
+    
+    mode = think(mode_prompt, model="claude-sonnet-4-20250514").strip()
+    
+    # Normalize — accept variations
+    if "agent" in mode:
+        mode = "agent"
+    else:
+        mode = "flow"
+    
+    write(stdout, f"Mode selected: {mode}")
+    
+    if mode == "flow":
+        # --- FLOW MODE: Generate and execute a Cognos flow ---
+        write(stdout, "Generating Cognos flow...")
+        
+        master_prompt = f"Write a Cognos flow called `solve` that fixes this bug.\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly\n- For text replacements: shell(\"sed -i 's/old/new/g' filepath\") — ALWAYS prefer this\n- For multi-line edits: shell(\"python3 -c \\\"...\\\"\")\n- Do NOT use think() to extract text — use grep/sed via shell()\n- All file paths must be ABSOLUTE (repo at {repo_path})\n- String has .split(sep), .strip(), .length — NOT .splitlines() or .startswith()\n- End with: return git_diff()\n\nRepo: {repo_path}\nFiles:\n{py_files}\n\nBug:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
+        
+        generated_code = think(master_prompt, system=grammar, model="claude-sonnet-4-20250514")
+        
+        # Strip markdown fences
+        if "```" in generated_code:
+            lines = generated_code.split("\n")
+            clean = []
+            for line in lines:
+                if line.strip()[:3] != "```":
+                    clean = clean + [line]
+            generated_code = "\n".join(clean)
+        
+        write_text("/tmp/cognos-generated-flow.cog", generated_code)
+        write(stdout, "\n--- Generated Flow ---")
+        write(stdout, generated_code)
+        write(stdout, "--- End Flow ---\n")
+        
+        # Execute with retry
+        attempt = 0
+        loop:
+            if attempt >= 3:
+                write(stdout, "Flow mode failed after 3 attempts. Falling back to agent mode.")
+                mode = "agent"
+                shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+                break
+            attempt = attempt + 1
+            write(stdout, f"=== Flow attempt {attempt}/3 ===")
+            try:
+                eval(generated_code)
+                diff = invoke("solve", {})
+                write(stdout, "\n--- PATCH ---")
+                write(stdout, diff)
+                write(stdout, "--- END PATCH ---")
+                return diff
+            catch e:
+                write(stdout, f"Failed: {e}")
+                shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
+                if attempt < 3:
+                    retry_prompt = f"Your Cognos flow failed:\n{e}\n\nFlow:\n{generated_code}\n\nFix it. Return ONLY corrected Cognos source. No markdown."
+                    generated_code = think(retry_prompt, system=grammar, model="claude-sonnet-4-20250514")
+                    if "```" in generated_code:
+                        lines = generated_code.split("\n")
+                        clean = []
+                        for line in lines:
+                            if line.strip()[:3] != "```":
+                                clean = clean + [line]
+                        generated_code = "\n".join(clean)
+                    write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    
+    if mode == "agent":
+        # --- AGENT MODE: LLM solves interactively with tools ---
+        write(stdout, "Starting agent mode...")
+        
+        agent_system = f"You are an expert software engineer. Fix the bug described below.\n\nYou have tools: shell, read_file, read_lines, edit_file, search, find_files, list_dir, git_diff.\n- edit_file(path, old_text, new_text) replaces exact text. old_text MUST match exactly including whitespace.\n- All paths are absolute. Repo is at {repo_path}.\n- When done, call git_diff() to verify your changes.\n- Do NOT explain — just use tools to fix the bug."
+        
+        agent_prompt = f"Fix this bug:\n\n{issue}\n\nRepo: {repo_path}\nPython files:\n{py_files}\n\nStart by reading the relevant files to understand the code, then make the fix."
+        
+        # Use think() with tools in a conversation loop
+        r = think(agent_prompt, system=agent_system, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], model="claude-sonnet-4-20250514", conversation=[])
+        
+        if r["has_tool_calls"]:
+            result = exec(r, tools=["shell", "read_file", "read_lines", "edit_file", "search", "find_files", "list_dir", "git_diff", "note"], max_turns=30, model="claude-sonnet-4-20250514")
+            write(stdout, f"\nAgent finished: {result['content']}")
+        else:
+            write(stdout, f"Agent response (no tools used): {r['content']}")
+        
+        diff = git_diff()
+        write(stdout, "\n--- PATCH ---")
+        write(stdout, diff)
+        write(stdout, "--- END PATCH ---")
+        return diff
