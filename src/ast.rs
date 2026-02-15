@@ -170,6 +170,7 @@ pub enum BinOp {
     And,    // and
     Or,     // or
     In,     // in (containment check)
+    NotIn,  // not in (negated containment)
 }
 
 #[derive(Debug, Clone, PartialEq)]

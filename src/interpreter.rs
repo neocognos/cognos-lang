@@ -127,7 +127,7 @@ fn op_str(op: &BinOp) -> &'static str {
         BinOp::Eq => "==", BinOp::NotEq => "!=",
         BinOp::Lt => "<", BinOp::Gt => ">", BinOp::LtEq => "<=", BinOp::GtEq => ">=",
         BinOp::And => "and", BinOp::Or => "or",
-        BinOp::In => "in", BinOp::Mod => "%",
+        BinOp::In => "in", BinOp::NotIn => "not in", BinOp::Mod => "%",
     }
 }
 
@@ -3328,6 +3328,19 @@ impl Interpreter {
             (_, BinOp::In, Value::Map(entries)) => {
                 let key = left.to_string();
                 Ok(Value::Bool(entries.iter().any(|(k, _)| k == &key)))
+            }
+
+            // Negated containment: "x" not in "xyz", item not in [list], key not in {map}
+            (_, BinOp::NotIn, Value::String(s)) => {
+                Ok(Value::Bool(!s.contains(&left.to_string())))
+            }
+            (_, BinOp::NotIn, Value::List(items)) => {
+                let needle = left.to_string();
+                Ok(Value::Bool(!items.iter().any(|item| item.to_string() == needle)))
+            }
+            (_, BinOp::NotIn, Value::Map(entries)) => {
+                let key = left.to_string();
+                Ok(Value::Bool(!entries.iter().any(|(k, _)| k == &key)))
             }
 
             _ => bail!("cannot {} {} {} — {} {} {} not supported",

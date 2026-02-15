@@ -507,6 +507,15 @@ impl Parser {
                 Token::LtEq => BinOp::LtEq,
                 Token::GtEq => BinOp::GtEq,
                 Token::In => BinOp::In,
+                Token::Not => {
+                    // "not in" → NotIn
+                    if self.pos + 1 < self.tokens.len() && matches!(self.tokens[self.pos + 1].token, Token::In) {
+                        self.advance(); // consume 'not'
+                        BinOp::NotIn
+                    } else {
+                        break;
+                    }
+                }
                 _ => break,
             };
             self.advance();
