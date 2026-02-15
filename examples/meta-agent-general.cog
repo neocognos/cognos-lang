@@ -1,0 +1,117 @@
+# meta-agent-general.cog — General-purpose meta-agent
+# Master LLM generates a task-specific Cognos flow for ANY task type.
+# Demonstrates that the meta-agent pattern works beyond coding.
+
+import "lib/exec.cog"
+
+# --- Tool flows ---
+
+flow shell(command: String) -> String:
+    "Run a shell command and return stdout."
+    return __exec_shell__(command)
+
+flow web_search(query: String) -> String:
+    "Search the web and return results. Uses curl + a search API."
+    result = __exec_shell__(f"curl -s 'https://lite.duckduckgo.com/lite/?q={query}' | python3 -c \"import sys,html,re; t=sys.stdin.read(); results=re.findall(r'<a[^>]*class=.result-link[^>]*>(.*?)</a>',t); [print(html.unescape(r)) for r in results[:5]]\" 2>/dev/null || echo 'Search failed'")
+    return result
+
+flow fetch_url(url: String) -> String:
+    "Fetch a URL and return its text content (first 3000 chars)."
+    result = __exec_shell__(f"curl -sL '{url}' | python3 -c \"import sys,re,html; t=sys.stdin.read(); t=re.sub(r'<script[^>]*>.*?</script>','',t,flags=re.DOTALL); t=re.sub(r'<style[^>]*>.*?</style>','',t,flags=re.DOTALL); t=re.sub(r'<[^>]+>','',t); t=html.unescape(t); lines=[l.strip() for l in t.split('\\n') if l.strip()]; print('\\n'.join(lines))\" 2>/dev/null | head -100")
+    return result
+
+flow write_report(filename: String, content: String) -> String:
+    "Write content to a file."
+    write_text(filename, content)
+    return f"Written to {filename}"
+
+flow read_report(filename: String) -> String:
+    "Read a file."
+    return read_text(filename)
+
+flow analyze(prompt: String) -> String:
+    "Ask the LLM to analyze/reason about something. Returns its response."
+    return think(prompt, model="claude-sonnet-4-20250514")
+
+flow summarize(text: String, instruction: String = "Summarize this concisely") -> String:
+    "Summarize text using LLM."
+    return think(f"{instruction}:\n\n{text}", model="claude-sonnet-4-20250514")
+
+flow compare(item_a: String, item_b: String, criteria: String) -> String:
+    "Compare two items on given criteria using LLM reasoning."
+    return think(f"Compare these two items on {criteria}:\n\nItem A:\n{item_a}\n\nItem B:\n{item_b}\n\nBe specific and analytical.", model="claude-sonnet-4-20250514")
+
+flow calculate(expression: String) -> String:
+    "Evaluate a math expression using Python."
+    return __exec_shell__(f"python3 -c \"print({expression})\"")
+
+# --- Main ---
+
+flow main():
+    task = shell("cat /tmp/cognos-task.txt 2>/dev/null")
+    
+    if task.strip() == "":
+        write(stdout, "No task found in /tmp/cognos-task.txt")
+        return none
+    
+    write(stdout, f"Task: {task}")
+    write(stdout, "Generating flow...\n")
+    
+    grammar = read_text("prompts/cognos-flow-generator.md")
+    
+    master_prompt = f"Write a Cognos flow called `solve` that completes this task.\n\nTask:\n{task}\n\nAvailable tools:\n- shell(command) — run shell commands\n- web_search(query) — search the web\n- fetch_url(url) — fetch a webpage as text\n- write_report(filename, content) — save to file\n- read_report(filename) — read a file\n- analyze(prompt) — ask LLM to reason about something (returns String)\n- summarize(text, instruction) — summarize text\n- compare(item_a, item_b, criteria) — compare two things\n- calculate(expression) — evaluate math\n\nRules:\n- flow solve() -> String:\n- Do NOT use import.\n- analyze(prompt) calls the LLM — use it for reasoning, analysis, synthesis.\n- write_report() to save intermediate and final results.\n- Return a final summary string.\n- Keep the flow 10-30 lines.\n\nReturn ONLY Cognos source. No markdown fences."
+    
+    generated_code = think(master_prompt, system=grammar, model="claude-sonnet-4-20250514")
+    
+    # Strip fences
+    if "```" in generated_code:
+        lines = generated_code.split("\n")
+        clean = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.length >= 3:
+                if stripped[:3] == "```":
+                    log("Stripped fence")
+                else:
+                    clean = clean + [line]
+            else:
+                clean = clean + [line]
+        generated_code = clean.join("\n")
+    
+    generated_code = generated_code.strip()
+    write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    write(stdout, f"--- Generated Flow ---\n{generated_code}\n--- End Flow ---\n")
+    
+    # Execute
+    attempt = 0
+    loop:
+        if attempt >= 3:
+            write(stdout, "Failed after 3 attempts.")
+            break
+        attempt = attempt + 1
+        write(stdout, f"=== Attempt {attempt}/3 ===")
+        try:
+            eval(generated_code)
+            result = invoke("solve", {})
+            write(stdout, f"\n=== RESULT ===\n{result}")
+            return result
+        catch e:
+            write(stdout, f"Error: {e}")
+            if attempt < 3:
+                generated_code = think(f"Your Cognos flow crashed: {e}\n\nFlow:\n{generated_code}\n\nFix it. Return ONLY corrected Cognos source.", system=grammar, model="claude-sonnet-4-20250514")
+                if "```" in generated_code:
+                    l2 = generated_code.split("\n")
+                    c2 = []
+                    for l in l2:
+                        s = l.strip()
+                        if s.length >= 3:
+                            if s[:3] == "```":
+                                log("Stripped")
+                            else:
+                                c2 = c2 + [l]
+                        else:
+                            c2 = c2 + [l]
+                    generated_code = c2.join("\n")
+                write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    
+    return "Task failed"
