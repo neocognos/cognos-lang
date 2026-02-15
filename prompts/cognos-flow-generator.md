@@ -30,7 +30,7 @@ config = {"key": "value", "count": 10}
 - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - Logical: `and`, `or`, `not`
 - String repeat: `"a" * 5`
-- Containment: `"x" in list`
+- Containment: `"x" in list`, `"x" not in list`
 
 ### Control Flow
 ```
