@@ -119,20 +119,19 @@ write_text("path.txt", content)    # write file
 
 ### LLM Reasoning
 ```
-# think() ALWAYS returns a Map with at least "content" and "has_tool_calls" keys.
+# think() without tools= returns a String. With tools= returns a Map.
 
-# Simple reasoning
-result = think("Analyze this code", model="claude-sonnet-4-20250514")
-write(stdout, result["content"])  # result["content"] is the response String
+# Simple reasoning (returns String)
+answer = think("Analyze this code", model="claude-sonnet-4-20250514")
+write(stdout, answer)  # think() without tools= returns a String directly
 
-# With system prompt
-result = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
-answer = result["content"]
+# With system prompt (returns String)
+answer = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
 
 # With tools — same Map, plus tool_calls when present
 result = think("Find and fix the bug", tools=["shell", "read_file", "edit_file"], conversation=[])
+# With tools= returns a Map:
 # result["content"] → String
-# result["has_tool_calls"] → Bool
 # result["tool_calls"] → List of {name, arguments, id} (when has_tool_calls is true)
 # result["conversation"] → List for multi-turn (when conversation= was passed)
 ```
@@ -283,7 +282,7 @@ note(key: String, value: String) -> String
 ## Rules
 1. Parameters MUST have type annotations: `flow f(x: String)`, not `flow f(x)`
 2. Use `f"..."` for interpolation
-3. `think()` ALWAYS returns a Map — access content via `result["content"]`
+3. `think()` without tools= returns a String directly. With tools= returns a Map with `result["content"]`
 4. Indentation: 4 spaces, significant (like Python)
 5. No `while` — use `loop:` with `if condition: break`
 6. `none` is lowercase

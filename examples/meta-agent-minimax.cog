@@ -92,9 +92,9 @@ flow main():
     grammar = read_text("prompts/cognos-flow-generator.md")
     
     # Ask the master LLM to generate a task-specific flow
-    master_prompt = f"Write a Cognos flow called `solve` that fixes this bug.\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly\n- ALWAYS pass model=\"claude-sonnet-4-20250514\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY including whitespace/indentation. path is ABSOLUTE.\n- NEVER hardcode old_text from the bug report. The report may describe old code versions.\n- For text replacements: shell(\"sed -i 's/old_pattern/new_pattern/g' filepath\") — ALWAYS prefer this. Example: shell(\"sed -i 's/except FileNotFoundError:/except (FileNotFoundError, ValueError):/g' file.py\")\n- For multi-line edits: shell(\"python3 -c \\\"import pathlib; ...\\\"\")\n- Do NOT use think() to extract text for edits — it adds commentary. Use grep/sed via shell()\n- String has .split(sep), .strip(), .length, [:n] — but NOT .splitlines() or .startswith()\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nTop-level:\n{top}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
+    master_prompt = f"Write a Cognos flow called `solve` that fixes this bug.\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly\n- ALWAYS pass model=\"MiniMax-Text-01\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY including whitespace/indentation. path is ABSOLUTE.\n- NEVER hardcode old_text from the bug report. The report may describe old code versions.\n- For text replacements: shell(\"sed -i 's/old_pattern/new_pattern/g' filepath\") — ALWAYS prefer this. Example: shell(\"sed -i 's/except FileNotFoundError:/except (FileNotFoundError, ValueError):/g' file.py\")\n- For multi-line edits: shell(\"python3 -c \\\"import pathlib; ...\\\"\")\n- Do NOT use think() to extract text for edits — it adds commentary. Use grep/sed via shell()\n- String has .split(sep), .strip(), .length, [:n] — but NOT .splitlines() or .startswith()\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nTop-level:\n{top}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
 
-    generated_code = think(master_prompt, system=grammar, model="claude-opus-4-6")
+    generated_code = think(master_prompt, system=grammar, model="MiniMax-Text-01")
     
     # Strip markdown fences if present
     if "```" in generated_code:
@@ -142,7 +142,7 @@ flow main():
                 shell(f"cd {repo_path} && git checkout -- . && git clean -fd 2>/dev/null")
                 
                 retry_prompt = f"Your generated Cognos flow failed with this error:\n\n{error_msg}\n\nHere was your flow:\n{generated_code}\n\nFix the error and return the corrected flow. Remember:\n- think() WITHOUT tools= returns a String directly\n- Do NOT use import\n- edit_file(path, old_text, new_text) needs exact matching text\n- All tool flows are already available\n- Do NOT wrap output in markdown fences\n\nReturn ONLY the corrected Cognos flow source code. No markdown, no explanation."
-                generated_code = think(retry_prompt, system=grammar, model="claude-opus-4-6")
+                generated_code = think(retry_prompt, system=grammar, model="MiniMax-Text-01")
                 # Strip markdown fences if present
                 if "```" in generated_code:
                     lines = generated_code.split("\n")
