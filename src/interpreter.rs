@@ -1040,15 +1040,16 @@ impl Interpreter {
                 let prompt_text = context.to_string();
 
                 // Multi-turn conversation mode
-                if let Some(conv) = conversation {
-                    // Multi-turn mode: use native Anthropic API with tool support
-                    // The API function handles token lookup (OpenClaw auth-profiles + ANTHROPIC_API_KEY)
+                if let Some(ref conv) = conversation {
+                    // Claude: use native Anthropic API
                     if model.starts_with("claude") {
-                        return self.call_anthropic_api_multi_turn(&model, &system, &prompt_text, tool_defs, conv, tool_results);
+                        return self.call_anthropic_api_multi_turn(&model, &system, &prompt_text, tool_defs, conv.clone(), tool_results);
                     }
+                    // Non-Claude models: use OpenAI-compatible multi-turn API
+                    return self.call_openai_multi_turn(&model, &system, &prompt_text, tool_defs, conv.clone(), tool_results);
                 }
 
-                // Single-turn mode
+                // Single-turn mode (no conversation)
                 let raw_result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
 
                 // think() without tools= returns String; with tools= returns Map
@@ -2954,6 +2955,265 @@ impl Interpreter {
         } else {
             Ok(Value::String(content))
         }
+    }
+
+    fn call_openai_multi_turn(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, conversation: Vec<Value>, tool_results: Option<Vec<Value>>) -> Result<Value> {
+        let call_start = std::time::Instant::now();
+
+        // Determine endpoint and env key based on model
+        let (endpoint, env_key) = if model.starts_with("deepseek") {
+            ("https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY")
+        } else if model.contains("minimax") || model.starts_with("MiniMax") {
+            ("https://api.minimax.chat/v1/text/chatcompletion_v2", "MINIMAX_API_KEY")
+        } else {
+            ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY")
+        };
+
+        let api_key = std::env::var(env_key)
+            .or_else(|_| {
+                let env_path = std::path::Path::new(".env");
+                if env_path.exists() {
+                    std::fs::read_to_string(env_path).ok().and_then(|content| {
+                        content.lines().find_map(|line| {
+                            let line = line.trim();
+                            line.strip_prefix(&format!("{}=", env_key))
+                                .map(|val| val.trim_matches('"').trim_matches('\'').to_string())
+                        })
+                    }).ok_or_else(|| std::env::VarError::NotPresent)
+                } else { Err(std::env::VarError::NotPresent) }
+            })
+            .map_err(|_| anyhow::anyhow!("{} not set. Set it in env or .env file.", env_key))?;
+
+        log::info!("Calling OpenAI-compat API (multi-turn): model={}, endpoint={}, conversation_msgs={}, tools={}",
+                   model, endpoint, conversation.len(), tools.as_ref().map(|t| t.len()).unwrap_or(0));
+
+        // Build messages array
+        let mut messages: Vec<serde_json::Value> = Vec::new();
+
+        // System message
+        if !system.is_empty() {
+            messages.push(serde_json::json!({"role": "system", "content": system}));
+        }
+
+        // Convert conversation history to OpenAI format
+        for msg in &conversation {
+            if let Value::Map(entries) = msg {
+                let role = entries.iter().find(|(k, _)| k == "role")
+                    .map(|(_, v)| v.to_string()).unwrap_or_default();
+                let content = entries.iter().find(|(k, _)| k == "content");
+                let has_tool_calls = entries.iter().find(|(k, _)| k == "has_tool_calls")
+                    .map(|(_, v)| matches!(v, Value::Bool(true))).unwrap_or(false);
+
+                if role == "assistant" && has_tool_calls {
+                    // Assistant message with tool calls — reconstruct OpenAI format
+                    let content_str = content.map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let tool_calls_val = entries.iter().find(|(k, _)| k == "tool_calls");
+                    let mut msg_json = serde_json::json!({"role": "assistant"});
+                    if !content_str.is_empty() {
+                        msg_json["content"] = serde_json::json!(content_str);
+                    } else {
+                        msg_json["content"] = serde_json::Value::Null;
+                    }
+                    if let Some((_, Value::List(calls))) = tool_calls_val {
+                        let tc: Vec<serde_json::Value> = calls.iter().map(|call| {
+                            if let Value::Map(ce) = call {
+                                let id = ce.iter().find(|(k, _)| k == "id")
+                                    .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                let name = ce.iter().find(|(k, _)| k == "name")
+                                    .map(|(_, v)| v.to_string()).unwrap_or_default();
+                                let args = ce.iter().find(|(k, _)| k == "arguments")
+                                    .map(|(_, v)| self.value_to_json(v))
+                                    .unwrap_or(serde_json::json!({}));
+                                serde_json::json!({
+                                    "id": id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": name,
+                                        "arguments": serde_json::to_string(&args).unwrap_or_default()
+                                    }
+                                })
+                            } else {
+                                serde_json::json!({})
+                            }
+                        }).collect();
+                        msg_json["tool_calls"] = serde_json::json!(tc);
+                    }
+                    messages.push(msg_json);
+                } else if role == "tool" {
+                    // Tool result message
+                    let tool_call_id = entries.iter().find(|(k, _)| k == "tool_call_id")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let content_str = content.map(|(_, v)| v.to_string()).unwrap_or_default();
+                    messages.push(serde_json::json!({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": content_str
+                    }));
+                } else {
+                    // Regular user/assistant message
+                    let content_str = content.map(|(_, v)| v.to_string()).unwrap_or_default();
+                    messages.push(serde_json::json!({
+                        "role": role,
+                        "content": content_str
+                    }));
+                }
+            }
+        }
+
+        // Add new user message or tool results
+        if let Some(ref tr) = tool_results {
+            // Tool results are sent as individual "tool" role messages in OpenAI format
+            for result in tr {
+                if let Value::Map(entries) = result {
+                    let tool_call_id = entries.iter().find(|(k, _)| k == "tool_call_id" || k == "tool_use_id")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let content = entries.iter().find(|(k, _)| k == "content")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    messages.push(serde_json::json!({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": content
+                    }));
+                }
+            }
+            // If there's also a prompt, add it as a user message after tool results
+            if !prompt.is_empty() {
+                messages.push(serde_json::json!({"role": "user", "content": prompt}));
+            }
+        } else if !prompt.is_empty() {
+            messages.push(serde_json::json!({"role": "user", "content": prompt}));
+        }
+
+        // Truncate old tool message content to manage tokens
+        let msg_count = messages.len();
+        if msg_count > 8 {
+            let keep_full_from = msg_count.saturating_sub(6);
+            for (i, msg) in messages.iter_mut().enumerate() {
+                if i >= keep_full_from { break; }
+                if msg.get("role").and_then(|r| r.as_str()) == Some("tool") {
+                    if let Some(c) = msg.get_mut("content") {
+                        let text = c.as_str().unwrap_or("").to_string();
+                        if text.len() > 200 {
+                            *c = serde_json::json!(format!("{}...(truncated)", &text[..200]));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build request body
+        let mut body = serde_json::json!({
+            "model": model,
+            "messages": messages
+        });
+
+        if let Some(ref tool_defs) = tools {
+            body["tools"] = serde_json::json!(tool_defs);
+            body["tool_choice"] = serde_json::json!("auto");
+        }
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()?;
+
+        let resp = client.post(endpoint)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        let status = resp.status();
+        let resp_text = resp.text().map_err(|e| anyhow::anyhow!("Failed to read API response: {}", e))?;
+
+        if !status.is_success() {
+            bail!("OpenAI-compat API error ({}): {}", status, &resp_text[..resp_text.len().min(500)]);
+        }
+
+        let json: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| anyhow::anyhow!("JSON parse error: {}", e))?;
+
+        if let Some(err) = json.get("error") {
+            bail!("API error: {}", err);
+        }
+
+        let choice = &json["choices"][0]["message"];
+        let raw_content = choice["content"].as_str().unwrap_or("").to_string();
+        // Strip <think>...</think> tags (MiniMax reasoning tokens)
+        let content = if let Some(end) = raw_content.find("</think>") {
+            raw_content[end + 8..].trim().to_string()
+        } else {
+            raw_content
+        };
+
+        let latency = call_start.elapsed().as_millis() as u64;
+
+        // Check for tool calls
+        let mut tool_calls: Vec<Value> = Vec::new();
+        if let Some(tool_calls_arr) = choice.get("tool_calls").and_then(|v| v.as_array()) {
+            for c in tool_calls_arr {
+                let id = c["id"].as_str().unwrap_or("").to_string();
+                let func = &c["function"];
+                let name = func["name"].as_str().unwrap_or("").to_string();
+                let args_str = func["arguments"].as_str().unwrap_or("{}");
+                let arguments = serde_json::from_str::<serde_json::Value>(args_str)
+                    .map(|v| self.json_to_value(v))
+                    .unwrap_or(Value::Map(vec![]));
+                tool_calls.push(Value::Map(vec![
+                    ("id".to_string(), Value::String(id)),
+                    ("name".to_string(), Value::String(name)),
+                    ("arguments".to_string(), arguments),
+                ]));
+            }
+        }
+
+        let has_tool_calls = !tool_calls.is_empty();
+
+        // Build updated conversation
+        let mut updated_conversation = conversation.clone();
+
+        // Add user message(s) that were sent
+        if let Some(ref tr) = tool_results {
+            for result in tr {
+                if let Value::Map(entries) = result {
+                    let tool_call_id = entries.iter().find(|(k, _)| k == "tool_call_id" || k == "tool_use_id")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    let content_val = entries.iter().find(|(k, _)| k == "content")
+                        .map(|(_, v)| v.to_string()).unwrap_or_default();
+                    updated_conversation.push(Value::Map(vec![
+                        ("role".to_string(), Value::String("tool".to_string())),
+                        ("tool_call_id".to_string(), Value::String(tool_call_id)),
+                        ("content".to_string(), Value::String(content_val)),
+                    ]));
+                }
+            }
+        }
+        if !prompt.is_empty() && tool_results.is_none() {
+            updated_conversation.push(Value::Map(vec![
+                ("role".to_string(), Value::String("user".to_string())),
+                ("content".to_string(), Value::String(prompt.to_string())),
+            ]));
+        }
+
+        // Add assistant response
+        let mut assistant_msg = vec![
+            ("role".to_string(), Value::String("assistant".to_string())),
+            ("content".to_string(), Value::String(content.clone())),
+            ("has_tool_calls".to_string(), Value::Bool(has_tool_calls)),
+        ];
+        if has_tool_calls {
+            assistant_msg.push(("tool_calls".to_string(), Value::List(tool_calls.clone())));
+        }
+        updated_conversation.push(Value::Map(assistant_msg));
+
+        self.trace_llm(model, "openai-multi-turn", latency, prompt, system, &content, has_tool_calls);
+
+        Ok(Value::Map(vec![
+            ("content".to_string(), Value::String(content)),
+            ("conversation".to_string(), Value::List(updated_conversation)),
+            ("has_tool_calls".to_string(), Value::Bool(has_tool_calls)),
+            ("tool_calls".to_string(), Value::List(tool_calls)),
+        ]))
     }
 
     fn call_anthropic_api_multi_turn(&mut self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>, conversation: Vec<Value>, tool_results: Option<Vec<Value>>) -> Result<Value> {
