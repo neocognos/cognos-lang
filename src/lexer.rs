@@ -150,6 +150,7 @@ impl Lexer {
                 '-' => Token::Minus,
                 '*' => Token::Star,
                 '/' => Token::Slash,
+                '%' => Token::Percent,
                 '.' => Token::Dot,
                 ',' => Token::Comma,
                 ':' => Token::Colon,

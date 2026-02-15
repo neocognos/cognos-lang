@@ -537,6 +537,7 @@ impl Parser {
             let op = match self.peek_token() {
                 Token::Star => BinOp::Mul,
                 Token::Slash => BinOp::Div,
+                Token::Percent => BinOp::Mod,
                 _ => break,
             };
             self.advance();
@@ -751,6 +752,11 @@ impl Parser {
     // ─── Types ───
 
     fn parse_type(&mut self) -> Result<TypeExpr> {
+        // Handle None as a type (for -> None return types)
+        if self.check(&Token::None_) {
+            self.advance();
+            return Ok(TypeExpr::Named("None".to_string()));
+        }
         let name = self.expect_ident()?;
         if self.check(&Token::LBracket) {
             self.advance();

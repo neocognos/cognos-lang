@@ -26,7 +26,7 @@ config = {"key": "value", "count": 10}
 ```
 
 ### Operators
-- Arithmetic: `+`, `-`, `*`, `/`
+- Arithmetic: `+`, `-`, `*`, `/`, `%` (modulo)
 - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - Logical: `and`, `or`, `not`
 - String repeat: `"a" * 5`
@@ -72,6 +72,14 @@ m = __map_set__(m, "c", 3)    # set key
 s.strip()                      # trim whitespace
 s.length                       # character count
 s[:100]                        # truncate
+s.split(",")                   # split into List
+```
+
+### Type Casting
+```
+int("42")                      # String/Float/Bool → Int
+float("3.14")                  # String/Int → Float
+str(42)                        # any → String
 ```
 
 ### Functions

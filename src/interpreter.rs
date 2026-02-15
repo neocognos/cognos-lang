@@ -127,7 +127,7 @@ fn op_str(op: &BinOp) -> &'static str {
         BinOp::Eq => "==", BinOp::NotEq => "!=",
         BinOp::Lt => "<", BinOp::Gt => ">", BinOp::LtEq => "<=", BinOp::GtEq => ">=",
         BinOp::And => "and", BinOp::Or => "or",
-        BinOp::In => "in",
+        BinOp::In => "in", BinOp::Mod => "%",
     }
 }
 
@@ -1267,6 +1267,43 @@ impl Interpreter {
                         }
                     }
                 }
+            }
+            "int" => {
+                // int(value) — cast to integer
+                if args.is_empty() { bail!("int() requires one argument"); }
+                let val = self.eval(&args[0])?;
+                match val {
+                    Value::Int(n) => Ok(Value::Int(n)),
+                    Value::Float(f) => Ok(Value::Int(f as i64)),
+                    Value::String(s) => {
+                        let trimmed = s.trim();
+                        trimmed.parse::<i64>()
+                            .map(Value::Int)
+                            .map_err(|_| anyhow::anyhow!("cannot convert '{}' to Int", trimmed))
+                    }
+                    Value::Bool(b) => Ok(Value::Int(if b { 1 } else { 0 })),
+                    other => bail!("cannot convert {} to Int", type_name(&other)),
+                }
+            }
+            "float" => {
+                if args.is_empty() { bail!("float() requires one argument"); }
+                let val = self.eval(&args[0])?;
+                match val {
+                    Value::Float(f) => Ok(Value::Float(f)),
+                    Value::Int(n) => Ok(Value::Float(n as f64)),
+                    Value::String(s) => {
+                        let trimmed = s.trim();
+                        trimmed.parse::<f64>()
+                            .map(Value::Float)
+                            .map_err(|_| anyhow::anyhow!("cannot convert '{}' to Float", trimmed))
+                    }
+                    other => bail!("cannot convert {} to Float", type_name(&other)),
+                }
+            }
+            "str" => {
+                if args.is_empty() { bail!("str() requires one argument"); }
+                let val = self.eval(&args[0])?;
+                Ok(Value::String(val.to_string()))
             }
             "eval" => {
                 // eval(source, vars={}) — parse and execute Cognos source code at runtime.
@@ -3211,6 +3248,10 @@ impl Interpreter {
             (Value::Int(a), BinOp::Div, Value::Int(b)) => {
                 if *b == 0 { bail!("division by zero"); }
                 Ok(Value::Int(a / b))
+            }
+            (Value::Int(a), BinOp::Mod, Value::Int(b)) => {
+                if *b == 0 { bail!("modulo by zero"); }
+                Ok(Value::Int(a % b))
             }
 
             // Float arithmetic

@@ -250,6 +250,10 @@ pub fn unexpected_token(line: usize, got: &Token, context: &str) -> CognosError 
             "unexpected '|' — use in enum definitions: \"a\" | \"b\"".into(),
             None,
         ),
+        Token::Percent => (
+            "unexpected '%' — modulo operator".into(),
+            None,
+        ),
     };
 
     CognosError {

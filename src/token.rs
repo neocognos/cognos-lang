@@ -50,6 +50,7 @@ pub enum Token {
     Minus,      // -
     Star,       // *
     Slash,      // /
+    Percent,    // %
     Dot,        // .
     Comma,      // ,
     Colon,      // :
@@ -119,6 +120,7 @@ impl std::fmt::Display for Token {
             Token::Minus => write!(f, "'-'"),
             Token::Star => write!(f, "'*'"),
             Token::Slash => write!(f, "'/'"),
+            Token::Percent => write!(f, "'%'"),
             Token::Dot => write!(f, "'.'"),
             Token::Comma => write!(f, "','"),
             Token::Colon => write!(f, "':'"),
