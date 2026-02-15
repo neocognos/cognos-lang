@@ -90,8 +90,7 @@ flow execute_with_retry(code: String, flow_name: String, grammar: String, max_at
                 repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
                 shell(f"cd {repo} && git checkout -- .")
                 retry_prompt = f"Your Cognos flow '{flow_name}' failed:\n\n{error_msg}\n\nOriginal code:\n{current_code}\n\nFix and return ONLY the corrected Cognos source. No markdown fences."
-                fix = think(retry_prompt, system=grammar, model="claude-opus-4-6")
-                current_code = strip_fences(fix["content"])
+                current_code = strip_fences(think(retry_prompt, system=grammar, model="claude-opus-4-6"))
 
 # --- Multi-step orchestrator ---
 
@@ -140,8 +139,7 @@ Rules:
 - Keep steps to 2-4 max. Each step should produce a testable change.
 - Each step description should be specific and actionable."""
     
-    analysis = think(decompose_prompt, model="claude-sonnet-4-20250514")
-    analysis_text = analysis["content"]
+    analysis_text = think(decompose_prompt, model="claude-sonnet-4-20250514")
     write(stdout, f"\n{analysis_text}\n")
     
     # Parse complexity
@@ -179,10 +177,9 @@ Rules:
         # --- Simple mode: single flow (same as original meta-agent) ---
         write(stdout, f"\nSimple task — generating single flow...")
         
-        gen_prompt = f"Write a Cognos flow called `solve` that fixes this bug.{cache_hint}\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() ALWAYS returns a Map — use result[\"content\"] to get the string\n- ALWAYS pass model=\"claude-sonnet-4-20250514\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY. path is ABSOLUTE.\n- NEVER hardcode old_text from the bug report — always read_lines first\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code."
+        gen_prompt = f"Write a Cognos flow called `solve` that fixes this bug.{cache_hint}\n\nCritical rules:\n- flow solve() -> String: (no parameters)\n- Do NOT use import — all tools are already available\n- think() WITHOUT tools= returns a String directly\n- ALWAYS pass model=\"claude-sonnet-4-20250514\" to think()\n- edit_file(path, old_text, new_text) — old_text must match EXACTLY. path is ABSOLUTE.\n- NEVER hardcode old_text — always read_lines first to get exact current content\n- For simple text replacements, prefer shell(\"sed -i 's/old/new/g' filepath\") — deterministic\n- When using think() to extract text, say 'Return ONLY the exact text' in the prompt\n- End with: return git_diff()\n- Repo path: {repo_path}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences."
         
-        result = think(gen_prompt, system=grammar, model="claude-opus-4-6")
-        code = strip_fences(result["content"])
+        code = strip_fences(think(gen_prompt, system=grammar, model="claude-opus-4-6"))
         write_text("/tmp/cognos-generated-flow.cog", code)
         write(stdout, "\n--- Generated Flow ---")
         write(stdout, code)
@@ -243,10 +240,11 @@ Current step: {step}
 Critical rules:
 - flow {step_flow_name}() -> String: (no parameters)
 - Do NOT use import — all tools are already available
-- think() ALWAYS returns a Map — use result["content"] to get the string
+- think() WITHOUT tools= returns a String directly
 - ALWAYS pass model="claude-sonnet-4-20250514" to think()
 - edit_file(path, old_text, new_text) — old_text must match EXACTLY. path is ABSOLUTE.
 - NEVER hardcode old_text — always read_lines first to get exact current content
+- For simple text replacements, prefer shell("sed -i 's/old/new/g' filepath") — deterministic
 - Return a brief summary of what was done (String)
 - Repo path: {repo_path}
 
@@ -255,8 +253,7 @@ Python files:
 
 Return ONLY the Cognos flow source code."""
             
-            result = think(step_prompt, system=grammar, model="claude-opus-4-6")
-            code = strip_fences(result["content"])
+            code = strip_fences(think(step_prompt, system=grammar, model="claude-opus-4-6"))
             write_text(f"/tmp/cognos-step-{step_num}.cog", code)
             write(stdout, f"\n--- Step {step_num} Flow ---")
             write(stdout, code)
