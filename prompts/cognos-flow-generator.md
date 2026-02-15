@@ -93,21 +93,21 @@ write_text("path.txt", content)    # write file
 
 ### LLM Reasoning
 ```
-# Simple reasoning
-result = think("Analyze this code", model="claude-sonnet-4-20250514")
-text = result["content"]
+# Simple reasoning — returns a String directly
+answer = think("Analyze this code", model="claude-sonnet-4-20250514")
+write(stdout, answer)  # answer is a String, NOT a Map
 
-# With system prompt
-result = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
+# With system prompt — also returns String
+answer = think("Fix the bug", system="You are an expert engineer", model="claude-opus-4-6")
 
-# With tools — LLM can call your flows
+# With tools — returns a Map (different from above!)
 result = think("Find and fix the bug", tools=["shell", "read_file", "edit_file"], conversation=[])
+# result["content"] → String
 # result["has_tool_calls"] → Bool
 # result["tool_calls"] → List of {name, arguments, id}
 # result["conversation"] → List for multi-turn
 
-# With images
-result = think("Describe this", images=["photo.jpg"])
+# IMPORTANT: think() WITHOUT tools= returns String. think() WITH tools= returns Map.
 ```
 
 ### Tool Execution Loop

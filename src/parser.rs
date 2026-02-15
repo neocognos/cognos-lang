@@ -506,6 +506,7 @@ impl Parser {
                 Token::Gt => BinOp::Gt,
                 Token::LtEq => BinOp::LtEq,
                 Token::GtEq => BinOp::GtEq,
+                Token::In => BinOp::In,
                 _ => break,
             };
             self.advance();

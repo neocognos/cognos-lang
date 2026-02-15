@@ -168,6 +168,7 @@ pub enum BinOp {
     GtEq,   // >=
     And,    // and
     Or,     // or
+    In,     // in (containment check)
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,0 +1,114 @@
+# meta-agent.cog — Master LLM generates task-specific Cognos flows
+# Run: cognos run --memory --allow-shell examples/meta-agent.cog
+
+import "lib/exec.cog"
+
+# --- Tool flows available to generated code ---
+
+flow shell(command: String) -> String:
+    "Run a shell command."
+    return __exec_shell__(command)
+
+flow read_file(path: String) -> String:
+    "Read a file. Path is relative to the repo root."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && cat {path}")
+
+flow read_lines(path: String, start: Int, end: Int) -> String:
+    "Read specific lines from a file (1-indexed)"
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && sed -n '{start},{end}p' {path}")
+
+flow search(pattern: String, path: String = ".") -> String:
+    "Grep for a pattern in Python files."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && grep -rnE '{pattern}' {path} --include='*.py' | head -50")
+
+flow find_files(pattern: String) -> String:
+    "Find files matching a glob pattern"
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && find . -name '{pattern}' -not -path './.git/*' | head -30")
+
+flow list_dir(path: String = ".") -> String:
+    "List directory contents"
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && ls -la {path}")
+
+flow edit_file(path: String, old_text: String, new_text: String) -> String:
+    "Replace old_text with new_text in a file. old_text must match exactly."
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    full_path = f"{repo}/{path}"
+    write_text("/tmp/cognos-old.txt", old_text)
+    write_text("/tmp/cognos-new.txt", new_text)
+    write_text("/tmp/cognos-edit.py", "import sys\nwith open(sys.argv[1]) as f: content = f.read()\nwith open('/tmp/cognos-old.txt') as f: old = f.read()\nwith open('/tmp/cognos-new.txt') as f: new = f.read()\nif old not in content: print('ERROR: old_text not found'); sys.exit(1)\ncontent = content.replace(old, new, 1)\nwith open(sys.argv[1], 'w') as f: f.write(content)\nprint('OK: edited ' + sys.argv[1])")
+    return __exec_shell__(f"python3 /tmp/cognos-edit.py {full_path}")
+
+flow git_diff() -> String:
+    "Show current uncommitted changes as unified diff"
+    repo = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    return __exec_shell__(f"cd {repo} && git diff")
+
+flow note(key: String, value: String) -> String:
+    "Store a note for later reference"
+    remember(f"{key}: {value}")
+    return f"Noted: {key}"
+
+# --- Master agent ---
+
+flow main():
+    issue = shell("cat /tmp/cognos-issue.txt 2>/dev/null")
+    repo_path = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+    
+    if issue.strip() == "":
+        write(stdout, "Enter issue (Ctrl+D to end):")
+        issue = read(stdin)
+        if issue == none:
+            return none
+        write(stdout, "Enter repo path:")
+        repo_path = read(stdin)
+        if repo_path == none:
+            repo_path = "."
+        repo_path = repo_path.strip()
+    
+    write(stdout, f"Meta-agent: analyzing task...")
+    
+    # Gather repo context for the master
+    dirs = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -40")
+    top = shell(f"cd {repo_path} && ls -la")
+    
+    # Load the Cognos grammar
+    grammar = read_text("prompts/cognos-flow-generator.md")
+    
+    # Ask the master LLM to generate a task-specific flow
+    master_prompt = f"Write a Cognos flow called `solve` that fixes this bug. The flow should:\n- Take no parameters (repo path is at /tmp/cognos-repo.txt)\n- Use the available tools: shell, read_file, read_lines, search, find_files, list_dir, edit_file, git_diff, note\n- Include think() calls where reasoning is needed (e.g. analyzing code, deciding what to edit)\n- Use deterministic logic (loops, conditionals) where possible\n- End by calling git_diff() and returning the diff\n\nRepository: {repo_path}\nTop-level:\n{top}\n\nPython files:\n{dirs}\n\nBug report:\n{issue}\n\nReturn ONLY the Cognos flow source code. No markdown fences, no explanation."
+
+    generated_code = think(master_prompt, system=grammar, model="claude-opus-4-6")
+    
+    # Save the generated flow for inspection
+    write_text("/tmp/cognos-generated-flow.cog", generated_code)
+    write(stdout, f"\n--- Generated Flow (saved to /tmp/cognos-generated-flow.cog) ---")
+    write(stdout, generated_code)
+    write(stdout, "--- End Generated Flow ---\n")
+    
+    # Execute the generated flow
+    write(stdout, "Executing generated flow...")
+    try:
+        eval(generated_code)
+        diff = invoke("solve", {})
+        write(stdout, "\n--- PATCH ---")
+        write(stdout, diff)
+        write(stdout, "--- END PATCH ---")
+    catch e:
+        write(stdout, f"Generated flow failed: {e}")
+        write(stdout, "Falling back to direct tool loop...")
+        
+        # Fallback: use standard tool loop
+        rp = shell("cat /tmp/cognos-repo.txt 2>/dev/null || echo '.'").strip()
+        system_prompt = f"You are an expert engineer. Fix the bug.\nRepo: {rp}\nFiles:\n{dirs}\n\nBug:\n{issue}"
+        r = think(f"Fix this bug:\n{issue}", tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"], system=system_prompt, conversation=[])
+        if r["has_tool_calls"]:
+            result = exec(r, tools=["shell", "read_file", "read_lines", "search", "find_files", "list_dir", "edit_file", "git_diff"], max_turns=20, system=system_prompt)
+        diff = shell(f"cd {rp} && git diff")
+        write(stdout, "\n--- PATCH (fallback) ---")
+        write(stdout, diff)
+        write(stdout, "--- END PATCH ---")

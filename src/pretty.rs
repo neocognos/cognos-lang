@@ -196,7 +196,7 @@ fn pretty_expr(expr: &Expr) -> String {
                 BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/",
                 BinOp::Eq => "==", BinOp::NotEq => "!=",
                 BinOp::Lt => "<", BinOp::Gt => ">", BinOp::LtEq => "<=", BinOp::GtEq => ">=",
-                BinOp::And => "and", BinOp::Or => "or",
+                BinOp::And => "and", BinOp::Or => "or", BinOp::In => "in",
             };
             format!("{} {} {}", pretty_expr(left), op_str, pretty_expr(right))
         }

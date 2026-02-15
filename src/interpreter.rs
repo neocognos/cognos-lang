@@ -127,6 +127,7 @@ fn op_str(op: &BinOp) -> &'static str {
         BinOp::Eq => "==", BinOp::NotEq => "!=",
         BinOp::Lt => "<", BinOp::Gt => ">", BinOp::LtEq => "<=", BinOp::GtEq => ">=",
         BinOp::And => "and", BinOp::Or => "or",
+        BinOp::In => "in",
     }
 }
 
@@ -3274,6 +3275,19 @@ impl Interpreter {
             // Truthy logic
             (_, BinOp::And, _) => Ok(Value::Bool(left.is_truthy() && right.is_truthy())),
             (_, BinOp::Or, _) => Ok(Value::Bool(left.is_truthy() || right.is_truthy())),
+
+            // Containment: "x" in "xyz", item in [list], key in {map}
+            (_, BinOp::In, Value::String(s)) => {
+                Ok(Value::Bool(s.contains(&left.to_string())))
+            }
+            (_, BinOp::In, Value::List(items)) => {
+                let needle = left.to_string();
+                Ok(Value::Bool(items.iter().any(|item| item.to_string() == needle)))
+            }
+            (_, BinOp::In, Value::Map(entries)) => {
+                let key = left.to_string();
+                Ok(Value::Bool(entries.iter().any(|(k, _)| k == &key)))
+            }
 
             _ => bail!("cannot {} {} {} — {} {} {} not supported",
                 type_name(left), op_str(op), type_name(right),
