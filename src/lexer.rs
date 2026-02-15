@@ -207,8 +207,33 @@ impl Lexer {
         let line = self.line;
         let col = self.col;
         self.advance(); // skip opening "
+
+        // Check for triple-quoted string """..."""
+        let triple = self.pos + 1 < self.source.len()
+            && self.source[self.pos] == '"'
+            && self.source[self.pos + 1] == '"';
+        if triple {
+            self.advance(); // skip second "
+            self.advance(); // skip third "
+        }
+
         let mut s = String::new();
-        while self.pos < self.source.len() && self.source[self.pos] != '"' {
+        while self.pos < self.source.len() {
+            if triple {
+                // Look for closing """
+                if self.source[self.pos] == '"'
+                    && self.pos + 2 < self.source.len()
+                    && self.source[self.pos + 1] == '"'
+                    && self.source[self.pos + 2] == '"'
+                {
+                    self.advance(); // skip first "
+                    self.advance(); // skip second "
+                    self.advance(); // skip third "
+                    return Spanned { token: Token::StringLit(s), line, col };
+                }
+            } else if self.source[self.pos] == '"' {
+                break;
+            }
             if self.source[self.pos] == '\\' && self.pos + 1 < self.source.len() {
                 self.advance();
                 match self.source[self.pos] {
@@ -234,8 +259,33 @@ impl Lexer {
         let col = self.col;
         self.advance(); // skip 'f'
         self.advance(); // skip opening '"'
+
+        // Check for triple-quoted f-string f"""..."""
+        let triple = self.pos + 1 < self.source.len()
+            && self.source[self.pos] == '"'
+            && self.source[self.pos + 1] == '"';
+        if triple {
+            self.advance(); // skip second "
+            self.advance(); // skip third "
+        }
+
         let mut s = String::new();
-        while self.pos < self.source.len() && self.source[self.pos] != '"' {
+        while self.pos < self.source.len() {
+            if triple {
+                // Look for closing """
+                if self.source[self.pos] == '"'
+                    && self.pos + 2 < self.source.len()
+                    && self.source[self.pos + 1] == '"'
+                    && self.source[self.pos + 2] == '"'
+                {
+                    self.advance(); // skip first "
+                    self.advance(); // skip second "
+                    self.advance(); // skip third "
+                    return Spanned { token: Token::FStringLit(s), line, col };
+                }
+            } else if self.source[self.pos] == '"' {
+                break;
+            }
             if self.source[self.pos] == '\\' && self.pos + 1 < self.source.len() {
                 self.advance();
                 match self.source[self.pos] {
