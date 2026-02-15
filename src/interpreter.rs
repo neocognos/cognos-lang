@@ -2313,10 +2313,15 @@ impl Interpreter {
         }
 
         let client = reqwest::blocking::Client::new();
-        let resp = client.post("https://api.anthropic.com/v1/messages")
-            .header("Authorization", format!("Bearer {}", token))
+        let mut req = client.post("https://api.anthropic.com/v1/messages");
+        if token.starts_with("sk-ant-api") {
+            req = req.header("x-api-key", &token);
+        } else {
+            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("anthropic-beta", "oauth-2025-04-20");
+        }
+        let resp = req
             .header("anthropic-version", "2023-06-01")
-            .header("anthropic-beta", "oauth-2025-04-20")
             .header("content-type", "application/json")
             .json(&body)
             .send()
@@ -2485,34 +2490,34 @@ impl Interpreter {
     fn call_anthropic_api(&self, model: &str, system: &str, prompt: &str, tools: Option<Vec<serde_json::Value>>) -> Result<Value> {
         let call_start = std::time::Instant::now();
 
-        // Read token: OpenClaw auth-profiles first, then ANTHROPIC_API_KEY env var
+        // Read token: ANTHROPIC_API_KEY env var first, then OpenClaw auth-profiles
         let home = std::env::var("HOME").unwrap_or_default();
-        let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
         let mut token: Option<String> = None;
         let mut token_source = "none";
-        if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
-            for entry in entries.flatten() {
-                let auth_path = entry.path().join("agent/auth-profiles.json");
-                if let Ok(data) = std::fs::read_to_string(&auth_path) {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
-                        if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
-                            if !t.is_empty() {
-                                log::info!("Using Anthropic token from {:?} ({}...)", auth_path, &t[..t.len().min(20)]);
-                                token = Some(t.to_string());
-                                token_source = "openclaw-auth-profiles";
-                                break;
-                            }
-                        }
-                    }
-                }
+        if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            if !key.is_empty() {
+                log::info!("Using ANTHROPIC_API_KEY env var ({}...)", &key[..key.len().min(20)]);
+                token = Some(key);
+                token_source = "env-var";
             }
         }
         if token.is_none() {
-            if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
-                if !key.is_empty() {
-                    log::info!("Using ANTHROPIC_API_KEY env var ({}...)", &key[..key.len().min(20)]);
-                    token = Some(key);
-                    token_source = "env-var";
+            let openclaw_agents = std::path::PathBuf::from(&home).join(".openclaw/agents");
+            if let Ok(entries) = std::fs::read_dir(&openclaw_agents) {
+                for entry in entries.flatten() {
+                    let auth_path = entry.path().join("agent/auth-profiles.json");
+                    if let Ok(data) = std::fs::read_to_string(&auth_path) {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) {
+                            if let Some(t) = parsed["profiles"]["anthropic:default"]["token"].as_str() {
+                                if !t.is_empty() {
+                                    log::info!("Using Anthropic token from {:?} ({}...)", auth_path, &t[..t.len().min(20)]);
+                                    token = Some(t.to_string());
+                                    token_source = "openclaw-auth-profiles";
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2548,10 +2553,15 @@ impl Interpreter {
         log::debug!("API request body: {}", serde_json::to_string(&body).unwrap_or_default());
 
         let client = reqwest::blocking::Client::new();
-        let resp = client.post("https://api.anthropic.com/v1/messages")
-            .header("Authorization", format!("Bearer {}", token))
+        let mut req = client.post("https://api.anthropic.com/v1/messages");
+        if token.starts_with("sk-ant-api") {
+            req = req.header("x-api-key", &token);
+        } else {
+            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("anthropic-beta", "oauth-2025-04-20");
+        }
+        let resp = req
             .header("anthropic-version", "2023-06-01")
-            .header("anthropic-beta", "oauth-2025-04-20")
             .header("content-type", "application/json")
             .json(&body)
             .send()
