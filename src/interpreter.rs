@@ -1051,14 +1051,8 @@ impl Interpreter {
                 // Single-turn mode
                 let raw_result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
 
-                // Normalize: think() ALWAYS returns a Map with at least "content" key
-                let result = match raw_result {
-                    Value::String(s) => Value::Map(vec![
-                        ("content".to_string(), Value::String(s.clone())),
-                        ("has_tool_calls".to_string(), Value::Bool(false)),
-                    ]),
-                    other => other,
-                };
+                // think() without tools= returns String; with tools= returns Map
+                let result = raw_result;
 
                 // Track conversation history
                 self.conversation_history.push(("user".to_string(), prompt_text.clone()));

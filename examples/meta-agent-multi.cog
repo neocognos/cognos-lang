@@ -67,7 +67,7 @@ flow strip_fences(code: String) -> String:
         for line in lines:
             if line.strip()[:3] != "```":
                 clean = clean + [line]
-        return "\n".join(clean)
+        return clean.join("\n")
     return code
 
 flow execute_with_retry(code: String, flow_name: String, grammar: String, max_attempts: Int = 3) -> Map:
