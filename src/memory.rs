@@ -40,10 +40,16 @@ impl MemoryStore {
                 text TEXT NOT NULL,
                 embedding BLOB NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                access_count INTEGER NOT NULL DEFAULT 0
+                access_count INTEGER NOT NULL DEFAULT 0,
+                score REAL NOT NULL DEFAULT 0.0
             );
-            CREATE INDEX IF NOT EXISTS idx_memories_ns ON memories(namespace);"
+            CREATE INDEX IF NOT EXISTS idx_memories_ns ON memories(namespace);
+            -- Migration: add score column if missing (existing DBs)
+            -- SQLite ignores duplicate ADD COLUMN errors at runtime"
         )?;
+        // Migration for existing databases
+        let _ = conn.execute_batch("ALTER TABLE memories ADD COLUMN score REAL NOT NULL DEFAULT 0.0");
+
         let ollama_url = std::env::var("OLLAMA_URL")
             .unwrap_or_else(|_| "http://localhost:11434".to_string());
         let model = std::env::var("COGNOS_EMBED_MODEL")
@@ -79,6 +85,37 @@ impl MemoryStore {
         Ok(())
     }
 
+    /// Store a fact with an explicit quality score.
+    /// If a near-duplicate exists (cosine > 0.95), updates its score instead.
+    pub fn remember_scored(&self, text: &str, score: f64) -> Result<()> {
+        let embedding = self.embed(text)?;
+
+        // Check for duplicates — update score if found
+        let all = self.all_with_embeddings()?;
+        for (id, _existing_text, emb) in &all {
+            let sim = cosine_similarity(&embedding, emb);
+            if sim > DEDUP_THRESHOLD {
+                let db = self.db.lock().unwrap();
+                // Exponential moving average: new_score = 0.7 * new + 0.3 * old
+                db.execute(
+                    "UPDATE memories SET score = 0.7 * ?1 + 0.3 * score WHERE id = ?2",
+                    params![score, id],
+                )?;
+                log::info!("memory: updated score for existing fact (id={}, new_score={:.2})", id, score);
+                return Ok(());
+            }
+        }
+
+        let blob = embedding_to_blob(&embedding);
+        let db = self.db.lock().unwrap();
+        db.execute(
+            "INSERT INTO memories (namespace, text, embedding, score) VALUES (?1, ?2, ?3, ?4)",
+            params![self.namespace, text, blob, score],
+        )?;
+        log::info!("memory: stored scored fact ({} bytes, score={:.2})", text.len(), score);
+        Ok(())
+    }
+
     /// Semantic search. Returns up to `limit` facts, most relevant first.
     pub fn recall(&self, query: &str, limit: usize) -> Result<Vec<String>> {
         let embedding = self.embed(query)?;
@@ -94,6 +131,45 @@ impl MemoryStore {
         }
         
         Ok(results.into_iter().map(|(text, _)| text).collect())
+    }
+
+    /// Semantic search returning scored results with quality metadata.
+    /// Returns Vec<(text, similarity, quality_score)>.
+    pub fn recall_scored(&self, query: &str, limit: usize) -> Result<Vec<(String, f64, f64)>> {
+        let embedding = self.embed(query)?;
+        let all = self.all_with_embeddings_and_scores()?;
+        let query_tokens: Vec<String> = query
+            .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+            .filter(|w| w.len() >= 2)
+            .map(|w| w.to_lowercase())
+            .collect();
+
+        let mut scored: Vec<(String, f64, f64)> = all
+            .into_iter()
+            .map(|(_id, text, emb, quality_score)| {
+                let semantic_score = cosine_similarity(&embedding, &emb);
+                let text_lower = text.to_lowercase();
+                let keyword_hits = query_tokens.iter()
+                    .filter(|token| text_lower.contains(token.as_str()))
+                    .count();
+                let keyword_boost = (keyword_hits as f64 * 0.15).min(0.3);
+                let combined = semantic_score + keyword_boost;
+                (text, combined, quality_score)
+            })
+            .collect();
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.truncate(limit);
+
+        // Update access counts
+        let db = self.db.lock().unwrap();
+        for (text, _, _) in &scored {
+            let _ = db.execute(
+                "UPDATE memories SET access_count = access_count + 1 WHERE namespace = ?1 AND text = ?2",
+                params![self.namespace, text],
+            );
+        }
+
+        Ok(scored)
     }
 
     /// Remove facts matching query (cosine > 0.80).
@@ -168,7 +244,7 @@ impl MemoryStore {
     /// Words from the query that appear in a fact's text boost its score.
     /// This handles identifiers/labels (P11, BUG-3, etc.) that embeddings miss.
     fn search_hybrid(&self, query_embedding: &[f64], query_text: &str, limit: usize) -> Result<Vec<(String, f64)>> {
-        let all = self.all_with_embeddings()?;
+        let all = self.all_with_embeddings_and_scores()?;
         // Extract query tokens for keyword matching (lowercase, 2+ chars)
         let query_tokens: Vec<String> = query_text
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
@@ -178,7 +254,7 @@ impl MemoryStore {
 
         let mut scored: Vec<(String, f64)> = all
             .into_iter()
-            .map(|(_id, text, emb)| {
+            .map(|(_id, text, emb, quality_score)| {
                 let semantic_score = cosine_similarity(query_embedding, &emb);
                 // Keyword boost: for each query token found in the text, add a boost
                 let text_lower = text.to_lowercase();
@@ -187,7 +263,9 @@ impl MemoryStore {
                     .count();
                 // Boost: 0.15 per keyword hit, capped at 0.3
                 let keyword_boost = (keyword_hits as f64 * 0.15).min(0.3);
-                let combined = semantic_score + keyword_boost;
+                // Quality score boost: scale from [-1, 1] to [-0.2, 0.2]
+                let quality_boost = quality_score * 0.2;
+                let combined = semantic_score + keyword_boost + quality_boost;
                 (text, combined)
             })
             .collect();
@@ -197,21 +275,29 @@ impl MemoryStore {
     }
 
     fn all_with_embeddings(&self) -> Result<Vec<(i64, String, Vec<f64>)>> {
+        Ok(self.all_with_embeddings_and_scores()?
+            .into_iter()
+            .map(|(id, text, emb, _score)| (id, text, emb))
+            .collect())
+    }
+
+    fn all_with_embeddings_and_scores(&self) -> Result<Vec<(i64, String, Vec<f64>, f64)>> {
         let db = self.db.lock().unwrap();
         let mut stmt = db.prepare(
-            "SELECT id, text, embedding FROM memories WHERE namespace = ?1"
+            "SELECT id, text, embedding, score FROM memories WHERE namespace = ?1"
         )?;
         let rows = stmt.query_map(params![self.namespace], |row| {
             let id: i64 = row.get(0)?;
             let text: String = row.get(1)?;
             let blob: Vec<u8> = row.get(2)?;
-            Ok((id, text, blob))
+            let score: f64 = row.get::<_, f64>(3).unwrap_or(0.0);
+            Ok((id, text, blob, score))
         })?;
         let mut results = Vec::new();
         for row in rows {
-            let (id, text, blob) = row?;
+            let (id, text, blob, score) = row?;
             let emb = blob_to_embedding(&blob);
-            results.push((id, text, emb));
+            results.push((id, text, emb, score));
         }
         Ok(results)
     }

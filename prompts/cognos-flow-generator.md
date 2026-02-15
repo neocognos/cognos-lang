@@ -141,7 +141,11 @@ invoke("f", {"a": 5})                  # call it → 10
 ### Memory
 ```
 remember("Django admin uses get_queryset for filtering")
-results = recall("Django admin filtering", limit=5)   # → List of strings
+remember("successful approach", score=1.0)             # quality-scored memory
+remember("failed approach", score=-1.0)                # deprioritized in recall
+results = recall("Django admin filtering", limit=5)   # → List of strings (ranked by relevance + score)
+scored = recall_scored("Django admin filtering", limit=5)  # → List of Maps: [{text, similarity, score}]
+# scored[0]["text"] = the fact, scored[0]["score"] = quality (-1.0 to 1.0), scored[0]["similarity"] = match relevance
 forget("outdated fact")
 ```
 

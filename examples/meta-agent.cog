@@ -79,13 +79,18 @@ flow main():
     
     write(stdout, f"Meta-agent: analyzing task...")
     
-    # --- Flow caching: recall similar past solutions ---
+    # --- Flow caching: recall similar past solutions (scored) ---
     cached_flow = ""
-    prior = recall(f"cognos-flow: {issue[:200]}")
-    if prior != none:
-        if prior.strip() != "":
-            write(stdout, "Found cached flow from similar task — will use as reference.")
-            cached_flow = prior
+    prior_results = recall_scored(f"cognos-flow: {issue[:200]}", limit=3)
+    for item in prior_results:
+        q = item["score"]
+        sim = item["similarity"]
+        if q >= 0.0 and sim > 0.5:
+            write(stdout, f"Found cached flow (quality={q}, similarity={sim})")
+            cached_flow = item["text"]
+            break
+    if cached_flow == "":
+        write(stdout, "No high-quality cached flows found — generating from scratch.")
     
     # Gather repo context for the master
     dirs = shell(f"cd {repo_path} && find . -maxdepth 3 -type f -name '*.py' | head -40")
@@ -128,6 +133,10 @@ flow main():
     loop:
         if attempt >= max_attempts:
             write(stdout, "All attempts failed.")
+            # Cache failed flow with negative score to deprioritize
+            summary = issue[:200].replace("\n", " ")
+            remember(f"cognos-flow: {summary}\n---\n{generated_code}", score=-1.0)
+            write(stdout, "Flow cached with negative score (-1.0) to avoid reuse.")
             break
         
         attempt = attempt + 1
@@ -141,10 +150,10 @@ flow main():
             write(stdout, diff)
             write(stdout, "--- END PATCH ---")
             
-            # Cache successful flow for future reuse
+            # Cache successful flow with quality score (1.0 = succeeded)
             summary = issue[:200].replace("\n", " ")
-            remember(f"cognos-flow: {summary}\n---\n{generated_code}")
-            write(stdout, "Flow cached in memory for future reuse.")
+            remember(f"cognos-flow: {summary}\n---\n{generated_code}", score=1.0)
+            write(stdout, "Flow cached in memory (score=1.0).")
             break
         catch e:
             error_msg = f"{e}"

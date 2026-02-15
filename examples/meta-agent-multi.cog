@@ -160,13 +160,16 @@ Rules:
         steps = ["Fix the issue as described"]
         is_multi = false
     
-    # --- Check for cached flows ---
+    # --- Check for cached flows (scored) ---
     cached_flow = ""
-    prior = recall(f"cognos-flow: {issue[:200]}")
-    if prior != none:
-        if prior.strip() != "":
-            write(stdout, "Found cached flow from similar task.")
-            cached_flow = prior
+    prior_results = recall_scored(f"cognos-flow: {issue[:200]}", limit=3)
+    for item in prior_results:
+        q = item["score"]
+        sim = item["similarity"]
+        if q >= 0.0 and sim > 0.5:
+            write(stdout, f"Found cached flow (quality={q}, similarity={sim})")
+            cached_flow = item["text"]
+            break
     
     cache_hint = ""
     if cached_flow != "":
@@ -191,7 +194,7 @@ Rules:
             write(stdout, outcome["result"])
             write(stdout, "--- END PATCH ---")
             summary = issue[:200].replace("\n", " ")
-            remember(f"cognos-flow: {summary}\n---\n{outcome['code']}")
+            remember(f"cognos-flow: {summary}\n---\n{outcome['code']}", score=1.0)
         else:
             write(stdout, "Failed to solve.")
     else:
@@ -275,7 +278,7 @@ Return ONLY the Cognos flow source code."""
             write(stdout, diff)
             write(stdout, "--- END PATCH ---")
             summary = issue[:200].replace("\n", " ")
-            remember(f"cognos-multi-flow: {summary}\n---\nSteps: {steps.length}\n{all_context}")
+            remember(f"cognos-multi-flow: {summary}\n---\nSteps: {steps.length}\n{all_context}", score=1.0)
             write(stdout, "Multi-step solution cached in memory.")
         else:
             write(stdout, "No changes produced.")

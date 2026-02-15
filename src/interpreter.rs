@@ -748,7 +748,7 @@ impl Interpreter {
                 match self.vars.get(name) {
                     Some(v) => Ok(v.clone()),
                     None => {
-                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "forget", "read", "write", "file", "channel", "download", "__exec_shell__", "history", "clear_history"];
+                        let builtins = ["think", "invoke", "emit", "log", "print", "remember", "recall", "recall_scored", "forget", "read", "write", "file", "channel", "download", "__exec_shell__", "history", "clear_history"];
                         if builtins.contains(&name.as_str()) {
                             bail!("'{}' is a function — did you mean {}(...)?", name, name)
                         } else if self.flows.contains_key(name) {
@@ -1048,13 +1048,21 @@ impl Interpreter {
                     }
                 }
 
-                // Single-turn mode (backward compatible)
-                let result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
+                // Single-turn mode
+                let raw_result = self.call_llm(&model, &system, &prompt_text, tool_defs.clone(), &image_paths)?;
 
-                // Track conversation history (for backward compatibility)
+                // Normalize: think() ALWAYS returns a Map with at least "content" key
+                let result = match raw_result {
+                    Value::String(s) => Value::Map(vec![
+                        ("content".to_string(), Value::String(s.clone())),
+                        ("has_tool_calls".to_string(), Value::Bool(false)),
+                    ]),
+                    other => other,
+                };
+
+                // Track conversation history
                 self.conversation_history.push(("user".to_string(), prompt_text.clone()));
                 let response_text = match &result {
-                    Value::String(s) => s.clone(),
                     Value::Map(entries) => entries.iter()
                         .find(|(k, _)| k == "content")
                         .map(|(_, v)| v.to_string())
@@ -1065,7 +1073,15 @@ impl Interpreter {
 
                 // If format= specified, parse JSON and validate against type
                 if let Some(ref tn) = format_type {
-                    let parsed = self.parse_json_response(&result)?;
+                    // Extract content string from the wrapper Map for JSON parsing
+                    let content_val = match &result {
+                        Value::Map(entries) => entries.iter()
+                            .find(|(k, _)| k == "content")
+                            .map(|(_, v)| v.clone())
+                            .unwrap_or(result.clone()),
+                        other => other.clone(),
+                    };
+                    let parsed = self.parse_json_response(&content_val)?;
                     if tn != "json" {
                         if let Some(td) = self.types.get(tn).cloned() {
                             self.validate_type(&parsed, &td)?;
@@ -1476,8 +1492,23 @@ impl Interpreter {
             "remember" => {
                 if args.is_empty() { bail!("remember(text) requires a string argument"); }
                 let text = self.eval(&args[0])?.to_string();
+                // Check for score= kwarg → remember_scored
+                let mut score: Option<f64> = None;
+                for (k, v) in kwargs {
+                    if k == "score" {
+                        score = Some(match self.eval(v)? {
+                            Value::Float(f) => f,
+                            Value::Int(i) => i as f64,
+                            other => bail!("remember(score=) must be a number, got {:?}", other),
+                        });
+                    }
+                }
                 let mem = self.get_memory()?;
-                mem.remember(&text)?;
+                if let Some(s) = score {
+                    mem.remember_scored(&text, s)?;
+                } else {
+                    mem.remember(&text)?;
+                }
                 Ok(Value::None)
             }
             "recall" => {
@@ -1503,6 +1534,36 @@ impl Interpreter {
                 let mem = self.get_memory()?;
                 let facts = mem.recall(&query, limit)?;
                 Ok(Value::List(facts.into_iter().map(Value::String).collect()))
+            }
+            "recall_scored" => {
+                if args.is_empty() { bail!("recall_scored(query) requires a query string"); }
+                let query = self.eval(&args[0])?.to_string();
+                let limit = if args.len() > 1 {
+                    match self.eval(&args[1])? {
+                        Value::Int(n) => n as usize,
+                        _ => 5,
+                    }
+                } else {
+                    let mut lim = 5usize;
+                    for (k, v) in kwargs {
+                        if k == "limit" {
+                            if let Value::Int(n) = self.eval(v)? {
+                                lim = n as usize;
+                            }
+                        }
+                    }
+                    lim
+                };
+                let mem = self.get_memory()?;
+                let results = mem.recall_scored(&query, limit)?;
+                let maps: Vec<Value> = results.into_iter().map(|(text, similarity, quality)| {
+                    Value::Map(vec![
+                        ("text".to_string(), Value::String(text)),
+                        ("similarity".to_string(), Value::Float(similarity)),
+                        ("score".to_string(), Value::Float(quality)),
+                    ])
+                }).collect();
+                Ok(Value::List(maps))
             }
             "forget" => {
                 if args.is_empty() { bail!("forget(query) requires a query string"); }

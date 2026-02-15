@@ -67,6 +67,20 @@ facts = recall("test coverage", limit=3)
 # → top 3 matching facts
 ```
 
+### `recall_scored(query: String, limit: Int = 5) → List[Map]`
+
+Like `recall()` but returns maps with metadata: `{text, similarity, score}`.
+- `text`: the stored fact
+- `similarity`: how relevant to your query (0.0–1.0+)
+- `score`: quality score set via `remember(..., score=)` (-1.0 = failed, 1.0 = succeeded)
+
+```cognos
+results = recall_scored("Django bug fix", limit=3)
+for r in results:
+    if r["score"] >= 0.0:
+        write(stdout, f"Good result: {r['text'][:100]}")
+```
+
 ### `forget(query: String)`
 
 Remove facts semantically matching the query (cosine > 0.8). Use to clean outdated information.
