@@ -1267,6 +1267,96 @@ impl Interpreter {
                     }
                 }
             }
+            "eval" => {
+                // eval(source, vars={}) — parse and execute Cognos source code at runtime.
+                // Any flows defined in the source are registered in the current interpreter.
+                // Variables from the optional `vars` Map are injected into scope before execution.
+                // Returns the last expression value, or None if the code only has statements.
+                if args.is_empty() {
+                    bail!("eval() requires a source string: eval(\"flow main(): ...\")");
+                }
+                let source = self.eval(&args[0])?.to_string();
+                
+                // Optional: inject variables from a Map
+                let inject_vars = if args.len() > 1 {
+                    match self.eval(&args[1])? {
+                        Value::Map(entries) => entries,
+                        other => bail!("eval() second argument must be a Map, got {}", type_name(&other)),
+                    }
+                } else {
+                    vec![]
+                };
+                
+                // Parse the source — try as-is first, then wrap in a flow if needed
+                let program = {
+                    let mut lexer = crate::lexer::Lexer::new(&source);
+                    let tokens = lexer.tokenize();
+                    let mut parser = crate::parser::Parser::new(tokens);
+                    match parser.parse_program() {
+                        Ok(prog) => prog,
+                        Err(_) => {
+                            // If parsing fails, wrap in a synthetic main flow
+                            // Indent each line by 4 spaces for the flow body
+                            let indented: String = source.lines()
+                                .map(|line| format!("    {}", line))
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            let wrapped = format!("flow __eval_main__():\n{}", indented);
+                            let mut lexer2 = crate::lexer::Lexer::new(&wrapped);
+                            let tokens2 = lexer2.tokenize();
+                            let mut parser2 = crate::parser::Parser::new(tokens2);
+                            parser2.parse_program()
+                                .map_err(|e| anyhow::anyhow!("eval() parse error: {}", e))?
+                        }
+                    }
+                };
+                
+                // Register any flows defined in the eval'd code
+                for flow in &program.flows {
+                    log::info!("eval: registered flow '{}'", flow.name);
+                    self.flows.insert(flow.name.clone(), flow.clone());
+                }
+                
+                // Register any types
+                for td in &program.types {
+                    self.types.insert(td.name().to_string(), td.clone());
+                }
+                
+                // Inject variables into current scope
+                for (k, v) in inject_vars {
+                    self.vars.insert(k, v);
+                }
+                
+                // Handle imports in eval'd code
+                for import_path in &program.imports {
+                    let resolved = std::path::PathBuf::from(import_path);
+                    let import_source = std::fs::read_to_string(&resolved)
+                        .map_err(|e| anyhow::anyhow!("eval() import error '{}': {}", import_path, e))?;
+                    let mut import_lexer = crate::lexer::Lexer::new(&import_source);
+                    let import_tokens = import_lexer.tokenize();
+                    let mut import_parser = crate::parser::Parser::new(import_tokens);
+                    let imported = import_parser.parse_program()
+                        .map_err(|e| anyhow::anyhow!("eval() import parse error '{}': {}", import_path, e))?;
+                    for flow in &imported.flows {
+                        self.flows.insert(flow.name.clone(), flow.clone());
+                    }
+                }
+                
+                // If there's a __eval_main__ (wrapped bare statements), execute its body directly
+                // in the current scope so injected variables are visible
+                if let Some(eval_flow) = program.flows.iter().find(|f| f.name == "__eval_main__") {
+                    self.run_block(&eval_flow.body)?;
+                    return Ok(Value::None);
+                }
+                
+                // If there's a "main" flow, call it
+                if let Some(_) = program.flows.iter().find(|f| f.name == "main") {
+                    return self.call_flow("main", vec![], vec![]);
+                }
+                
+                // Otherwise just register flows and return None
+                Ok(Value::None)
+            }
             "invoke" => {
                 // invoke(name, args) — call a flow by string name with a Map of arguments
                 if args.is_empty() {
