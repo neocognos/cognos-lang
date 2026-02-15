@@ -91,6 +91,10 @@ s.strip()                      # trim whitespace
 s.length                       # character count
 s[:100]                        # truncate
 s.split(",")                   # split into List
+s.index("foo")                 # first index of substring (error if not found)
+s.find("foo")                  # first index of substring (-1 if not found)
+s.contains("foo")              # true if substring exists
+s.replace("old", "new")       # replace all occurrences
 ```
 
 ### Type Casting

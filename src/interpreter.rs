@@ -1748,6 +1748,20 @@ impl Interpreter {
                 let parts: Vec<Value> = s.split(&delim).map(|p| Value::String(p.to_string())).collect();
                 Ok(Value::List(parts))
             }
+            (Value::String(s), "index") => {
+                let needle = self.expect_string_arg(method, &args, 0)?;
+                match s.find(&needle) {
+                    Some(pos) => Ok(Value::Int(pos as i64)),
+                    None => bail!("substring '{}' not found in string", needle),
+                }
+            }
+            (Value::String(s), "find") => {
+                let needle = self.expect_string_arg(method, &args, 0)?;
+                match s.find(&needle) {
+                    Some(pos) => Ok(Value::Int(pos as i64)),
+                    None => Ok(Value::Int(-1)),
+                }
+            }
 
             // ── List methods ──
             (Value::List(items), "contains") => {
